@@ -1,0 +1,17 @@
+{
+  "name": "Loam — Trail Route Builder",
+  "short_name": "Loam",
+  "description": "Trail route builder with surface strip profiling and Garmin GPX/FIT export",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#E7ECEC",
+  "theme_color": "#1D3B34",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

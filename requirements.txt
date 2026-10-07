@@ -9,3 +9,4 @@ shapely>=2.0.0
 python-dotenv>=1.0.0
 pytest>=8.3.0
 pytest-asyncio>=0.24.0
+fitparse>=1.2.0

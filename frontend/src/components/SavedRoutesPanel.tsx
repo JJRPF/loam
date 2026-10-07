@@ -1,0 +1,166 @@
+import React, { useEffect, useState } from 'react';
+import type { SavedRoute, RouteResponse } from '../types';
+import { fetchSavedRoutes, deleteSavedRoute } from '../services/api';
+
+interface SavedRoutesPanelProps {
+  onLoadRoute: (route: RouteResponse) => void;
+}
+
+export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute }) => {
+  const [routes, setRoutes] = useState<SavedRoute[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const loadRoutes = async () => {
+    setIsLoading(true);
+    try {
+      const data = await fetchSavedRoutes();
+      setRoutes(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+    fetchSavedRoutes()
+      .then(data => {
+        if (!ignore) {
+          setRoutes(data);
+          setIsLoading(false);
+        }
+      })
+      .catch(e => {
+        console.error(e);
+        if (!ignore) setIsLoading(false);
+      });
+    return () => { ignore = true; };
+  }, []);
+
+  const handleDelete = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm('Delete this saved route?')) {
+      await deleteSavedRoute(id);
+      setRoutes(prev => prev.filter(r => r.id !== id));
+    }
+  };
+
+  const handleSelect = (r: SavedRoute) => {
+    // Convert to RouteResponse format
+    const resp: RouteResponse = {
+      name: r.name,
+      sport: r.sport,
+      distance_miles: r.distance_miles,
+      duration_minutes: (r.distance_miles / 10.0) * 60,
+      elevation_gain_ft: r.elevation_gain_ft,
+      elevation_loss_ft: r.elevation_loss_ft,
+      surface_breakdown: r.surface_breakdown || {},
+      surface_strip: r.surface_strip || [],
+      coordinates: r.coordinates || [],
+      bbox: [-71.5, 43.1, -71.2, 43.3],
+      warnings: [],
+      verbal_summary: r.verbal_summary
+    };
+    onLoadRoute(resp);
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0 24px 0' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34' }}>Saved Routes</h2>
+        <button
+          type="button"
+          onClick={loadRoutes}
+          className="btn-outline"
+          style={{ fontSize: 12, padding: '2px 8px', minHeight: 28 }}
+        >
+          Refresh
+        </button>
+      </div>
+
+      {isLoading && (
+        <div style={{ padding: 20, textAlign: 'center', color: '#42675E', fontSize: 14 }}>
+          Loading saved routes...
+        </div>
+      )}
+
+      {!isLoading && routes.length === 0 && (
+        <div style={{ padding: 24, textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: '#1D3B34', marginBottom: 4 }}>
+            No saved routes yet
+          </div>
+          <div style={{ fontSize: 13, color: '#42675E' }}>
+            Plan a route in the Plan tab and tap "Save to Profile" to access it offline or sync to your Garmin watch.
+          </div>
+        </div>
+      )}
+
+      {!isLoading && routes.map(r => (
+        <div
+          key={r.id}
+          onClick={() => handleSelect(r)}
+          style={{
+            backgroundColor: '#FFFFFF',
+            borderRadius: 8,
+            border: '1px solid #D1D8D8',
+            padding: 12,
+            cursor: 'pointer',
+            transition: 'border-color 0.15s ease'
+          }}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#FF5B14')}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#D1D8D8')}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#1D3B34' }}>{r.name}</div>
+              <div style={{ fontSize: 12, color: '#42675E', textTransform: 'capitalize' }}>
+                {r.sport.replace('_', ' ')}
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span className="num-tabular" style={{ fontSize: 18, fontWeight: 700, color: '#FF5B14' }}>
+                {r.distance_miles.toFixed(1)} mi
+              </span>
+              <div className="num-tabular" style={{ fontSize: 12, color: '#42675E' }}>
+                +{Math.round(r.elevation_gain_ft)} ft
+              </div>
+            </div>
+          </div>
+
+          {r.verbal_summary && (
+            <div style={{ fontSize: 12, color: '#1D3B34', marginBottom: 8 }}>
+              {r.verbal_summary}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #E7ECEC' }}>
+            <span style={{ fontSize: 11, color: '#888' }}>
+              {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
+            </span>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleSelect(r);
+                }}
+                className="btn-outline"
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, color: '#1D3B34' }}
+              >
+                View
+              </button>
+              <button
+                type="button"
+                onClick={(e) => handleDelete(r.id, e)}
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'transparent', color: '#A00', border: 'none' }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
