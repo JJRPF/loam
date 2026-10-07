@@ -1,0 +1,53 @@
+services:
+  graphhopper:
+    image: eclipse-temurin:21-jre
+    container_name: loam-graphhopper
+    restart: unless-stopped
+    command: java -Xmx2g -jar /data/graphhopper/graphhopper-web-11.1.jar server /data/graphhopper/config.yml
+    volumes:
+      - ${DATA_DIR:-../main/data}:/data
+    ports:
+      - "8989:8989"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8989/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  postgis:
+    image: kartoza/postgis:latest
+    container_name: loam-postgis
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: loam
+      POSTGRES_USER: loam
+      POSTGRES_PASS: loam_dev_pw
+    volumes:
+      - ${DATA_DIR:-../main/data}/postgis:/var/lib/postgresql
+      - ./db/init_schema.sql:/docker-entrypoint-initdb.d/01-init_schema.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U loam -d loam"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: loam-api
+    restart: unless-stopped
+    environment:
+      GRAPHHOPPER_URL: http://graphhopper:8989
+      DATABASE_URL: postgresql://loam:loam_dev_pw@postgis:5432/loam
+      ELEVATION_PROVIDER: usgs_3dep
+      PORT: 8080
+    ports:
+      - "${API_PORT:-8080}:8080"
+    depends_on:
+      graphhopper:
+        condition: service_healthy
+      postgis:
+        condition: service_healthy
