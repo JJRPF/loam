@@ -34,6 +34,28 @@ def get_edge_heat(edge_osm_id: int, sport: str) -> Optional[Dict[str, Any]]:
     except Exception:
         return None
 
+def get_edges_heat(edge_osm_ids: List[int], sport: str) -> Dict[int, Dict[str, Any]]:
+    """Batch query edge_heat table for a list of OSM way/edge IDs."""
+    if not edge_osm_ids:
+        return {}
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT edge_osm_id, sport, unique_riders_12mo, weighted_score, last_ridden_date
+                    FROM edge_heat
+                    WHERE edge_osm_id = ANY(%s) AND sport = %s;
+                    """,
+                    (edge_osm_ids, sport)
+                )
+                results: Dict[int, Dict[str, Any]] = {}
+                for row in cur.fetchall():
+                    results[row["edge_osm_id"]] = dict(row)
+                return results
+    except Exception:
+        return {}
+
 def record_edge_heat(edge_osm_id: int, sport: str, weight: float = 1.0) -> bool:
     try:
         with get_connection() as conn:

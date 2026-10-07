@@ -1,6 +1,7 @@
 import time
 import httpx
 from fastapi import FastAPI, HTTPException, Header, Response, status
+from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional, List
 
@@ -8,9 +9,10 @@ from app.config import settings
 from app.models import (
     RouteRequest, RouteResponse, HealthResponse,
     EdgeHeatRecord, SavedRouteCreate, SavedRouteItem,
-    ExportRequest
+    ExportRequest, RouteOptionsRequest, RouteOptionsResponse,
+    LatLon, SportProfile
 )
-from app.routing import fetch_route
+from app.routing import fetch_route, generate_route_options, generate_route_options_stream
 from app.db import (
     check_db_health, get_edge_heat, record_edge_heat,
     save_route_to_db, get_saved_routes_from_db,
@@ -79,6 +81,62 @@ async def calculate_route(request: RouteRequest):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
+
+@app.post("/api/route/options", response_model=RouteOptionsResponse)
+async def calculate_route_options(request: RouteOptionsRequest):
+    try:
+        options = await generate_route_options(request, count=request.candidate_count)
+        return RouteOptionsResponse(
+            options=options,
+            count=len(options),
+            requested_target_miles=request.target_distance_miles,
+            start_name=request.start.name
+        )
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=str(e)
+        )
+
+@app.post("/api/route/options/stream")
+async def stream_route_options_post(request: RouteOptionsRequest):
+    async def event_generator():
+        try:
+            count = 0
+            async for opt in generate_route_options_stream(request, count=request.candidate_count):
+                count += 1
+                yield f"event: candidate\ndata: {opt.model_dump_json()}\n\n"
+            yield f"event: complete\ndata: {{\"status\": \"complete\", \"count\": {count}}}\n\n"
+        except Exception as e:
+            yield f"event: error\ndata: {{\"error\": \"{str(e)}\"}}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no"
+        }
+    )
+
+@app.get("/api/route/options/stream")
+async def stream_route_options_get(
+    lat: float,
+    lon: float,
+    target_miles: float = 10.0,
+    sport: SportProfile = SportProfile.MTB_HARDTAIL,
+    count: int = 10,
+    name: Optional[str] = None
+):
+    req = RouteOptionsRequest(
+        start=LatLon(lat=lat, lon=lon, name=name),
+        profile=sport,
+        route_mode="loop",
+        target_distance_miles=target_miles,
+        candidate_count=count
+    )
+    return await stream_route_options_post(req)
 
 # --- GPX and FIT Route Exports ---
 

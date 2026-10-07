@@ -9,7 +9,7 @@ import {
   TERRAIN_PRESETS,
   NH_TRAILHEAD_PRESETS 
 } from './types';
-import { calculateRoute } from './services/api';
+import { calculateRoute, streamRouteOptions } from './services/api';
 import { MapView } from './components/MapView';
 import { PlanPanel } from './components/PlanPanel';
 import { ResultsPanel } from './components/ResultsPanel';
@@ -40,6 +40,8 @@ export const App: React.FC = () => {
 
   // Route calculation and results
   const [route, setRoute] = useState<RouteResponse | null>(null);
+  const [options, setOptions] = useState<RouteResponse[]>([]);
+  const [hoverRoute, setHoverRoute] = useState<RouteResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [scrubCoord, setScrubCoord] = useState<[number, number] | null>(null);
   const [pickingTarget, setPickingTarget] = useState<'start' | 'end' | null>(null);
@@ -64,10 +66,17 @@ export const App: React.FC = () => {
     }
   };
 
-  const handleBuildRoutes = async () => {
+  const handleBuildRoutes = () => {
     setIsLoading(true);
-    try {
-      const result = await calculateRoute({
+    setOptions([]);
+    setRoute(null);
+    setActiveTab('results');
+    if (isMobile) {
+      setSheetSnap('half');
+    }
+
+    streamRouteOptions(
+      {
         start,
         end: routeMode === 'point_to_point' ? end : undefined,
         waypoints,
@@ -76,22 +85,48 @@ export const App: React.FC = () => {
         isLoop: routeMode === 'loop',
         routeMode,
         targetDistanceMiles: targetMiles,
-        name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`
-      });
-      setRoute(result);
-      setActiveTab('results');
-      if (isMobile) {
-        setSheetSnap('half');
+        name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`,
+        candidateCount: 10
+      },
+      {
+        onCandidate: (cand) => {
+          setOptions(prev => {
+            const next = [...prev, cand];
+            if (prev.length === 0) {
+              setRoute(cand); // First resolved option becomes active
+            }
+            return next;
+          });
+        },
+        onComplete: () => {
+          setIsLoading(false);
+        },
+        onError: (err) => {
+          console.error('Route options stream error:', err);
+          setIsLoading(false);
+          // Fallback to single calculation if stream fails
+          calculateRoute({
+            start,
+            end: routeMode === 'point_to_point' ? end : undefined,
+            waypoints,
+            profile: sport,
+            terrainPreference: terrainPref,
+            isLoop: routeMode === 'loop',
+            routeMode,
+            targetDistanceMiles: targetMiles,
+            name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`
+          }).then(res => {
+            setRoute(res);
+            setOptions([res]);
+          }).catch(e => alert(`Route calculation failed: ${e.message}`));
+        }
       }
-    } catch (e: any) {
-      alert(`Route calculation failed: ${e.message}`);
-    } finally {
-      setIsLoading(false);
-    }
+    );
   };
 
   const handleLoadSavedRoute = (savedRoute: RouteResponse) => {
     setRoute(savedRoute);
+    setOptions([savedRoute]);
     if (savedRoute.coordinates && savedRoute.coordinates.length > 0) {
       setStart({
         lat: savedRoute.coordinates[0][1],
@@ -223,16 +258,20 @@ export const App: React.FC = () => {
               />
             )}
 
-            {activeTab === 'results' && route && (
+            {activeTab === 'results' && (route || options.length > 0 || isLoading) && (
               <ResultsPanel
-                route={route}
+                route={route || options[0]}
+                options={options}
+                onSelectRoute={setRoute}
+                onHoverRoute={setHoverRoute}
                 onBackToPlan={() => setActiveTab('plan')}
                 onScrubCoord={setScrubCoord}
                 onRouteSaved={() => {}}
+                isLoading={isLoading}
               />
             )}
 
-            {activeTab === 'results' && !route && (
+            {activeTab === 'results' && !route && options.length === 0 && !isLoading && (
               <div style={{ padding: 24, textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 8 }}>
                 <div style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34', marginBottom: 4 }}>
                   No active route
@@ -264,6 +303,7 @@ export const App: React.FC = () => {
       <main style={{ flex: 1, height: '100%', position: 'relative' }}>
         <MapView
           route={route}
+          hoverRoute={hoverRoute}
           start={start}
           end={end}
           waypoints={waypoints}
@@ -389,16 +429,20 @@ export const App: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'results' && route && (
+              {activeTab === 'results' && (route || options.length > 0 || isLoading) && (
                 <ResultsPanel
-                  route={route}
+                  route={route || options[0]}
+                  options={options}
+                  onSelectRoute={setRoute}
+                  onHoverRoute={setHoverRoute}
                   onBackToPlan={() => setActiveTab('plan')}
                   onScrubCoord={setScrubCoord}
                   onRouteSaved={() => {}}
+                  isLoading={isLoading}
                 />
               )}
 
-              {activeTab === 'results' && !route && (
+              {activeTab === 'results' && !route && options.length === 0 && !isLoading && (
                 <div style={{ padding: 24, textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 8 }}>
                   <div style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34', marginBottom: 4 }}>
                     No active route

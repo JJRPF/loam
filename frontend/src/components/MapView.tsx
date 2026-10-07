@@ -11,6 +11,7 @@ import type { RouteResponse, LatLon } from '../types';
 
 interface MapViewProps {
   route: RouteResponse | null;
+  hoverRoute?: RouteResponse | null;
   start: LatLon;
   end?: LatLon;
   waypoints?: LatLon[];
@@ -46,6 +47,7 @@ const MAP_STYLE: StyleSpecification = {
 
 export const MapView: React.FC<MapViewProps> = ({
   route,
+  hoverRoute,
   start,
   end,
   scrubCoord,
@@ -99,6 +101,31 @@ export const MapView: React.FC<MapViewProps> = ({
           'line-color': '#1D3B34',
           'line-width': 7,
           'line-opacity': 0.8
+        }
+      });
+
+      // Hover Route Preview Source & Layer (Slate #3F6C8F)
+      map.addSource('hover-route-source', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: 'hover-route-line',
+        type: 'line',
+        source: 'hover-route-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-color': '#3F6C8F',
+          'line-width': 4.0,
+          'line-dasharray': [2, 2],
+          'line-opacity': 0.85
         }
       });
 
@@ -166,6 +193,31 @@ export const MapView: React.FC<MapViewProps> = ({
       });
     }
   }, [route]);
+
+  // Update Hover Preview Route GeoJSON
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !map.isStyleLoaded()) return;
+
+    const hoverSource = map.getSource('hover-route-source') as GeoJSONSource;
+    if (!hoverSource) return;
+
+    if (hoverRoute && hoverRoute.coordinates && hoverRoute.coordinates.length > 0 && hoverRoute.name !== route?.name) {
+      hoverSource.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: hoverRoute.coordinates.map(pt => [pt[0], pt[1]])
+        }
+      });
+    } else {
+      hoverSource.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+    }
+  }, [hoverRoute, route]);
 
   // Update Start & End Markers
   useEffect(() => {
