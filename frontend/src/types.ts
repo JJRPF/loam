@@ -32,9 +32,21 @@ export interface SurfaceSegment {
   raw_road_class?: string;
 }
 
+export interface ScoreBreakdown {
+  composite: number;
+  input_match: number;
+  heat: number;
+  mode_value: number;
+  quality: number;
+  penalties: number;
+  repetition_ratio: number;
+}
+
 export interface RouteResponse {
+  id?: string;
   name?: string;
   sport: string;
+  sector?: string;
   distance_miles: number;
   duration_minutes: number;
   elevation_gain_ft: number;
@@ -43,10 +55,21 @@ export interface RouteResponse {
   surface_strip: SurfaceSegment[];
   coordinates: number[][]; // [[lon, lat], ...] or [[lon, lat, ele], ...]
   bbox: number[];
+  minimap_bounds?: number[];
+  minimap_svg?: string;
   warnings: string[];
   heat_score?: number | null;
   match_score?: number;
+  score_breakdown?: ScoreBreakdown;
+  repetition_ratio?: number;
   verbal_summary?: string;
+}
+
+export interface RouteOptionsResponse {
+  options: RouteResponse[];
+  count: number;
+  requested_target_miles?: number;
+  start_name?: string;
 }
 
 export interface SavedRoute {

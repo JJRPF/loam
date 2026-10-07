@@ -45,8 +45,10 @@ class SurfaceSegment(BaseModel):
     raw_road_class: Optional[str] = None
 
 class RouteResponse(BaseModel):
+    id: Optional[str] = None
     name: Optional[str] = "Loam Route"
     sport: str = "mtb"
+    sector: Optional[str] = None
     distance_miles: float
     duration_minutes: float
     elevation_gain_ft: float
@@ -55,10 +57,23 @@ class RouteResponse(BaseModel):
     surface_strip: List[SurfaceSegment]
     coordinates: List[List[float]] # [[lon, lat], [lon, lat], ...] GeoJSON style or [[lon, lat, ele]]
     bbox: List[float] # [min_lon, min_lat, max_lon, max_lat]
+    minimap_bounds: Optional[List[float]] = None
+    minimap_svg: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)
     heat_score: Optional[float] = None
     match_score: Optional[int] = 95
+    score_breakdown: Optional[Dict[str, float]] = None
+    repetition_ratio: Optional[float] = None
     verbal_summary: Optional[str] = None
+
+class RouteOptionsRequest(RouteRequest):
+    candidate_count: int = Field(default=10, ge=1, le=25)
+
+class RouteOptionsResponse(BaseModel):
+    options: List[RouteResponse]
+    count: int
+    requested_target_miles: Optional[float] = None
+    start_name: Optional[str] = None
 
 class EdgeHeatRecord(BaseModel):
     edge_osm_id: int

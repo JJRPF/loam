@@ -1,4 +1,11 @@
-import type { RouteResponse, SavedRoute, TerrainPreference, SportProfile, LatLon } from '../types';
+import type { 
+  RouteResponse, 
+  RouteOptionsResponse, 
+  SavedRoute, 
+  TerrainPreference, 
+  SportProfile, 
+  LatLon 
+} from '../types';
 
 const API_BASE = ''; // proxied via vite in dev, relative in production
 
@@ -37,6 +44,153 @@ export async function calculateRoute(params: {
   }
 
   return await res.json();
+}
+
+export async function calculateRouteOptions(params: {
+  start: LatLon;
+  end?: LatLon;
+  waypoints?: LatLon[];
+  profile: SportProfile;
+  terrainPreference?: TerrainPreference;
+  isLoop?: boolean;
+  routeMode?: string;
+  targetDistanceMiles?: number;
+  name?: string;
+  candidateCount?: number;
+}): Promise<RouteOptionsResponse> {
+  const payload = {
+    start: { lat: params.start.lat, lon: params.start.lon, name: params.start.name },
+    end: params.end ? { lat: params.end.lat, lon: params.end.lon, name: params.end.name } : undefined,
+    waypoints: params.waypoints?.map(wp => ({ lat: wp.lat, lon: wp.lon, name: wp.name })),
+    profile: params.profile,
+    terrain_preference: params.terrainPreference,
+    is_loop: params.isLoop ?? (params.routeMode === 'loop'),
+    route_mode: params.routeMode ?? 'point_to_point',
+    target_distance_miles: params.targetDistanceMiles,
+    name: params.name,
+    candidate_count: params.candidateCount ?? 10
+  };
+
+  const res = await fetch(`${API_BASE}/api/route/options`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Route options calculation failed (${res.status}): ${errorText}`);
+  }
+
+  return await res.json();
+}
+
+export function streamRouteOptions(
+  params: {
+    start: LatLon;
+    end?: LatLon;
+    waypoints?: LatLon[];
+    profile: SportProfile;
+    terrainPreference?: TerrainPreference;
+    isLoop?: boolean;
+    routeMode?: string;
+    targetDistanceMiles?: number;
+    name?: string;
+    candidateCount?: number;
+  },
+  callbacks: {
+    onCandidate: (candidate: RouteResponse) => void;
+    onComplete: (count: number) => void;
+    onError: (err: Error) => void;
+  }
+): () => void {
+  const abortController = new AbortController();
+
+  const payload = {
+    start: { lat: params.start.lat, lon: params.start.lon, name: params.start.name },
+    end: params.end ? { lat: params.end.lat, lon: params.end.lon, name: params.end.name } : undefined,
+    waypoints: params.waypoints?.map(wp => ({ lat: wp.lat, lon: wp.lon, name: wp.name })),
+    profile: params.profile,
+    terrain_preference: params.terrainPreference,
+    is_loop: params.isLoop ?? (params.routeMode === 'loop'),
+    route_mode: params.routeMode ?? 'point_to_point',
+    target_distance_miles: params.targetDistanceMiles,
+    name: params.name,
+    candidate_count: params.candidateCount ?? 10
+  };
+
+  (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/route/options/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: abortController.signal
+      });
+
+      if (!res.ok) {
+        throw new Error(`Streaming failed (${res.status}): ${await res.text()}`);
+      }
+
+      if (!res.body) {
+        throw new Error('No response body for streaming');
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      let count = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const parts = buffer.split('\n\n');
+        buffer = parts.pop() || '';
+
+        for (const part of parts) {
+          const trimmed = part.trim();
+          if (!trimmed) continue;
+
+          let eventName = 'message';
+          let dataStr = '';
+
+          const lines = trimmed.split('\n');
+          for (const line of lines) {
+            if (line.startsWith('event:')) {
+              eventName = line.substring(6).trim();
+            } else if (line.startsWith('data:')) {
+              dataStr += line.substring(5).trim();
+            }
+          }
+
+          if (eventName === 'candidate' && dataStr) {
+            try {
+              const cand: RouteResponse = JSON.parse(dataStr);
+              count += 1;
+              callbacks.onCandidate(cand);
+            } catch (err) {
+              console.warn('Failed to parse candidate JSON:', err);
+            }
+          } else if (eventName === 'complete') {
+            callbacks.onComplete(count);
+          } else if (eventName === 'error') {
+            callbacks.onError(new Error(dataStr || 'Streaming error'));
+          }
+        }
+      }
+      callbacks.onComplete(count);
+    } catch (err: any) {
+      if (err.name !== 'AbortError') {
+        callbacks.onError(err);
+      }
+    }
+  })();
+
+  return () => {
+    abortController.abort();
+  };
 }
 
 export async function downloadGpx(route: RouteResponse): Promise<void> {
