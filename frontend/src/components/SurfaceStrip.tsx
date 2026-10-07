@@ -1,0 +1,150 @@
+import React, { useState } from 'react';
+import type { SurfaceSegment } from '../types';
+
+interface SurfaceStripProps {
+  strip: SurfaceSegment[];
+  breakdown: Record<string, number>;
+  totalMiles?: number;
+  compact?: boolean;
+  onHoverIndex?: (index: number | null) => void;
+}
+
+const SURFACE_COLORS: Record<string, { bg: string; label: string }> = {
+  singletrack: { bg: '#2E6F40', label: 'Singletrack' },
+  doubletrack: { bg: '#8D6E63', label: 'Doubletrack' },
+  gravel: { bg: '#D4A373', label: 'Gravel' },
+  paved: { bg: '#78909C', label: 'Paved' },
+  unpaved: { bg: '#B0BEC5', label: 'Unpaved' },
+  unknown: { bg: '#CFD8DC', label: 'Trail' }
+};
+
+export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
+  strip,
+  breakdown,
+  totalMiles,
+  compact = false,
+  onHoverIndex
+}) => {
+  const [activeTooltip, setActiveTooltip] = useState<{
+    text: string;
+    pct: string;
+    x: number;
+  } | null>(null);
+
+  if (!strip || strip.length === 0) {
+    return (
+      <div style={{ height: compact ? 6 : 12, backgroundColor: '#E0E0E0', borderRadius: 4 }} />
+    );
+  }
+
+  const totalPoints = strip[strip.length - 1].end_index || 1;
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 8, width: '100%' }}>
+      {/* Segmented Horizontal Bar */}
+      <div
+        style={{
+          display: 'flex',
+          width: '100%',
+          height: compact ? 8 : 14,
+          borderRadius: 6,
+          overflow: 'hidden',
+          backgroundColor: '#CFD8DC',
+          position: 'relative',
+          boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
+        }}
+        onMouseLeave={() => {
+          setActiveTooltip(null);
+          onHoverIndex?.(null);
+        }}
+      >
+        {strip.map((seg, idx) => {
+          const segPoints = Math.max(seg.end_index - seg.start_index, 1);
+          const pct = (segPoints / totalPoints) * 100;
+          const conf = SURFACE_COLORS[seg.surface_type] || SURFACE_COLORS.unknown;
+          const segMiles = totalMiles ? ((segPoints / totalPoints) * totalMiles).toFixed(1) : null;
+
+          return (
+            <div
+              key={idx}
+              style={{
+                width: `${pct}%`,
+                height: '100%',
+                backgroundColor: conf.bg,
+                transition: 'opacity 0.1s ease',
+                cursor: 'pointer'
+              }}
+              onMouseEnter={(e) => {
+                const rect = e.currentTarget.parentElement?.getBoundingClientRect();
+                const xPos = rect ? e.clientX - rect.left : 0;
+                setActiveTooltip({
+                  text: `${conf.label}${segMiles ? ` (${segMiles} mi)` : ''}`,
+                  pct: `${pct.toFixed(0)}%`,
+                  x: xPos
+                });
+                onHoverIndex?.(Math.floor((seg.start_index + seg.end_index) / 2));
+              }}
+            />
+          );
+        })}
+
+        {/* Hover Tooltip */}
+        {activeTooltip && !compact && (
+          <div
+            style={{
+              position: 'absolute',
+              top: -30,
+              left: Math.min(Math.max(activeTooltip.x - 45, 10), 280),
+              backgroundColor: '#1D3B34',
+              color: '#FFFFFF',
+              fontSize: 12,
+              fontWeight: 600,
+              padding: '2px 8px',
+              borderRadius: 4,
+              pointerEvents: 'none',
+              whiteSpace: 'nowrap',
+              zIndex: 10,
+              boxShadow: '0 2px 6px rgba(0,0,0,0.2)'
+            }}
+          >
+            {activeTooltip.text} • {activeTooltip.pct}
+          </div>
+        )}
+      </div>
+
+      {/* Surface Breakdown Legend */}
+      {!compact && (
+        <div
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: '10px 14px',
+            fontSize: 13,
+            color: '#1D3B34'
+          }}
+        >
+          {Object.entries(breakdown).map(([surfaceKey, pct]) => {
+            if (pct <= 0) return null;
+            const conf = SURFACE_COLORS[surfaceKey] || SURFACE_COLORS.unknown;
+            return (
+              <div key={surfaceKey} style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                <span
+                  style={{
+                    display: 'inline-block',
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    backgroundColor: conf.bg
+                  }}
+                />
+                <span style={{ fontWeight: 600 }}>{conf.label}:</span>
+                <span className="num-tabular" style={{ color: '#42675E' }}>{pct}%</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};

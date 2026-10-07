@@ -4,12 +4,19 @@ from pydantic import BaseModel, Field
 
 class SportProfile(str, Enum):
     MTB = "mtb"
+    MTB_HARDTAIL = "mtb_hardtail"
+    MTB_FULLSUS = "mtb_fullsus"
+    MTB_GRAVEL = "mtb_gravel"
+    MTB_FAT = "mtb_fat"
+    MTB_EMTB = "mtb_emtb"
+    TRAIL_RUN = "trail_run"
     BIKE = "bike"
     FOOT = "foot"
 
 class LatLon(BaseModel):
     lat: float = Field(..., ge=-90.0, le=90.0, description="Latitude")
     lon: float = Field(..., ge=-180.0, le=180.0, description="Longitude")
+    name: Optional[str] = None
 
 class TerrainPreference(BaseModel):
     singletrack: float = Field(default=0.6, ge=0.0, le=1.0)
@@ -19,10 +26,14 @@ class TerrainPreference(BaseModel):
 
 class RouteRequest(BaseModel):
     start: LatLon
-    end: LatLon
+    end: Optional[LatLon] = None
     waypoints: Optional[List[LatLon]] = Field(default_factory=list)
     profile: SportProfile = SportProfile.MTB
     terrain_preference: Optional[TerrainPreference] = None
+    route_mode: str = "point_to_point" # "point_to_point", "loop", "round_trip"
+    is_loop: bool = False
+    target_distance_miles: Optional[float] = None
+    name: Optional[str] = None
     avoid_closed: bool = True
     elevation_enriched: bool = True
 
@@ -34,6 +45,8 @@ class SurfaceSegment(BaseModel):
     raw_road_class: Optional[str] = None
 
 class RouteResponse(BaseModel):
+    name: Optional[str] = "Loam Route"
+    sport: str = "mtb"
     distance_miles: float
     duration_minutes: float
     elevation_gain_ft: float
@@ -44,12 +57,51 @@ class RouteResponse(BaseModel):
     bbox: List[float] # [min_lon, min_lat, max_lon, max_lat]
     warnings: List[str] = Field(default_factory=list)
     heat_score: Optional[float] = None
+    match_score: Optional[int] = 95
+    verbal_summary: Optional[str] = None
 
 class EdgeHeatRecord(BaseModel):
     edge_osm_id: int
     sport: SportProfile
     unique_riders: int = 1
     weighted_score: float = 1.0
+
+class SavedRouteCreate(BaseModel):
+    name: str
+    sport: str = "mtb"
+    distance_miles: float
+    elevation_gain_ft: float = 0.0
+    elevation_loss_ft: float = 0.0
+    coordinates: List[List[float]]
+    surface_breakdown: Dict[str, float] = Field(default_factory=dict)
+    surface_strip: List[SurfaceSegment] = Field(default_factory=list)
+    waypoints: Optional[List[Dict[str, Any]]] = None
+    verbal_summary: Optional[str] = None
+
+class SavedRouteItem(BaseModel):
+    id: str
+    user_id: str
+    name: str
+    sport: str
+    distance_miles: float
+    elevation_gain_ft: float
+    elevation_loss_ft: float
+    created_at: str
+    surface_breakdown: Optional[Dict[str, float]] = None
+    surface_strip: Optional[List[SurfaceSegment]] = None
+    coordinates: Optional[List[List[float]]] = None
+    waypoints: Optional[List[Dict[str, Any]]] = None
+    verbal_summary: Optional[str] = None
+
+class ExportRequest(BaseModel):
+    name: Optional[str] = "Loam Route"
+    sport: Optional[str] = "mtb"
+    distance_miles: float
+    duration_minutes: float = 60.0
+    elevation_gain_ft: float = 0.0
+    elevation_loss_ft: float = 0.0
+    coordinates: List[List[float]]
+    waypoints: Optional[List[Dict[str, Any]]] = None
 
 class HealthResponse(BaseModel):
     status: str

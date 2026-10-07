@@ -51,3 +51,10 @@ graph-cache/
 .vscode/
 *.swp
 *.swo
+
+# Frontend
+frontend/node_modules/
+frontend/dist/
+!frontend/tsconfig*.json
+!frontend/package*.json
+!frontend/.oxlintrc.json

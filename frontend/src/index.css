@@ -1,0 +1,123 @@
+@import "maplibre-gl/dist/maplibre-gl.css";
+
+:root {
+  --color-fog: #E7ECEC;
+  --color-spruce: #1D3B34;
+  --color-spruce-light: #2A4F46;
+  --color-spruce-muted: #42675E;
+  --color-blaze: #FF5B14;
+  --color-blaze-dark: #C73E00;
+  --color-slate: #3F6C8F;
+  --color-slate-light: #E2ECF3;
+  --color-lichen: #A9BF7A;
+  --color-divider: #D1D8D8;
+  --color-card-bg: #FFFFFF;
+  --color-bg-subtle: #F3F7F7;
+
+  /* Surfaces */
+  --surface-singletrack: #2E6F40;
+  --surface-doubletrack: #8D6E63;
+  --surface-gravel: #D4A373;
+  --surface-paved: #78909C;
+  --surface-unpaved: #B0BEC5;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+
+  --font-family: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  font-family: var(--font-family);
+  -webkit-font-smoothing: antialiased;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background-color: var(--color-fog);
+  color: var(--color-spruce);
+  font-size: 16px;
+  line-height: 20px;
+}
+
+/* Numeric tabular display */
+.num-tabular, .stat-value {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Strict sentence case */
+button, label, h1, h2, h3, h4, span, p {
+  text-transform: none;
+}
+
+/* Button & interactive touch targets */
+button, input, select {
+  font-family: inherit;
+}
+
+button {
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  border: 1px solid transparent;
+  font-size: 16px;
+  font-weight: 600;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+/* Primary High-Contrast Action */
+.btn-primary {
+  background-color: var(--color-blaze-dark);
+  color: #FFFFFF;
+  border: none;
+  padding: 12px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  min-height: 48px;
+}
+
+.btn-primary:hover {
+  background-color: #A83400;
+}
+
+.btn-primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Secondary Button */
+.btn-secondary {
+  background-color: #FFFFFF;
+  color: var(--color-spruce);
+  border: 1px solid var(--color-divider);
+  padding: 10px 16px;
+  min-height: 44px;
+}
+
+.btn-secondary:hover {
+  background-color: var(--color-bg-subtle);
+}
+
+/* Outlined Action */
+.btn-outline {
+  background-color: transparent;
+  color: var(--color-spruce);
+  border: 1px solid var(--color-divider);
+  padding: 8px 14px;
+}
+
+/* MapLibre Canvas */
+.maplibre-container {
+  width: 100%;
+  height: 100%;
+}
