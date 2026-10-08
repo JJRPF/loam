@@ -234,25 +234,59 @@ def score_heat(
 
 def score_mode_value(
     surface_breakdown: Dict[str, float],
-    sport: SportProfile
+    sport: SportProfile,
+    find_new_trails_mode: bool = False,
+    unridden_percent: float = 0.0,
+    target_new_percent: Optional[float] = None,
+    unridden_miles: float = 0.0,
+    target_new_miles: Optional[float] = None
 ) -> float:
     """
-    Computes Mode Value score (0 - 100) based on trail quality and sport alignment.
-    Rewards singletrack for MTB; rewards footpaths/trails for Trail Run.
+    Computes Mode Value score (0 - 100).
+    Per Project Plan Section 6 & 9:
+    - Normal mode raises 'popular' (rewards high-quality trail surfaces aligned to the sport).
+    - Find New Trails mode raises 'new to me' (rewards percentage / miles of unridden trails matching targets).
+    - Trail Running Polish: Favors footpaths, hiking singletrack, stairs, and penalizes paved roads.
     """
     st_pct = surface_breakdown.get("singletrack", 0.0)
     dt_pct = surface_breakdown.get("doubletrack", 0.0)
     gr_pct = surface_breakdown.get("gravel", 0.0)
     pv_pct = surface_breakdown.get("paved", 0.0)
 
+    # Base sport alignment score
     if sport in (SportProfile.TRAIL_RUN, SportProfile.FOOT):
-        score = (st_pct * 1.0) + (dt_pct * 0.85) + (gr_pct * 0.75) + (pv_pct * 0.35)
+        # Trail running polish: favors footpaths/singletrack (1.0), doubletrack (0.85), gravel (0.75), heavily penalizes road (0.15)
+        sport_score = (st_pct * 1.0) + (dt_pct * 0.85) + (gr_pct * 0.75) + (pv_pct * 0.15)
     elif sport == SportProfile.MTB_GRAVEL:
-        score = (gr_pct * 1.0) + (dt_pct * 0.85) + (st_pct * 0.70) + (pv_pct * 0.40)
+        sport_score = (gr_pct * 1.0) + (dt_pct * 0.85) + (st_pct * 0.70) + (pv_pct * 0.40)
     else:
-        score = (st_pct * 1.0) + (dt_pct * 0.80) + (gr_pct * 0.65) + (pv_pct * 0.20)
+        sport_score = (st_pct * 1.0) + (dt_pct * 0.80) + (gr_pct * 0.65) + (pv_pct * 0.20)
 
-    return round(min(100.0, max(0.0, score)), 1)
+    if not find_new_trails_mode:
+        return round(min(100.0, max(0.0, sport_score)), 1)
+
+    # Find New Trails Mode: score is heavily driven by 'new to me' unridden trails
+    if target_new_percent is not None and target_new_percent > 0:
+        if unridden_percent >= target_new_percent:
+            # Exceeds requested unridden target -> high reward 90 - 100
+            new_score = 90.0 + min(10.0, (unridden_percent - target_new_percent) * 0.3)
+        else:
+            # Below target
+            ratio = unridden_percent / target_new_percent
+            new_score = max(20.0, 90.0 * ratio)
+    elif target_new_miles is not None and target_new_miles > 0:
+        if unridden_miles >= target_new_miles:
+            new_score = 90.0 + min(10.0, (unridden_miles - target_new_miles) * 2.0)
+        else:
+            new_score = max(20.0, 90.0 * (unridden_miles / target_new_miles))
+    else:
+        # General Find New Trails mode: scales with unridden percentage
+        # A route with 50%+ unridden gets 90-100; a route with 0% unridden gets 30
+        new_score = 30.0 + min(70.0, unridden_percent * 1.4)
+
+    # Blend: 70% 'new to me' achievement + 30% sport surface quality
+    blended = 0.70 * new_score + 0.30 * sport_score
+    return round(min(100.0, max(0.0, blended)), 1)
 
 def score_quality(
     surface_strip: List[SurfaceSegment],
@@ -313,20 +347,33 @@ def calculate_composite_score(
     edge_osm_ids: List[int],
     edge_heat_dict: Optional[Dict[int, Dict[str, Any]]] = None,
     user_id: Optional[str] = None,
-    is_covered_region: bool = False
+    is_covered_region: bool = False,
+    find_new_trails_mode: bool = False,
+    unridden_percent: float = 0.0,
+    target_new_percent: Optional[float] = None,
+    unridden_miles: float = 0.0,
+    target_new_miles: Optional[float] = None
 ) -> Tuple[int, Dict[str, float], str]:
     """
     Calculates the 5-component composite score:
     - 60% input match
     - 15% heat
-    - 10% mode value
+    - 10% mode value (Find New Trails raises 'new to me'; Normal raises 'popular')
     - 10% quality
     - 5% penalties (out-and-back repetition penalty < 0.25)
     Returns: (composite_score_int, score_breakdown_dict, verbal_explanation)
     """
     s_input = score_input_match(distance_miles, target_distance_miles, surface_breakdown, preference)
     s_heat = score_heat(edge_osm_ids, sport.value, edge_heat_dict, user_id=user_id, is_covered_region=is_covered_region)
-    s_mode = score_mode_value(surface_breakdown, sport)
+    s_mode = score_mode_value(
+        surface_breakdown=surface_breakdown,
+        sport=sport,
+        find_new_trails_mode=find_new_trails_mode,
+        unridden_percent=unridden_percent,
+        target_new_percent=target_new_percent,
+        unridden_miles=unridden_miles,
+        target_new_miles=target_new_miles
+    )
     s_qual = score_quality(surface_strip, distance_miles)
     s_pen = score_penalties(repetition_ratio, warnings)
 
@@ -349,6 +396,8 @@ def calculate_composite_score(
         "quality": s_qual,
         "penalties": s_pen,
         "repetition_ratio": round(repetition_ratio, 3),
+        "unridden_miles": round(unridden_miles, 2),
+        "unridden_percent": round(unridden_percent, 1),
     }
 
     # Verbal summary in plain language per Section 18
@@ -378,6 +427,9 @@ def calculate_composite_score(
     elif s_heat >= 85.0:
         parts.append("High recency heat")
 
+    if find_new_trails_mode or unridden_miles > 0:
+        parts.append(f"{unridden_miles:.1f} mi new to you ({unridden_percent:.0f}% unridden)")
+
     if not warnings:
         parts.append("0 closures or DNR conflicts.")
     else:
@@ -385,6 +437,7 @@ def calculate_composite_score(
 
     verbal = "; ".join(parts)
     return composite_int, breakdown, verbal
+
 
 
 def generate_minimap(

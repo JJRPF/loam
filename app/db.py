@@ -1785,3 +1785,441 @@ def delete_user_account(user_id: str) -> bool:
     return True
 
 
+# =========================================================================
+# Stage 6: Differentiators (Find New Trails, Submissions, Connectors)
+# =========================================================================
+
+def get_user_connected_service(user_id: str, provider: str) -> Optional[Dict[str, Any]]:
+    """Fetches user connected service record (encrypted tokens)."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, provider, encrypted_session_token, token_expires_at, last_synced_at, is_active
+                    FROM user_connected_services
+                    WHERE user_id = %s AND provider = %s;
+                    """,
+                    (user_id, provider)
+                )
+                row = cur.fetchone()
+                return dict(row) if row else None
+    except Exception:
+        return None
+
+def save_user_connected_service(
+    user_id: str,
+    provider: str,
+    encrypted_token: str,
+    expires_at: Optional[datetime.datetime] = None
+) -> bool:
+    """Upserts user connected service record with encrypted session token."""
+    try:
+        ensure_user_exists(user_id)
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    INSERT INTO user_connected_services (
+                        user_id, provider, encrypted_session_token, token_expires_at, last_synced_at, is_active
+                    )
+                    VALUES (%s, %s, %s, %s, NOW(), TRUE)
+                    ON CONFLICT (user_id, provider) DO UPDATE
+                    SET encrypted_session_token = EXCLUDED.encrypted_session_token,
+                        token_expires_at = EXCLUDED.token_expires_at,
+                        last_synced_at = NOW(),
+                        is_active = TRUE;
+                    """,
+                    (user_id, provider, encrypted_token, expires_at)
+                )
+                conn.commit()
+                return True
+    except Exception:
+        return False
+
+def delete_user_connected_service(user_id: str, provider: str) -> bool:
+    """Disconnects service and purges stored encrypted tokens."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    "DELETE FROM user_connected_services WHERE user_id = %s AND provider = %s;",
+                    (user_id, provider)
+                )
+                conn.commit()
+                return True
+    except Exception:
+        return False
+
+def list_user_connected_services(user_id: str) -> List[Dict[str, Any]]:
+    """Lists all connected services for a user."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    "SELECT id, user_id, provider, token_expires_at, last_synced_at, is_active FROM user_connected_services WHERE user_id = %s;",
+                    (user_id,)
+                )
+                return [dict(r) for r in cur.fetchall()]
+    except Exception:
+        return []
+
+def get_user_ridden_edge_ids(user_id: str, sport: Optional[str] = None) -> set:
+    """Returns set of edge OSM IDs that the user has previously ridden/visited."""
+    if not user_id:
+        return set()
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                if sport:
+                    cur.execute(
+                        "SELECT DISTINCT edge_osm_id FROM activity_edge_visits WHERE user_id = %s AND sport = %s;",
+                        (user_id, sport)
+                    )
+                else:
+                    cur.execute(
+                        "SELECT DISTINCT edge_osm_id FROM activity_edge_visits WHERE user_id = %s;",
+                        (user_id,)
+                    )
+                return {row[0] for row in cur.fetchall()}
+    except Exception:
+        return set()
+
+def get_unridden_high_heat_trails(
+    user_id: str,
+    lat: float,
+    lon: float,
+    radius_miles: float = 15.0,
+    sport: str = "mtb"
+) -> List[Dict[str, Any]]:
+    """
+    Finds trails with strong recent heat that the user has NOT yet ridden or run within the search radius.
+    Highlights new trails with heat score >= 2.0 or unique_riders_12mo >= 3.
+    """
+    radius_m = radius_miles * 1609.344
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT e.osm_id as edge_osm_id, e.name, h.sport,
+                           ROUND((COALESCE(e.length_m, 500.0) * 0.000621371)::numeric, 2) as distance_miles,
+                           h.weighted_score as heat_score,
+                           e.surface,
+                           ST_AsGeoJSON(e.geom) as geom_json
+                    FROM edges e
+                    JOIN edge_heat h ON e.osm_id = h.edge_osm_id AND h.sport = %s
+                    WHERE (h.unique_riders_12mo >= 3 OR h.weighted_score >= 1.5)
+                      AND e.osm_id NOT IN (
+                          SELECT edge_osm_id FROM activity_edge_visits WHERE user_id = %s
+                      )
+                      AND (
+                          e.geom IS NULL OR
+                          ST_DWithin(
+                              e.geom::geography,
+                              ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+                              %s
+                          )
+                      )
+                    ORDER BY h.weighted_score DESC
+                    LIMIT 50;
+                    """,
+                    (sport, user_id, lon, lat, radius_m)
+                )
+                items = []
+                for row in cur.fetchall():
+                    item = dict(row)
+                    geom_data = json.loads(item["geom_json"]) if item.get("geom_json") else {"type": "LineString", "coordinates": []}
+                    item["coordinates"] = geom_data.get("coordinates", [])
+                    item.pop("geom_json", None)
+                    items.append(item)
+                return items
+    except Exception:
+        return []
+
+def create_trail_submission(
+    user_id: str,
+    name: str,
+    sport: str,
+    difficulty: str,
+    coordinates: List[List[float]],
+    description: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Creates a new user trail submission and executes initial auto-verification check.
+    Submissions start in 'pending' (hidden) status until auto-verified or confirmed by distinct riders.
+    """
+    ensure_user_exists(user_id)
+    geojson_str = json.dumps({"type": "LineString", "coordinates": coordinates})
+
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                INSERT INTO trail_submissions (
+                    user_id, name, sport, difficulty, geom, status, verifier_count, description, created_at
+                )
+                VALUES (
+                    %s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), 'pending', 0, %s, NOW()
+                )
+                RETURNING id, user_id, name, sport, difficulty, status, verifier_count, description,
+                          created_at, verified_at, rejection_reason,
+                          ROUND((ST_Length(geom::geography) * 0.000621371)::numeric, 2) as length_miles,
+                          ST_AsGeoJSON(geom) as geom_json;
+                """,
+                (user_id, name, sport, difficulty, geojson_str, description)
+            )
+            row = cur.fetchone()
+            conn.commit()
+            sub_dict = dict(row)
+            sub_id = sub_dict["id"]
+
+    # Record submitter's own contribution evidence
+    record_submission_evidence(sub_id, user_id)
+
+    # Perform initial auto-verification check
+    eval_result = evaluate_and_verify_submission(sub_id)
+    return get_trail_submission_by_id(sub_id)
+
+def get_trail_submission_by_id(submission_id: int) -> Optional[Dict[str, Any]]:
+    """Retrieves a single trail submission by ID."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                cur.execute(
+                    """
+                    SELECT id, user_id, name, sport, difficulty, status, verifier_count,
+                           description, rejection_reason, created_at, verified_at,
+                           ROUND((COALESCE(ST_Length(geom::geography), 0.0) * 0.000621371)::numeric, 2) as length_miles,
+                           ST_AsGeoJSON(geom) as geom_json
+                    FROM trail_submissions
+                    WHERE id = %s;
+                    """,
+                    (submission_id,)
+                )
+                row = cur.fetchone()
+                if not row:
+                    return None
+                data = dict(row)
+                geom_data = json.loads(data["geom_json"]) if data.get("geom_json") else {"type": "LineString", "coordinates": []}
+                data["coordinates"] = geom_data.get("coordinates", [])
+                data.pop("geom_json", None)
+                data["created_at"] = data["created_at"].isoformat() if data.get("created_at") else ""
+                data["verified_at"] = data["verified_at"].isoformat() if data.get("verified_at") else None
+                return data
+    except Exception:
+        return None
+
+def get_trail_submissions(status_filter: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Lists trail submissions with optional status filter."""
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                if status_filter and status_filter != "all":
+                    cur.execute(
+                        """
+                        SELECT id, user_id, name, sport, difficulty, status, verifier_count,
+                               description, rejection_reason, created_at, verified_at,
+                               ROUND((COALESCE(ST_Length(geom::geography), 0.0) * 0.000621371)::numeric, 2) as length_miles,
+                               ST_AsGeoJSON(geom) as geom_json
+                        FROM trail_submissions
+                        WHERE status = %s
+                        ORDER BY created_at DESC;
+                        """,
+                        (status_filter,)
+                    )
+                else:
+                    cur.execute(
+                        """
+                        SELECT id, user_id, name, sport, difficulty, status, verifier_count,
+                               description, rejection_reason, created_at, verified_at,
+                               ROUND((COALESCE(ST_Length(geom::geography), 0.0) * 0.000621371)::numeric, 2) as length_miles,
+                               ST_AsGeoJSON(geom) as geom_json
+                        FROM trail_submissions
+                        ORDER BY created_at DESC;
+                        """
+                    )
+                rows = cur.fetchall()
+                results = []
+                for row in rows:
+                    data = dict(row)
+                    geom_data = json.loads(data["geom_json"]) if data.get("geom_json") else {"type": "LineString", "coordinates": []}
+                    data["coordinates"] = geom_data.get("coordinates", [])
+                    data.pop("geom_json", None)
+                    data["created_at"] = data["created_at"].isoformat() if data.get("created_at") else ""
+                    data["verified_at"] = data["verified_at"].isoformat() if data.get("verified_at") else None
+                    results.append(data)
+                return results
+    except Exception:
+        return []
+
+def record_submission_evidence(
+    submission_id: int,
+    user_id: str,
+    activity_id: Optional[str] = None,
+    coordinates: Optional[List[List[float]]] = None
+) -> Dict[str, Any]:
+    """
+    Records GPS ride evidence confirming a trail submission (abuse-resistant, 1 evidence per user).
+    Re-evaluates verification threshold.
+    """
+    ensure_user_exists(user_id)
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                if activity_id:
+                    cur.execute(
+                        """
+                        INSERT INTO activities (id, user_id, sport, file_format)
+                        VALUES (%s, %s, 'mtb', 'gpx')
+                        ON CONFLICT (id) DO NOTHING;
+                        """,
+                        (activity_id, user_id)
+                    )
+                cur.execute(
+                    """
+                    INSERT INTO trail_submission_evidence (submission_id, user_id, activity_id, verified_at)
+                    VALUES (%s, %s, %s, NOW())
+                    ON CONFLICT (submission_id, user_id) DO NOTHING;
+                    """,
+                    (submission_id, user_id, activity_id)
+                )
+                conn.commit()
+
+
+        # Re-evaluate auto-verification
+        eval_result = evaluate_and_verify_submission(submission_id)
+        sub = get_trail_submission_by_id(submission_id)
+        return {
+            "submission_id": submission_id,
+            "user_id": user_id,
+            "status": sub.get("status") if sub else "pending",
+            "verifier_count": sub.get("verifier_count", 0) if sub else 0
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+def evaluate_and_verify_submission(submission_id: int) -> Dict[str, Any]:
+    """
+    Auto-verification logic per Project Plan Section 10 & Brief:
+    1. Checks if geometry intersects any restricted areas (hard blocks, private land, wildlife closures).
+       If restricted: auto-verification is blocked / rejected.
+    2. Checks if >= 3 unique riders' rides overlap the geometry within the last 12 months.
+       If unique riders >= 3 and no restricted areas intersected: status is automatically updated to 'verified'.
+    3. Otherwise: remains 'pending' and hidden until crowd-confirmed.
+    """
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # 1. Fetch submission geometry
+                cur.execute("SELECT id, status, geom, ST_AsGeoJSON(geom) as geom_json FROM trail_submissions WHERE id = %s;", (submission_id,))
+                sub = cur.fetchone()
+                if not sub:
+                    return {"error": "Submission not found"}
+
+                geom_json = json.loads(sub["geom_json"]) if sub.get("geom_json") else None
+                if not geom_json:
+                    return {"error": "Invalid geometry"}
+
+                # 2. Check restrictions
+                restrictions = check_restrictions_along_line(geom_json)
+                hard_blocks = [r for r in restrictions if r.get("is_hard")]
+                if hard_blocks:
+                    # Restricted area conflict
+                    block_names = ", ".join(r["name"] for r in hard_blocks)
+                    cur.execute(
+                        "UPDATE trail_submissions SET status = 'rejected', rejection_reason = %s WHERE id = %s;",
+                        (f"Intersects restricted area: {block_names}", submission_id)
+                    )
+                    conn.commit()
+                    return {
+                        "is_verified": False,
+                        "status": "rejected",
+                        "restricted_area_conflict": True,
+                        "conflict_details": block_names
+                    }
+
+                # 3. Count unique riders with overlapping activities within 12 months (or submission evidence)
+                # Combines evidence records + spatial overlapping activities within 35 meters
+                cur.execute(
+                    """
+                    SELECT COUNT(DISTINCT user_id) as unique_riders
+                    FROM (
+                        SELECT user_id FROM trail_submission_evidence WHERE submission_id = %s
+                        UNION
+                        SELECT a.user_id
+                        FROM activities a
+                        JOIN activity_edge_visits v ON a.id = v.activity_id
+                        JOIN edges e ON v.edge_osm_id = e.osm_id
+                        JOIN trail_submissions ts ON ts.id = %s
+                        WHERE a.activity_date >= (CURRENT_DATE - INTERVAL '12 months')
+                          AND e.geom IS NOT NULL
+                          AND ST_DWithin(e.geom::geography, ts.geom::geography, 35)
+                    ) combined_riders;
+                    """,
+                    (submission_id, submission_id)
+                )
+                row = cur.fetchone()
+                unique_riders = row["unique_riders"] if row else 0
+
+                new_status = sub["status"]
+                verified_at_clause = ""
+                if unique_riders >= 3:
+                    new_status = "verified"
+                    cur.execute(
+                        "UPDATE trail_submissions SET status = 'verified', verifier_count = %s, verified_at = COALESCE(verified_at, NOW()) WHERE id = %s;",
+                        (unique_riders, submission_id)
+                    )
+                else:
+                    if sub["status"] == "pending":
+                        cur.execute(
+                            "UPDATE trail_submissions SET verifier_count = %s WHERE id = %s;",
+                            (unique_riders, submission_id)
+                        )
+                conn.commit()
+
+                return {
+                    "is_verified": (new_status == "verified"),
+                    "status": new_status,
+                    "unique_riders_count": unique_riders,
+                    "restricted_area_conflict": False
+                }
+    except Exception as e:
+        return {"error": str(e)}
+
+def admin_update_submission_status(
+    submission_id: int,
+    new_status: str,
+    reason: Optional[str] = None
+) -> bool:
+    """
+    Admin moderation interface to review, approve, reverse, or take down submissions.
+    Supports: 'verified', 'rejected', 'taken_down', 'pending'.
+    """
+    if new_status not in ("verified", "rejected", "taken_down", "pending"):
+        return False
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                if new_status == "verified":
+                    cur.execute(
+                        "UPDATE trail_submissions SET status = %s, verified_at = NOW(), rejection_reason = NULL WHERE id = %s;",
+                        (new_status, submission_id)
+                    )
+                elif new_status in ("rejected", "taken_down"):
+                    cur.execute(
+                        "UPDATE trail_submissions SET status = %s, rejection_reason = %s WHERE id = %s;",
+                        (new_status, reason or f"Admin {new_status}", submission_id)
+                    )
+                else: # reverse to pending
+                    cur.execute(
+                        "UPDATE trail_submissions SET status = 'pending', rejection_reason = NULL WHERE id = %s;",
+                        (submission_id,)
+                    )
+                conn.commit()
+                return True
+    except Exception:
+        return False
+
+
+

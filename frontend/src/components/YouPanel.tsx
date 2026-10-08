@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { 
   uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
-  exportMyData, deleteMyAccount 
+  exportMyData, deleteMyAccount,
+  getConnectors, connectGarmin, connectStrava, syncConnector, disconnectConnector
 } from '../services/api';
-import type { UserDNR } from '../types';
+import type { UserDNR, ConnectorStatus } from '../types';
 
 export const YouPanel: React.FC = () => {
   const [isSignedIn, setIsSignedIn] = useState(true);
@@ -196,6 +197,9 @@ export const YouPanel: React.FC = () => {
 
         <ActivityUploadWidget />
       </div>
+
+      {/* Connected Services (Stage 6) */}
+      <ConnectedServicesSection />
 
       {/* Settings & Privacy */}
       <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -489,4 +493,399 @@ const ActivityUploadWidget: React.FC = () => {
     </div>
   );
 };
+
+const ConnectedServicesSection: React.FC = () => {
+  const [connectors, setConnectors] = useState<ConnectorStatus[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+
+  // Garmin connect form state
+  const [showGarminModal, setShowGarminModal] = useState(false);
+  const [garminUser, setGarminUser] = useState('');
+  const [garminPass, setGarminPass] = useState('');
+  const [garminSubmitting, setGarminSubmitting] = useState(false);
+
+  // Strava connect form state
+  const [showStravaModal, setShowStravaModal] = useState(false);
+  const [stravaCode, setStravaCode] = useState('');
+  const [stravaSubmitting, setStravaSubmitting] = useState(false);
+
+  const loadConnectors = async () => {
+    setLoading(true);
+    try {
+      const data = await getConnectors();
+      setConnectors(data);
+    } catch (err) {
+      console.error('Failed to load connectors:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadConnectors();
+  }, []);
+
+  const handleConnectGarmin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!garminUser.trim() || !garminPass.trim()) return;
+
+    setGarminSubmitting(true);
+    try {
+      await connectGarmin({ username: garminUser.trim(), password: garminPass.trim() });
+      setShowGarminModal(false);
+      setGarminUser('');
+      setGarminPass('');
+      setStatusMsg('Garmin session connected successfully! Tokens stored AES-encrypted at rest.');
+      setTimeout(() => setStatusMsg(null), 4000);
+      await loadConnectors();
+    } catch (err: any) {
+      alert(`Garmin connection failed: ${err.message}`);
+    } finally {
+      setGarminSubmitting(false);
+    }
+  };
+
+  const handleConnectStrava = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!stravaCode.trim()) return;
+
+    setStravaSubmitting(true);
+    try {
+      await connectStrava(stravaCode.trim());
+      setShowStravaModal(false);
+      setStravaCode('');
+      setStatusMsg('Strava account authorized successfully!');
+      setTimeout(() => setStatusMsg(null), 4000);
+      await loadConnectors();
+    } catch (err: any) {
+      alert(`Strava authorization failed: ${err.message}`);
+    } finally {
+      setStravaSubmitting(false);
+    }
+  };
+
+  const handleSync = async (provider: string) => {
+    try {
+      const res = await syncConnector(provider);
+      setStatusMsg(`Synced ${provider}: ${res.activities_imported || 0} activities imported.`);
+      setTimeout(() => setStatusMsg(null), 4000);
+      await loadConnectors();
+    } catch (err: any) {
+      alert(`Sync failed: ${err.message}`);
+    }
+  };
+
+  const handleDisconnect = async (provider: string) => {
+    const confirm = window.confirm(`Disconnect ${provider} and remove stored session tokens?`);
+    if (!confirm) return;
+
+    try {
+      await disconnectConnector(provider);
+      setStatusMsg(`${provider} disconnected.`);
+      setTimeout(() => setStatusMsg(null), 3000);
+      await loadConnectors();
+    } catch (err: any) {
+      alert(`Disconnect failed: ${err.message}`);
+    }
+  };
+
+  return (
+    <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+      <div>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34', margin: 0 }}>
+          Connected Services (Connectors)
+        </h3>
+        <p style={{ fontSize: 12, color: '#42675E', margin: '4px 0 0 0' }}>
+          Connect third-party platforms to automatically sync activities into your private heat layer.
+          Connectors are disabled by default. Passwords are never stored; session tokens are AES-encrypted at rest.
+        </p>
+      </div>
+
+      {statusMsg && (
+        <div style={{ fontSize: 12, color: '#065F46', backgroundColor: '#D1FAE5', padding: '6px 10px', borderRadius: 4 }}>
+          {statusMsg}
+        </div>
+      )}
+
+      {loading && connectors.length === 0 ? (
+        <div style={{ fontSize: 12, color: '#42675E' }}>Loading connectors...</div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {connectors.map((c) => (
+            <div
+              key={c.name}
+              style={{
+                backgroundColor: '#F8F9FA',
+                borderRadius: 6,
+                border: '1px solid #E0E0E0',
+                padding: '10px 12px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 6
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <strong style={{ fontSize: 13, color: '#1D3B34' }}>{c.display_name}</strong>
+                  <span
+                    style={{
+                      fontSize: 10,
+                      fontWeight: 700,
+                      padding: '1px 5px',
+                      borderRadius: 3,
+                      backgroundColor: c.enabled ? '#E8F5E9' : '#ECEFF1',
+                      color: c.enabled ? '#2E6F40' : '#78909C'
+                    }}
+                  >
+                    {c.enabled ? 'Enabled' : 'Disabled (off by default)'}
+                  </span>
+                  {c.connected && (
+                    <span
+                      style={{
+                        fontSize: 10,
+                        fontWeight: 700,
+                        padding: '1px 5px',
+                        borderRadius: 3,
+                        backgroundColor: '#E0F2FE',
+                        color: '#0369A1'
+                      }}
+                    >
+                      ✓ Connected
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 6 }}>
+                  {c.enabled && c.connected && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => handleSync(c.name)}
+                        className="btn-outline"
+                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26 }}
+                      >
+                        Sync Now
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDisconnect(c.name)}
+                        className="btn-outline"
+                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26, color: '#C62828', borderColor: '#FFCDD2' }}
+                      >
+                        Disconnect
+                      </button>
+                    </>
+                  )}
+                  {c.enabled && !c.connected && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (c.name === 'garmin') setShowGarminModal(true);
+                        else if (c.name === 'strava') setShowStravaModal(true);
+                        else alert(`${c.display_name} connector interface ready.`);
+                      }}
+                      className="btn-secondary"
+                      style={{ fontSize: 11, padding: '2px 10px', minHeight: 26 }}
+                    >
+                      Connect
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ fontSize: 11, color: '#42675E' }}>
+                {c.description}
+                {c.connected && c.last_synced_at && (
+                  <span> • Last synced: {new Date(c.last_synced_at).toLocaleDateString()}</span>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Garmin Connect Modal */}
+      {showGarminModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowGarminModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 10,
+              maxWidth: 400,
+              width: '100%',
+              padding: 18,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1D3B34', margin: 0 }}>Connect Garmin Account</h3>
+              <button
+                type="button"
+                onClick={() => setShowGarminModal(false)}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: '#888' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 6, padding: 8, fontSize: 11, color: '#0369A1' }}>
+              <strong>Zero Password Retention Guarantee:</strong> Your password is used solely in memory to authenticate a session token and is discarded immediately. The resulting session token is AES-256 encrypted at rest.
+            </div>
+
+            <form onSubmit={handleConnectGarmin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                  Garmin Username / Email
+                </label>
+                <input
+                  type="text"
+                  value={garminUser}
+                  onChange={(e) => setGarminUser(e.target.value)}
+                  placeholder="user@garmin.com"
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                  Garmin Password
+                </label>
+                <input
+                  type="password"
+                  value={garminPass}
+                  onChange={(e) => setGarminPass(e.target.value)}
+                  placeholder="••••••••••••"
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowGarminModal(false)}
+                  className="btn-outline"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={garminSubmitting}
+                  className="btn-primary"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
+                >
+                  {garminSubmitting ? 'Authenticating...' : 'Connect Garmin'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Strava Connect Modal */}
+      {showStravaModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.45)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowStravaModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: '#FFFFFF',
+              borderRadius: 10,
+              maxWidth: 400,
+              width: '100%',
+              padding: 18,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1D3B34', margin: 0 }}>Authorize Strava</h3>
+              <button
+                type="button"
+                onClick={() => setShowStravaModal(false)}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: '#888' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handleConnectStrava} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                  Strava Authorization Code / Token
+                </label>
+                <input
+                  type="text"
+                  value={stravaCode}
+                  onChange={(e) => setStravaCode(e.target.value)}
+                  placeholder="e.g. strava_auth_code_xyz"
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowStravaModal(false)}
+                  className="btn-outline"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={stravaSubmitting}
+                  className="btn-primary"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
+                >
+                  {stravaSubmitting ? 'Authorizing...' : 'Authorize Strava'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 

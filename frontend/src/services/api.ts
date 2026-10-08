@@ -8,8 +8,12 @@ import type {
   CommunityFlag,
   TrailCheckin,
   UserDNR,
-  UserDataExport
+  UserDataExport,
+  TrailSubmission,
+  UnriddenTrailItem,
+  ConnectorStatus
 } from '../types';
+
 
 const API_BASE = ''; // proxied via vite in dev, relative in production
 
@@ -24,6 +28,11 @@ export async function calculateRoute(params: {
   targetDistanceMiles?: number;
   name?: string;
   overrideDnr?: boolean;
+  findNewTrailsMode?: boolean;
+  minNewTrailPercent?: number;
+  minNewTrailMiles?: number;
+  trailRunSteeperGrades?: boolean;
+  trailRunAvoidMtbFlow?: boolean;
 }): Promise<RouteResponse> {
   const payload = {
     start: { lat: params.start.lat, lon: params.start.lon, name: params.start.name },
@@ -35,7 +44,12 @@ export async function calculateRoute(params: {
     route_mode: params.routeMode ?? 'point_to_point',
     target_distance_miles: params.targetDistanceMiles,
     name: params.name,
-    override_dnr: params.overrideDnr ?? false
+    override_dnr: params.overrideDnr ?? false,
+    find_new_trails_mode: params.findNewTrailsMode ?? false,
+    min_new_trail_percent: params.minNewTrailPercent,
+    min_new_trail_miles: params.minNewTrailMiles,
+    trail_run_steeper_grades: params.trailRunSteeperGrades ?? false,
+    trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true
   };
 
   const res = await fetch(`${API_BASE}/api/route`, {
@@ -64,6 +78,11 @@ export async function calculateRouteOptions(params: {
   name?: string;
   candidateCount?: number;
   overrideDnr?: boolean;
+  findNewTrailsMode?: boolean;
+  minNewTrailPercent?: number;
+  minNewTrailMiles?: number;
+  trailRunSteeperGrades?: boolean;
+  trailRunAvoidMtbFlow?: boolean;
 }): Promise<RouteOptionsResponse> {
   const payload = {
     start: { lat: params.start.lat, lon: params.start.lon, name: params.start.name },
@@ -76,7 +95,12 @@ export async function calculateRouteOptions(params: {
     target_distance_miles: params.targetDistanceMiles,
     name: params.name,
     candidate_count: params.candidateCount ?? 10,
-    override_dnr: params.overrideDnr ?? false
+    override_dnr: params.overrideDnr ?? false,
+    find_new_trails_mode: params.findNewTrailsMode ?? false,
+    min_new_trail_percent: params.minNewTrailPercent,
+    min_new_trail_miles: params.minNewTrailMiles,
+    trail_run_steeper_grades: params.trailRunSteeperGrades ?? false,
+    trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true
   };
 
   const res = await fetch(`${API_BASE}/api/route/options`, {
@@ -106,6 +130,11 @@ export function streamRouteOptions(
     name?: string;
     candidateCount?: number;
     overrideDnr?: boolean;
+    findNewTrailsMode?: boolean;
+    minNewTrailPercent?: number;
+    minNewTrailMiles?: number;
+    trailRunSteeperGrades?: boolean;
+    trailRunAvoidMtbFlow?: boolean;
   },
   callbacks: {
     onCandidate: (candidate: RouteResponse) => void;
@@ -126,8 +155,14 @@ export function streamRouteOptions(
     target_distance_miles: params.targetDistanceMiles,
     name: params.name,
     candidate_count: params.candidateCount ?? 10,
-    override_dnr: params.overrideDnr ?? false
+    override_dnr: params.overrideDnr ?? false,
+    find_new_trails_mode: params.findNewTrailsMode ?? false,
+    min_new_trail_percent: params.minNewTrailPercent,
+    min_new_trail_miles: params.minNewTrailMiles,
+    trail_run_steeper_grades: params.trailRunSteeperGrades ?? false,
+    trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true
   };
+
 
   (async () => {
     try {
@@ -640,5 +675,202 @@ export async function deleteMyAccount(
   }
   return await res.json();
 }
+
+// =========================================================================
+// Stage 6: Differentiators API Client Methods
+// =========================================================================
+
+export async function getUnriddenTrails(params?: {
+  lat?: number;
+  lon?: number;
+  radiusMiles?: number;
+  sport?: string;
+  userId?: string;
+}): Promise<UnriddenTrailItem[]> {
+  const lat = params?.lat ?? 44.0536;
+  const lon = params?.lon ?? -71.1285;
+  const query = new URLSearchParams({
+    lat: lat.toString(),
+    lon: lon.toString(),
+    radius_miles: (params?.radiusMiles ?? 15).toString(),
+    sport: params?.sport ?? 'mtb'
+  });
+  const res = await fetch(`${API_BASE}/api/trails/new-to-me?${query.toString()}`, {
+    headers: { 'X-User-Id': params?.userId ?? 'justin_default_user' }
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to load unridden trails: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function submitTrail(params: {
+  name: string;
+  sport: string;
+  difficulty: string;
+  coordinates: number[][];
+  description?: string;
+  userId?: string;
+}): Promise<TrailSubmission> {
+  const res = await fetch(`${API_BASE}/api/submissions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': params.userId ?? 'justin_default_user'
+    },
+    body: JSON.stringify(params)
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to submit trail: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function listSubmissions(status?: string): Promise<TrailSubmission[]> {
+  const query = status ? `?status=${status}` : '';
+  const res = await fetch(`${API_BASE}/api/submissions${query}`);
+  if (!res.ok) {
+    throw new Error(`Failed to list submissions: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function submitTrailEvidence(
+  submissionId: number,
+  evidence: { activity_id?: string; coordinates?: number[][] },
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/evidence`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify(evidence)
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to submit evidence: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function adminApproveSubmission(submissionId: number): Promise<TrailSubmission> {
+  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/approve`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to approve submission: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function adminRejectSubmission(submissionId: number, reason?: string): Promise<TrailSubmission> {
+  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/reject`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'reject', reason })
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to reject submission: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function adminReverseSubmission(submissionId: number): Promise<TrailSubmission> {
+  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/reverse`, {
+    method: 'POST'
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to reverse submission: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function adminTakedownSubmission(submissionId: number, reason?: string): Promise<TrailSubmission> {
+  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/takedown`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'takedown', reason })
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to take down submission: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function getConnectors(userId: string = 'justin_default_user'): Promise<ConnectorStatus[]> {
+  const res = await fetch(`${API_BASE}/api/connectors`, {
+    headers: { 'X-User-Id': userId }
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to fetch connectors: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function connectGarmin(
+  credentials: { username: string; password: string },
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/garmin/login`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify(credentials)
+  });
+  if (!res.ok) {
+    throw new Error(`Garmin login failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function connectStrava(
+  code: string,
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/strava/auth`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({ code })
+  });
+  if (!res.ok) {
+    throw new Error(`Strava auth failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function syncConnector(
+  provider: string,
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/${provider}/sync`, {
+    method: 'POST',
+    headers: { 'X-User-Id': userId }
+  });
+  if (!res.ok) {
+    throw new Error(`Sync failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function disconnectConnector(
+  provider: string,
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/${provider}`, {
+    method: 'DELETE',
+    headers: { 'X-User-Id': userId }
+  });
+  if (!res.ok) {
+    throw new Error(`Disconnect failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
 
 

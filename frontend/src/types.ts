@@ -30,6 +30,7 @@ export interface SurfaceSegment {
   surface_type: 'singletrack' | 'doubletrack' | 'gravel' | 'paved' | 'unpaved' | 'unknown';
   raw_surface?: string;
   raw_road_class?: string;
+  is_unridden?: boolean;
 }
 
 export interface ScoreBreakdown {
@@ -40,6 +41,8 @@ export interface ScoreBreakdown {
   quality: number;
   penalties: number;
   repetition_ratio: number;
+  unridden_miles?: number;
+  unridden_percent?: number;
 }
 
 export interface RouteResponse {
@@ -67,7 +70,48 @@ export interface RouteResponse {
   score_breakdown?: ScoreBreakdown;
   repetition_ratio?: number;
   verbal_summary?: string;
+  is_find_new_trails?: boolean;
+  unridden_miles?: number;
+  unridden_percent?: number;
+  unridden_segments_count?: number;
 }
+
+export interface TrailSubmission {
+  id: number;
+  user_id?: string;
+  name: string;
+  sport: string;
+  difficulty: string;
+  status: 'pending' | 'verified' | 'rejected' | 'taken_down';
+  verifier_count: number;
+  coordinates: number[][];
+  length_miles: number;
+  description?: string;
+  rejection_reason?: string;
+  created_at: string;
+  verified_at?: string;
+}
+
+export interface UnriddenTrailItem {
+  edge_osm_id: number;
+  name?: string;
+  sport: string;
+  distance_miles: number;
+  heat_score: number;
+  coordinates: number[][];
+  surface?: string;
+}
+
+export interface ConnectorStatus {
+  name: string;
+  display_name: string;
+  enabled: boolean;
+  connected: boolean;
+  last_synced_at?: string;
+  activity_count: number;
+  description: string;
+}
+
 
 export interface CommunityFlag {
   id: number;

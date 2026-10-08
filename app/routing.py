@@ -12,7 +12,7 @@ from app.scoring import (
 )
 from app.db import (
     get_edges_heat, check_restrictions_along_line, is_region_covered,
-    check_route_trust_layer, log_dnr_override
+    check_route_trust_layer, log_dnr_override, get_user_ridden_edge_ids
 )
 
 METERS_TO_MILES = 0.000621371192
@@ -37,7 +37,7 @@ def classify_surface(road_class: str, surface: str, track_type: str) -> str:
     s = (surface or "").lower()
     tt = (track_type or "").lower()
     
-    if rc in ("path", "bridleway") or (rc == "footway" and s in ("ground", "dirt", "grass")):
+    if rc in ("path", "bridleway", "steps") or (rc == "footway" and s in ("ground", "dirt", "grass", "")):
         return "singletrack"
     
     if rc == "track":
@@ -64,49 +64,73 @@ def decode_points(points_data: Any) -> List[List[float]]:
     return []
 
 def build_custom_model(req: RouteRequest) -> Optional[Dict[str, Any]]:
-    """Builds a GraphHopper custom model based on sport profile and terrain preference."""
+    """
+    Builds a GraphHopper custom model based on sport profile and terrain preference.
+    Includes specialized Trail Running Polish per Project Plan:
+    - Favors footpaths, stairs, and hiking trails.
+    - Avoids high-speed downhill mountain bike flow trails.
+    - Permits steeper grades without bike-specific penalties.
+    """
     pref = req.terrain_preference
-    if not pref:
-        return None
-
     priority_rules = []
 
-    # Singletrack priority
-    if pref.singletrack >= 0.5:
+    # Trail Running Profile Polish
+    if req.profile in (SportProfile.TRAIL_RUN, SportProfile.FOOT):
+        # Strongly favor footpaths, walking paths, and stairs
         priority_rules.append({
-            "if": "road_class == PATH || road_class == BRIDLEWAY",
-            "multiply_by": f"{min(2.0, 1.0 + pref.singletrack):.2f}"
+            "if": "road_class == PATH || road_class == FOOTWAY || road_class == STEPS",
+            "multiply_by": "2.0"
         })
-    elif pref.singletrack < 0.2:
+        # Avoid heavy high-speed downhill mountain bike flow trails
+        if req.trail_run_avoid_mtb_flow:
+            priority_rules.append({
+                "if": "road_class == PATH && (surface == DIRT || surface == UNPAVED) && track_type == GRADE1",
+                "multiply_by": "0.2"
+            })
+        # Heavily penalize paved roadways for trail running
         priority_rules.append({
-            "if": "road_class == PATH",
-            "multiply_by": "0.5"
-        })
-
-    # Gravel priority
-    if pref.gravel >= 0.4:
-        priority_rules.append({
-            "if": "surface == GRAVEL || surface == FINE_GRAVEL || surface == COMPACTED",
-            "multiply_by": f"{min(2.0, 1.0 + pref.gravel):.2f}"
-        })
-
-    # Doubletrack priority
-    if pref.doubletrack >= 0.4:
-        priority_rules.append({
-            "if": "road_class == TRACK",
-            "multiply_by": f"{min(2.0, 1.0 + pref.doubletrack):.2f}"
+            "if": "road_class == PRIMARY || road_class == SECONDARY || surface == ASPHALT || surface == PAVED",
+            "multiply_by": "0.15"
         })
 
-    # Paved preference
-    if pref.paved < 0.15:
-        priority_rules.append({
-            "if": "surface == ASPHALT || surface == PAVED || road_class == PRIMARY || road_class == SECONDARY",
-            "multiply_by": f"{max(0.2, pref.paved * 1.5):.2f}"
-        })
+    if pref:
+        # Singletrack priority
+        if pref.singletrack >= 0.5 and req.profile not in (SportProfile.TRAIL_RUN, SportProfile.FOOT):
+            priority_rules.append({
+                "if": "road_class == PATH || road_class == BRIDLEWAY",
+                "multiply_by": f"{min(2.0, 1.0 + pref.singletrack):.2f}"
+            })
+        elif pref.singletrack < 0.2:
+            priority_rules.append({
+                "if": "road_class == PATH",
+                "multiply_by": "0.5"
+            })
+
+        # Gravel priority
+        if pref.gravel >= 0.4:
+            priority_rules.append({
+                "if": "surface == GRAVEL || surface == FINE_GRAVEL || surface == COMPACTED",
+                "multiply_by": f"{min(2.0, 1.0 + pref.gravel):.2f}"
+            })
+
+        # Doubletrack priority
+        if pref.doubletrack >= 0.4:
+            priority_rules.append({
+                "if": "road_class == TRACK",
+                "multiply_by": f"{min(2.0, 1.0 + pref.doubletrack):.2f}"
+            })
+
+        # Paved preference
+        if pref.paved < 0.15 and req.profile not in (SportProfile.TRAIL_RUN, SportProfile.FOOT):
+            priority_rules.append({
+                "if": "surface == ASPHALT || surface == PAVED || road_class == PRIMARY || road_class == SECONDARY",
+                "multiply_by": f"{max(0.2, pref.paved * 1.5):.2f}"
+            })
 
     if priority_rules:
         return {"priority": priority_rules}
     return None
+
 
 def generate_loop_waypoints(start_lat: float, start_lon: float, target_miles: float) -> List[Tuple[float, float]]:
     """
@@ -179,7 +203,8 @@ def process_graphhopper_path(
     additional_warnings: Optional[List[str]] = None,
     user_id: Optional[str] = None,
     is_covered_region: bool = False,
-    trust_result: Optional[Dict[str, Any]] = None
+    trust_result: Optional[Dict[str, Any]] = None,
+    user_ridden_ways: Optional[Set[int]] = None
 ) -> RouteResponse:
     distance_m = path.get("distance", 0.0)
     ascend_m = path.get("ascend", 0.0)
@@ -295,6 +320,46 @@ def process_graphhopper_path(
     # Calculate out-and-back repetition ratio
     rep_ratio = calculate_repetition_ratio(points, osm_way_details)
 
+    # Find New Trails: identify unridden point indices and calculate stats
+    unridden_point_indices = set()
+    if user_ridden_ways is not None and osm_way_details:
+        for item in osm_way_details:
+            if len(item) >= 3:
+                w_start, w_end, wid = item[0], item[1], item[2]
+                if wid not in user_ridden_ways:
+                    for p_i in range(w_start, min(w_end, total_pts)):
+                        unridden_point_indices.add(p_i)
+    elif req.find_new_trails_mode and osm_way_details and user_ridden_ways is None:
+        # Default fallback: alternate edges if user history is empty
+        for item in osm_way_details:
+            if len(item) >= 3:
+                w_start, w_end = item[0], item[1]
+                for p_i in range(w_start, min(w_end, total_pts)):
+                    unridden_point_indices.add(p_i)
+
+    # Mark is_unridden on surface segments
+    for seg in surface_strip:
+        seg_pts = range(seg.start_index, seg.end_index)
+        if seg_pts and len(seg_pts) > 0:
+            unridden_in_seg = sum(1 for p_i in seg_pts if p_i in unridden_point_indices)
+            if (unridden_in_seg / len(seg_pts)) >= 0.35:
+                seg.is_unridden = True
+
+    # Calculate unridden distance
+    unridden_distance_m = 0.0
+    for i in range(len(points) - 1):
+        if i in unridden_point_indices or (i + 1) in unridden_point_indices:
+            p1 = points[i]
+            p2 = points[i + 1]
+            # Approximate segment distance
+            dlat = (p2[1] - p1[1]) * 111132.0
+            dlon = (p2[0] - p1[0]) * 111132.0 * math.cos(math.radians(p1[1]))
+            unridden_distance_m += math.hypot(dlat, dlon)
+
+    unridden_miles = round(unridden_distance_m * METERS_TO_MILES, 2)
+    unridden_percent = round((unridden_miles / max(dist_miles, 0.001)) * 100.0, 1)
+    unridden_percent = min(100.0, max(0.0, unridden_percent))
+
     # Calculate 5-component composite score
     composite_score, score_breakdown, verbal_summary = calculate_composite_score(
         distance_miles=dist_miles,
@@ -308,9 +373,13 @@ def process_graphhopper_path(
         edge_osm_ids=unique_ways,
         edge_heat_dict=edge_heat_cache,
         user_id=user_id,
-        is_covered_region=is_covered_region
+        is_covered_region=is_covered_region,
+        find_new_trails_mode=req.find_new_trails_mode,
+        unridden_percent=unridden_percent,
+        target_new_percent=req.min_new_trail_percent,
+        unridden_miles=unridden_miles,
+        target_new_miles=req.min_new_trail_miles
     )
-
 
     # Generate lightweight SVG minimap & bounds
     mini_bbox, mini_svg = generate_minimap(points)
@@ -350,8 +419,13 @@ def process_graphhopper_path(
         match_score=composite_score,
         score_breakdown=score_breakdown,
         repetition_ratio=rep_ratio,
-        verbal_summary=verbal_summary
+        verbal_summary=verbal_summary,
+        is_find_new_trails=req.find_new_trails_mode,
+        unridden_miles=unridden_miles,
+        unridden_percent=unridden_percent,
+        unridden_segments_count=sum(1 for s in surface_strip if s.is_unridden)
     )
+
 
 async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> RouteResponse:
     # Handle loop / round trip mode
@@ -420,6 +494,7 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
 
     covered = is_region_covered(req.start.lat, req.start.lon)
     heat_cache = get_edges_heat(list(set(osm_ways)), req.profile.value, user_id=user_id)
+    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else set()
 
     return process_graphhopper_path(
         path=path,
@@ -429,8 +504,10 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
         additional_warnings=trust_result["all_warnings"],
         user_id=user_id,
         is_covered_region=covered,
-        trust_result=trust_result
+        trust_result=trust_result,
+        user_ridden_ways=user_ridden
     )
+
 
 async def generate_route_options(
     req: RouteRequest,
@@ -585,6 +662,7 @@ async def generate_route_options(
     # Batch query edge heat from database
     covered = is_region_covered(req.start.lat, req.start.lon)
     heat_cache = get_edges_heat(list(all_traversed_ways), req.profile.value, user_id=user_id)
+    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else set()
 
     # Score and build RouteResponse for all valid candidates
     scored_candidates: List[Tuple[RouteResponse, Set[int]]] = []
@@ -607,8 +685,10 @@ async def generate_route_options(
             additional_warnings=t_res["all_warnings"],
             user_id=user_id,
             is_covered_region=covered,
-            trust_result=t_res
+            trust_result=t_res,
+            user_ridden_ways=user_ridden
         )
+
         # Trailhead name prefix if available
         if req.start.name and req.start.name != "Bear Brook Trailhead":
             route_resp.name = f"{req.start.name.split('(')[0].strip()} — {meta['sector_name']}"

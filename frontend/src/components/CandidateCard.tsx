@@ -115,7 +115,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             +{Math.round(route.elevation_gain_ft)} ft • {durationText}
           </div>
 
-          <div style={{ fontSize: 11, color: '#1D3B34', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ fontSize: 11, color: '#1D3B34', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{stPct}% Singletrack</span>
             {repPct !== null && (
               <span
@@ -129,6 +129,22 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                 }}
               >
                 {repPct < 25 ? 'Loop' : `${repPct}% Rep`}
+              </span>
+            )}
+            {((route.unridden_miles !== undefined && route.unridden_miles > 0) || route.is_find_new_trails) && (
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 700,
+                  padding: '1px 6px',
+                  borderRadius: 3,
+                  backgroundColor: '#E0F2FE',
+                  color: '#0369A1',
+                  border: '1px solid #BAE6FD'
+                }}
+                title={`${route.unridden_miles?.toFixed(1) || '0.0'} miles of trails you haven't ridden yet`}
+              >
+                ✨ {route.unridden_miles !== undefined ? route.unridden_miles.toFixed(1) : '0.0'} mi New ({Math.round(route.unridden_percent || 0)}%)
               </span>
             )}
           </div>
