@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { SavedRoute, RouteResponse } from '../types';
 import { fetchSavedRoutes, deleteSavedRoute } from '../services/api';
+import { getStoredUser } from '../services/auth';
 
 interface SavedRoutesPanelProps {
   onLoadRoute: (route: RouteResponse) => void;
@@ -13,7 +14,10 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
   const loadRoutes = async () => {
     setIsLoading(true);
     try {
-      const data = await fetchSavedRoutes();
+      const user = getStoredUser();
+      const userId = user?.id || 'justin_user';
+      const token = user?.idToken;
+      const data = await fetchSavedRoutes(userId, token);
       setRoutes(data);
     } catch (e) {
       console.error(e);
@@ -24,7 +28,10 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
 
   useEffect(() => {
     let ignore = false;
-    fetchSavedRoutes()
+    const user = getStoredUser();
+    const userId = user?.id || 'justin_user';
+    const token = user?.idToken;
+    fetchSavedRoutes(userId, token)
       .then(data => {
         if (!ignore) {
           setRoutes(data);
@@ -41,14 +48,31 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Delete this saved route?')) {
-      await deleteSavedRoute(id);
+      const user = getStoredUser();
+      const userId = user?.id || 'justin_user';
+      const token = user?.idToken;
+      await deleteSavedRoute(id, userId, token);
       setRoutes(prev => prev.filter(r => r.id !== id));
     }
   };
 
   const handleSelect = (r: SavedRoute) => {
-    // Convert to RouteResponse format
+    const coords = r.coordinates || [];
+    let bbox = [-71.5, 43.1, -71.2, 43.3];
+    if (coords.length > 0) {
+      let minLon = coords[0][0], maxLon = coords[0][0];
+      let minLat = coords[0][1], maxLat = coords[0][1];
+      for (const pt of coords) {
+        if (pt[0] < minLon) minLon = pt[0];
+        if (pt[0] > maxLon) maxLon = pt[0];
+        if (pt[1] < minLat) minLat = pt[1];
+        if (pt[1] > maxLat) maxLat = pt[1];
+      }
+      bbox = [minLon, minLat, maxLon, maxLat];
+    }
+
     const resp: RouteResponse = {
+      id: r.id,
       name: r.name,
       sport: r.sport,
       distance_miles: r.distance_miles,
@@ -57,8 +81,8 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
       elevation_loss_ft: r.elevation_loss_ft,
       surface_breakdown: r.surface_breakdown || {},
       surface_strip: r.surface_strip || [],
-      coordinates: r.coordinates || [],
-      bbox: [-71.5, 43.1, -71.2, 43.3],
+      coordinates: coords,
+      bbox,
       warnings: [],
       verbal_summary: r.verbal_summary
     };
@@ -68,7 +92,9 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0 24px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34' }}>Saved Routes</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
+          Saved Routes Library
+        </h2>
         <button
           type="button"
           onClick={loadRoutes}
@@ -80,18 +106,18 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
       </div>
 
       {isLoading && (
-        <div style={{ padding: 20, textAlign: 'center', color: '#42675E', fontSize: 14 }}>
-          Loading saved routes...
+        <div style={{ padding: 20, textAlign: 'center', color: 'var(--color-text-secondary, #42675E)', fontSize: 14 }}>
+          Loading saved routes from database...
         </div>
       )}
 
       {!isLoading && routes.length === 0 && (
-        <div style={{ padding: 24, textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8' }}>
-          <div style={{ fontSize: 15, fontWeight: 600, color: '#1D3B34', marginBottom: 4 }}>
+        <div style={{ padding: 24, textAlign: 'center', backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)' }}>
+          <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 4 }}>
             No saved routes yet
           </div>
-          <div style={{ fontSize: 13, color: '#42675E' }}>
-            Plan a route in the Plan tab and tap "Save to Profile" to access it offline or sync to your Garmin watch.
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)' }}>
+            Plan a route in the Plan tab and tap "Save to Profile" to store it in your PostgreSQL account and access it offline or sync to Garmin.
           </div>
         </div>
       )}
@@ -101,41 +127,41 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
           key={r.id}
           onClick={() => handleSelect(r)}
           style={{
-            backgroundColor: '#FFFFFF',
+            backgroundColor: 'var(--color-card-bg, #FFFFFF)',
             borderRadius: 8,
-            border: '1px solid #D1D8D8',
+            border: '1px solid var(--color-divider, #D1D8D8)',
             padding: 12,
             cursor: 'pointer',
             transition: 'border-color 0.15s ease'
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.borderColor = '#FF5B14')}
-          onMouseLeave={(e) => (e.currentTarget.style.borderColor = '#D1D8D8')}
+          onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'var(--color-blaze, #FF5B14)')}
+          onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--color-divider, #D1D8D8)')}
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
             <div>
-              <div style={{ fontSize: 15, fontWeight: 700, color: '#1D3B34' }}>{r.name}</div>
-              <div style={{ fontSize: 12, color: '#42675E', textTransform: 'capitalize' }}>
-                {r.sport.replace('_', ' ')}
+              <div style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{r.name}</div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textTransform: 'capitalize' }}>
+                {(r.sport || 'mtb').replace('_', ' ')}
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span className="num-tabular" style={{ fontSize: 18, fontWeight: 700, color: '#FF5B14' }}>
-                {r.distance_miles.toFixed(1)} mi
+              <span className="num-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)' }}>
+                {(r.distance_miles ?? 0).toFixed(1)} mi
               </span>
-              <div className="num-tabular" style={{ fontSize: 12, color: '#42675E' }}>
-                +{Math.round(r.elevation_gain_ft)} ft
+              <div className="num-tabular" style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
+                +{Math.round(r.elevation_gain_ft ?? 0)} ft
               </div>
             </div>
           </div>
 
           {r.verbal_summary && (
-            <div style={{ fontSize: 12, color: '#1D3B34', marginBottom: 8 }}>
+            <div style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 8 }}>
               {r.verbal_summary}
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid #E7ECEC' }}>
-            <span style={{ fontSize: 11, color: '#888' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-divider, #E7ECEC)' }}>
+            <span style={{ fontSize: 11, color: 'var(--color-text-secondary, #888)' }}>
               {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
@@ -146,9 +172,9 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
                   handleSelect(r);
                 }}
                 className="btn-outline"
-                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, color: '#1D3B34' }}
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, color: 'var(--color-text-primary, #1D3B34)' }}
               >
-                View
+                Inspect
               </button>
               <button
                 type="button"
@@ -164,3 +190,5 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
     </div>
   );
 };
+
+export default SavedRoutesPanel;

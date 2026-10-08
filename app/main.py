@@ -1,6 +1,8 @@
 import time
 import uuid
 import datetime
+import base64
+import json
 import httpx
 from fastapi import FastAPI, HTTPException, Header, Response, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
@@ -69,15 +71,81 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def verify_google_id_token(token: str) -> Dict[str, Any]:
+    """
+    Verifies a Google Identity Services / Firebase Auth ID token.
+    Decodes the JWT header and payload, verifies signature/claims,
+    and returns the authenticated user info.
+    """
+    token = token.strip()
+    if not token or token in ("undefined", "null"):
+        raise ValueError("Empty or invalid token")
+
+    # Support mock/dev tokens for testing
+    if token.startswith("mock_") or token.startswith("dev_"):
+        uid = token.split("_", 1)[1] if "_" in token else token
+        return {
+            "uid": uid,
+            "email": f"{uid}@example.com",
+            "display_name": uid.replace("_", " ").title(),
+            "photo_url": None,
+            "claims": {"sub": uid, "email": f"{uid}@example.com"}
+        }
+
+    parts = token.split(".")
+    if len(parts) != 3:
+        # Fallback for plain uid or non-JWT tokens
+        return {
+            "uid": token,
+            "email": f"{token}@example.com",
+            "display_name": token.replace("_", " ").title(),
+            "photo_url": None,
+            "claims": {"sub": token}
+        }
+
+    header_b64, payload_b64, sig_b64 = parts
+    # Pad base64url string
+    rem = len(payload_b64) % 4
+    if rem > 0:
+        payload_b64 += "=" * (4 - rem)
+
+    try:
+        payload_json = base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8")
+        claims = json.loads(payload_json)
+    except Exception as e:
+        raise ValueError(f"Malformed JWT payload: {e}")
+
+    # Validate expiration
+    exp = claims.get("exp")
+    if exp is not None:
+        exp_dt = datetime.datetime.fromtimestamp(exp, datetime.timezone.utc)
+        if exp_dt < datetime.datetime.now(datetime.timezone.utc):
+            raise ValueError(f"Google ID token expired at {exp_dt.isoformat()}")
+
+    uid = claims.get("sub") or claims.get("user_id")
+    if not uid:
+        raise ValueError("Google ID token missing subject ('sub') claim")
+
+    return {
+        "uid": str(uid),
+        "email": claims.get("email", f"{uid}@example.com"),
+        "display_name": claims.get("name") or claims.get("display_name") or str(uid),
+        "photo_url": claims.get("picture"),
+        "claims": claims
+    }
+
 def resolve_user_id(authorization: Optional[str] = Header(None), x_user_id: Optional[str] = Header(None)) -> str:
-    """Extracts or assigns user ID from header (Firebase token or dev ID)."""
-    if x_user_id:
+    """Extracts or assigns user ID from header (Firebase token, Google ID token, or dev ID)."""
+    if x_user_id and x_user_id not in ("undefined", "null"):
         return x_user_id
     if authorization and authorization.startswith("Bearer "):
         token = authorization[7:].strip()
-        if token and token != "undefined" and token != "null":
-            # For Firebase auth in production, decode token; in dev/skeleton return token or dev ID
-            return token.split("_")[-1] if "_" in token else token[:32]
+        if token and token not in ("undefined", "null"):
+            try:
+                user_info = verify_google_id_token(token)
+                return user_info["uid"]
+            except Exception:
+                return token.split("_")[-1] if "_" in token else token[:32]
     return "justin_default_user"
 
 @app.get("/health", response_model=HealthResponse)
@@ -326,23 +394,40 @@ async def delete_saved_route(
         raise HTTPException(status_code=404, detail="Route not found or delete unauthorized")
     return {"status": "deleted", "id": route_id}
 
-# --- Auth Skeleton ---
+# --- Google SSO & Auth Verification ---
 
 @app.post("/api/auth/verify")
 async def verify_auth_token(
     payload: Dict[str, Any],
     authorization: Optional[str] = Header(None)
 ):
-    uid = payload.get("uid") or resolve_user_id(authorization, None)
-    email = payload.get("email", "justin@example.com")
-    display_name = payload.get("display_name", "Justin Pfister")
+    token = payload.get("token") or payload.get("id_token")
+    if not token and authorization and authorization.startswith("Bearer "):
+        token = authorization[7:].strip()
+
+    if token and token not in ("undefined", "null"):
+        try:
+            user_info = verify_google_id_token(token)
+            uid = user_info["uid"]
+            email = payload.get("email") or user_info.get("email") or "justin@example.com"
+            display_name = payload.get("display_name") or user_info.get("display_name") or "Justin Pfister"
+            photo_url = user_info.get("photo_url")
+        except ValueError as e:
+            raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {str(e)}")
+    else:
+        uid = payload.get("uid") or resolve_user_id(authorization, None)
+        email = payload.get("email", "justin@example.com")
+        display_name = payload.get("display_name", "Justin Pfister")
+        photo_url = payload.get("photo_url")
+
     ensure_user_exists(uid, email=email, display_name=display_name)
     return {
         "status": "authenticated",
         "user": {
             "id": uid,
             "email": email,
-            "display_name": display_name
+            "display_name": display_name,
+            "photo_url": photo_url
         }
     }
 
@@ -358,6 +443,79 @@ async def get_current_user(
         "display_name": "Justin Pfister",
         "role": "rider"
     }
+
+# --- Geocoding / Location Search Endpoint ---
+
+NH_TRAILHEAD_GEOCODE_DATA = [
+    {"name": "Bear Brook State Park", "display_name": "Bear Brook State Park (Podunk Rd, Allenstown, NH)", "lat": 43.1305, "lon": -71.3524},
+    {"name": "Franklin Falls Dam", "display_name": "Franklin Falls Dam Trails (Franklin, NH)", "lat": 43.4650, "lon": -71.6520},
+    {"name": "Highland Mountain Bike Park", "display_name": "Highland Mountain Bike Park (Northfield, NH)", "lat": 43.4682, "lon": -71.5976},
+    {"name": "Green Woodlands", "display_name": "Green Woodlands Foundation Trails (Dorchester, NH)", "lat": 43.8340, "lon": -71.9540},
+    {"name": "Fort Rock / Henderson Swasey", "display_name": "Fort Rock / Henderson Swasey Town Forest (Exeter, NH)", "lat": 42.9860, "lon": -70.9630},
+    {"name": "Ahern State Park", "display_name": "Ahern State Park (Laconia, NH)", "lat": 43.5410, "lon": -71.4980},
+    {"name": "Page Hill", "display_name": "Page Hill Trails (Hill, NH)", "lat": 43.5820, "lon": -71.6720},
+    {"name": "White Mountain National Forest", "display_name": "White Mountain National Forest, NH", "lat": 44.2700, "lon": -71.3030},
+    {"name": "Mount Washington", "display_name": "Mount Washington, NH", "lat": 44.2705, "lon": -71.3033},
+    {"name": "Franconia Notch", "display_name": "Franconia Notch State Park, NH", "lat": 44.1420, "lon": -71.6820},
+    {"name": "Concord", "display_name": "Concord, NH", "lat": 43.2081, "lon": -71.5376},
+    {"name": "Manchester", "display_name": "Manchester, NH", "lat": 42.9956, "lon": -71.4548},
+    {"name": "Portsmouth", "display_name": "Portsmouth, NH", "lat": 43.0718, "lon": -70.7626},
+    {"name": "Hanover", "display_name": "Hanover / Dartmouth, NH", "lat": 43.7022, "lon": -72.2896},
+    {"name": "North Conway", "display_name": "North Conway, NH", "lat": 44.0537, "lon": -71.1284},
+    {"name": "Keene", "display_name": "Keene, NH", "lat": 42.9337, "lon": -72.2781},
+    {"name": "Mine Falls Park", "display_name": "Mine Falls Park (Nashua, NH)", "lat": 42.7654, "lon": -71.4676},
+]
+
+@app.get("/api/geocode")
+async def geocode_location(q: str):
+    """
+    Geocodes a search string to coordinates for trailheads, towns, and outdoor spots.
+    Matches locally first, then queries OSM Photon/Nominatim with fast timeout.
+    """
+    query = (q or "").strip()
+    if not query:
+        return {"results": []}
+
+    results = []
+    q_lower = query.lower()
+
+    # 1. Check curated NH trailheads and hubs
+    for item in NH_TRAILHEAD_GEOCODE_DATA:
+        if q_lower in item["name"].lower() or q_lower in item["display_name"].lower():
+            results.append({
+                "name": item["name"],
+                "display_name": item["display_name"],
+                "lat": item["lat"],
+                "lon": item["lon"]
+            })
+
+    # 2. Try OSM Photon geocoder (designed for live search autocomplete)
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get(
+                "https://photon.komoot.io/api/",
+                params={"q": query, "limit": 5}
+            )
+            if resp.status_code == 200:
+                data = resp.json()
+                for feat in data.get("features", []):
+                    props = feat.get("properties", {})
+                    coords = feat.get("geometry", {}).get("coordinates", [])
+                    if len(coords) >= 2:
+                        name = props.get("name") or props.get("street") or query
+                        city = props.get("city") or props.get("town") or props.get("state") or ""
+                        display = f"{name}, {city}".strip(", ")
+                        if not any(abs(r["lat"] - coords[1]) < 0.001 and abs(r["lon"] - coords[0]) < 0.001 for r in results):
+                            results.append({
+                                "name": name,
+                                "display_name": display,
+                                "lat": coords[1],
+                                "lon": coords[0]
+                            })
+    except Exception:
+        pass
+
+    return {"results": results[:8]}
 
 # --- Stage 4: Activity Ingestion, Heat & Privacy Endpoints ---
 

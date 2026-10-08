@@ -4,15 +4,22 @@ import {
   exportMyData, deleteMyAccount,
   getConnectors, connectGarmin, connectStrava, syncConnector, disconnectConnector
 } from '../services/api';
-import type { UserDNR, ConnectorStatus } from '../types';
+import { getStoredUser, mockGoogleLogin, logoutUser } from '../services/auth';
+import type { UserDNR, ConnectorStatus, AuthUser } from '../types';
 
-export const YouPanel: React.FC = () => {
-  const [isSignedIn, setIsSignedIn] = useState(true);
-  const [user, setUser] = useState({
-    name: 'Justin Pfister',
-    email: 'justin@example.com',
+interface YouPanelProps {
+  isDarkMode?: boolean;
+  onToggleDarkMode?: () => void;
+}
+
+export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggleDarkMode }) => {
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
+  const isSignedIn = !!currentUser;
+  const user = {
+    name: currentUser?.displayName || 'Justin Pfister',
+    email: currentUser?.email || 'justin@example.com',
     device: 'Garmin fenix 7 Pro'
-  });
+  };
   const [privacyZoneEnabled, setPrivacyZoneEnabled] = useState(true);
   const [dnrList, setDnrList] = useState<UserDNR[]>([]);
   const [showAddDnr, setShowAddDnr] = useState(false);
@@ -104,33 +111,34 @@ export const YouPanel: React.FC = () => {
 
     try {
       await deleteMyAccount('justin_default_user');
-      setIsSignedIn(false);
+      logoutUser();
+      setCurrentUser(null);
       alert('Account and all personal data permanently deleted.');
     } catch (e: any) {
       alert(`Deletion failed: ${e.message}`);
     }
   };
 
-  const handleSignInGoogle = () => {
-    // Firebase Google Sign-In skeleton
-    setIsSignedIn(true);
-    setUser({
-      name: 'Justin Pfister',
-      email: 'justin@example.com',
-      device: 'Garmin fenix 7 Pro'
-    });
+  const handleSignInGoogle = async () => {
+    try {
+      const authUser = await mockGoogleLogin('justin@example.com', 'Justin Pfister');
+      setCurrentUser(authUser);
+    } catch (e: any) {
+      alert(`Google Sign-In failed: ${e.message}`);
+    }
   };
 
   const handleSignOut = () => {
-    setIsSignedIn(false);
+    logoutUser();
+    setCurrentUser(null);
   };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0 24px 0' }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34' }}>Profile & Settings</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Profile & Settings</h2>
 
       {/* Auth Card */}
-      <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14 }}>
+      <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
         {isSignedIn ? (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
@@ -139,7 +147,7 @@ export const YouPanel: React.FC = () => {
                   width: 44,
                   height: 44,
                   borderRadius: '50%',
-                  backgroundColor: '#1D3B34',
+                  backgroundColor: 'var(--color-header-bg, #1D3B34)',
                   color: '#FFFFFF',
                   display: 'flex',
                   alignItems: 'center',
@@ -148,15 +156,15 @@ export const YouPanel: React.FC = () => {
                   fontWeight: 700
                 }}
               >
-                JP
+                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2) || 'JP'}
               </div>
               <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34' }}>{user.name}</div>
-                <div style={{ fontSize: 13, color: '#42675E' }}>{user.email}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{user.name}</div>
+                <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)' }}>{user.email}</div>
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: '#1D3B34', backgroundColor: '#F3F7F7', padding: '8px 10px', borderRadius: 6, marginBottom: 12 }}>
+            <div style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)', backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: '8px 10px', borderRadius: 6, marginBottom: 12 }}>
               Connected Device: <strong>{user.device}</strong> (Garmin FIT & GPX enabled)
             </div>
 
@@ -171,8 +179,8 @@ export const YouPanel: React.FC = () => {
           </div>
         ) : (
           <div style={{ textAlign: 'center', padding: '10px 0' }}>
-            <p style={{ fontSize: 14, color: '#1D3B34', marginBottom: 12 }}>
-              Sign in with Google to sync routes across devices and export to Garmin Connect.
+            <p style={{ fontSize: 14, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 12 }}>
+              Sign in with Google to sync routes across devices, backup to PostgreSQL, and export to Garmin Connect.
             </p>
             <button
               type="button"
@@ -187,11 +195,11 @@ export const YouPanel: React.FC = () => {
       </div>
 
       {/* Heat v1 Activity Upload Card */}
-      <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34', marginBottom: 6 }}>
+      <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
           Upload Ride / Run (Heat Ingestion)
         </h3>
-        <p style={{ fontSize: 12, color: '#42675E', marginBottom: 12 }}>
+        <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', marginBottom: 12 }}>
           Ingest your GPX or Garmin FIT files into Loam's recency heat layer. Starts & ends are automatically trimmed by 0.2 mi.
         </p>
 
@@ -202,15 +210,31 @@ export const YouPanel: React.FC = () => {
       <ConnectedServicesSection />
 
       {/* Settings & Privacy */}
-      <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34' }}>Preferences & Privacy</h3>
+      <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Preferences & Privacy</h3>
 
+        {/* Display Theme Toggle */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
           <div>
-            <strong>Distance & Elevation Units</strong>
-            <div style={{ fontSize: 12, color: '#42675E' }}>Miles & Feet (Fixed policy)</div>
+            <strong>Display Theme</strong>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Section 18 tokens (Fog / Spruce)</div>
           </div>
-          <span style={{ fontWeight: 700, color: '#1D3B34' }}>Imperial (mi / ft)</span>
+          <button
+            type="button"
+            onClick={onToggleDarkMode}
+            className="btn-secondary"
+            style={{ fontSize: 12, padding: '4px 10px', minHeight: 32 }}
+          >
+            {isDarkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
+          </button>
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+          <div>
+            <strong>Distance & Elevation Units</strong>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Miles & Feet (Fixed policy)</div>
+          </div>
+          <span style={{ fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Imperial (mi / ft)</span>
         </div>
 
         <div style={{ borderTop: '1px solid #E7ECEC', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>

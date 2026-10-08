@@ -3,12 +3,12 @@ import type {
   SportProfile, 
   TerrainPreference, 
   LatLon, 
-  TrailheadPreset
+  GeocodeResult
 } from '../types';
 import { 
-  NH_TRAILHEAD_PRESETS, 
   TERRAIN_PRESETS
 } from '../types';
+import { geocodeLocations } from '../services/api';
 
 interface PlanPanelProps {
   sport: SportProfile;
@@ -68,8 +68,18 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   trailRunAvoidMtbFlow = true,
   onTrailRunAvoidMtbFlowChange
 }) => {
-
   const [selectedPresetName, setSelectedPresetName] = useState<string>("Mostly Trail");
+
+  // Geocoding states
+  const [startQuery, setStartQuery] = useState('');
+  const [startResults, setStartResults] = useState<GeocodeResult[]>([]);
+  const [isSearchingStart, setIsSearchingStart] = useState(false);
+  const [showStartResults, setShowStartResults] = useState(false);
+
+  const [endQuery, setEndQuery] = useState('');
+  const [endResults, setEndResults] = useState<GeocodeResult[]>([]);
+  const [isSearchingEnd, setIsSearchingEnd] = useState(false);
+  const [showEndResults, setShowEndResults] = useState(false);
 
   const handleApplyTerrainPreset = (presetName: string) => {
     const found = TERRAIN_PRESETS.find(p => p.name === presetName);
@@ -77,14 +87,6 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
       setSelectedPresetName(presetName);
       onTerrainPrefChange(found.weights);
     }
-  };
-
-  const handleSelectTrailhead = (preset: TrailheadPreset) => {
-    onStartChange({
-      lat: preset.lat,
-      lon: preset.lon,
-      name: preset.name
-    });
   };
 
   const handleLocateMe = () => {
@@ -98,90 +100,132 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
           });
         },
         (err) => {
-          alert(`Location access failed: ${err.message}. Defaulting to Bear Brook Trailhead.`);
+          alert(`Location access failed: ${err.message}. Defaulting to Bear Brook State Park.`);
         }
       );
+    } else {
+      alert("Geolocation is not supported by your browser.");
     }
   };
 
-  const isBike = sport.startsWith('mtb') || sport === 'bike';
+  const handleStartSearch = async (val: string) => {
+    setStartQuery(val);
+    if (val.trim().length >= 2) {
+      setIsSearchingStart(true);
+      setShowStartResults(true);
+      try {
+        const results = await geocodeLocations(val.trim());
+        setStartResults(results);
+      } finally {
+        setIsSearchingStart(false);
+      }
+    } else {
+      setStartResults([]);
+      setShowStartResults(false);
+    }
+  };
+
+  const handleSelectStartLocation = (loc: GeocodeResult) => {
+    onStartChange({
+      lat: loc.lat,
+      lon: loc.lon,
+      name: loc.name
+    });
+    setStartQuery('');
+    setShowStartResults(false);
+    setStartResults([]);
+  };
+
+  const handleEndSearch = async (val: string) => {
+    setEndQuery(val);
+    if (val.trim().length >= 2) {
+      setIsSearchingEnd(true);
+      setShowEndResults(true);
+      try {
+        const results = await geocodeLocations(val.trim());
+        setEndResults(results);
+      } finally {
+        setIsSearchingEnd(false);
+      }
+    } else {
+      setEndResults([]);
+      setShowEndResults(false);
+    }
+  };
+
+  const handleSelectEndLocation = (loc: GeocodeResult) => {
+    onEndChange({
+      lat: loc.lat,
+      lon: loc.lon,
+      name: loc.name
+    });
+    setEndQuery('');
+    setShowEndResults(false);
+    setEndResults([]);
+  };
+
+  // Functionally active sports mapping per Item 6
+  // Keep only: MTB, Gravel, Trail Run
+  const activeSport = sport === 'mtb_gravel' ? 'gravel' : (sport === 'trail_run' ? 'trail_run' : 'mtb');
+
+  const handleSportSelect = (targetSport: 'mtb' | 'gravel' | 'trail_run') => {
+    if (targetSport === 'mtb') {
+      onSportChange('mtb');
+      handleApplyTerrainPreset("Mostly Trail");
+    } else if (targetSport === 'gravel') {
+      onSportChange('mtb_gravel');
+      handleApplyTerrainPreset("Gravel Grind");
+    } else {
+      onSportChange('trail_run');
+      handleApplyTerrainPreset("Mostly Trail");
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0 24px 0' }}>
       
-      {/* 1. Sport Mode Selector */}
+      {/* 1. Sport Mode Selector: Functionally active choices only */}
       <section>
-        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1D3B34', marginBottom: 6 }}>
-          Sport Mode
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
+          Sport & Route Profile
         </label>
-        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-          <button
-            type="button"
-            onClick={() => onSportChange('mtb_hardtail')}
-            className={isBike ? 'btn-primary' : 'btn-secondary'}
-            style={{
-              flex: 1,
-              backgroundColor: isBike ? '#1D3B34' : '#FFFFFF',
-              color: isBike ? '#FFFFFF' : '#1D3B34',
-              borderColor: '#D1D8D8'
-            }}
-          >
-            Mountain Bike
-          </button>
-          <button
-            type="button"
-            onClick={() => onSportChange('trail_run')}
-            className={!isBike ? 'btn-primary' : 'btn-secondary'}
-            style={{
-              flex: 1,
-              backgroundColor: !isBike ? '#1D3B34' : '#FFFFFF',
-              color: !isBike ? '#FFFFFF' : '#1D3B34',
-              borderColor: '#D1D8D8'
-            }}
-          >
-            Trail Run
-          </button>
-        </div>
-
-        {/* MTB Subtypes */}
-        {isBike && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-            {[
-              { id: 'mtb_hardtail', label: 'Hardtail' },
-              { id: 'mtb_fullsus', label: 'Full-Sus' },
-              { id: 'mtb_gravel', label: 'Gravel' },
-              { id: 'mtb_fat', label: 'Fat Bike' },
-              { id: 'mtb_emtb', label: 'eMTB' }
-            ].map(sub => (
+        <div style={{ display: 'flex', gap: 8 }}>
+          {[
+            { id: 'mtb', label: '🚵 Mountain Bike' },
+            { id: 'gravel', label: '🚲 Gravel' },
+            { id: 'trail_run', label: '🏃 Trail Run' }
+          ].map(s => {
+            const isSelected = activeSport === s.id;
+            return (
               <button
-                key={sub.id}
+                key={s.id}
                 type="button"
-                onClick={() => onSportChange(sub.id as SportProfile)}
+                onClick={() => handleSportSelect(s.id as any)}
+                className={isSelected ? 'btn-primary' : 'btn-secondary'}
                 style={{
-                  padding: '6px 12px',
-                  minHeight: 36,
+                  flex: 1,
                   fontSize: 13,
-                  fontWeight: sport === sub.id ? 700 : 500,
-                  backgroundColor: sport === sub.id ? '#3F6C8F' : '#F3F7F7',
-                  color: sport === sub.id ? '#FFFFFF' : '#1D3B34',
-                  border: '1px solid',
-                  borderColor: sport === sub.id ? '#3F6C8F' : '#D1D8D8',
+                  padding: '8px 6px',
+                  minHeight: 42,
+                  backgroundColor: isSelected ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-card-bg, #FFFFFF)',
+                  color: isSelected ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
+                  borderColor: isSelected ? 'var(--color-blaze, #FF5B14)' : 'var(--color-divider, #D1D8D8)',
                   borderRadius: 6
                 }}
               >
-                {sub.label}
+                {s.label}
               </button>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
 
         {/* Trail Running Profile Polish */}
-        {!isBike && (
-          <div style={{ backgroundColor: '#F3F7F7', padding: '10px 12px', borderRadius: 8, border: '1px solid #D1D8D8', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34' }}>
+        {activeSport === 'trail_run' && (
+          <div style={{ backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
               🏃 Trail Running Routing Polish
             </div>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#1D3B34' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
               <input
                 type="checkbox"
                 checked={trailRunSteeperGrades}
@@ -190,7 +234,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
               />
               <span>Allow steeper grades & foot-only stairs (Hiking tolerance)</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#1D3B34' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
               <input
                 type="checkbox"
                 checked={trailRunAvoidMtbFlow}
@@ -205,9 +249,8 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
 
       {/* 2. Route Mode: Loop / Round Trip vs Point to Point */}
       <section>
-
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
             Route Type
           </label>
         </div>
@@ -227,9 +270,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                 minHeight: 40,
                 fontSize: 13,
                 fontWeight: routeMode === m.id ? 700 : 500,
-                backgroundColor: routeMode === m.id ? '#2A4F46' : '#FFFFFF',
-                color: routeMode === m.id ? '#FFFFFF' : '#1D3B34',
-                borderColor: routeMode === m.id ? '#2A4F46' : '#D1D8D8',
+                backgroundColor: routeMode === m.id ? 'var(--color-header-bg, #1D3B34)' : 'var(--color-card-bg, #FFFFFF)',
+                color: routeMode === m.id ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
+                borderColor: routeMode === m.id ? 'var(--color-header-bg, #1D3B34)' : 'var(--color-divider, #D1D8D8)',
                 borderRadius: 6
               }}
             >
@@ -239,20 +282,21 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         </div>
       </section>
 
-      {/* 3. Trailhead & Locations */}
+      {/* 3. Starting Location UX: Search, Direct Map Tap, Geolocation (No dropdown presets) */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
               Starting Location
             </label>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
                 type="button"
                 onClick={handleLocateMe}
-                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: '#E2ECF3', color: '#1D3B34' }}
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'var(--color-slate-light, #E2ECF3)', color: 'var(--color-text-primary, #1D3B34)' }}
+                title="Use browser GPS location"
               >
-                GPS
+                📍 GPS
               </button>
               <button
                 type="button"
@@ -261,50 +305,110 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                   fontSize: 12,
                   padding: '2px 8px',
                   minHeight: 28,
-                  backgroundColor: pickingTarget === 'start' ? '#FF5B14' : '#E2ECF3',
-                  color: pickingTarget === 'start' ? '#FFFFFF' : '#1D3B34'
+                  backgroundColor: pickingTarget === 'start' ? 'var(--color-blaze, #FF5B14)' : 'var(--color-slate-light, #E2ECF3)',
+                  color: pickingTarget === 'start' ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)'
                 }}
+                title="Tap anywhere on map"
               >
                 {pickingTarget === 'start' ? 'Tap Map...' : 'Tap Map'}
               </button>
             </div>
           </div>
 
-          {/* Quick Trailheads */}
-          <select
-            value={start.name || ''}
-            onChange={(e) => {
-              const th = NH_TRAILHEAD_PRESETS.find(p => p.name === e.target.value);
-              if (th) handleSelectTrailhead(th);
-            }}
+          {/* Search Input for Location (Geocoding) */}
+          <div style={{ position: 'relative' }}>
+            <input
+              type="text"
+              placeholder="Search trailhead or town (e.g. Bear Brook)..."
+              value={startQuery}
+              onChange={(e) => handleStartSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 8,
+                border: '1px solid var(--color-divider, #D1D8D8)',
+                backgroundColor: 'var(--color-input-bg, #FFFFFF)',
+                color: 'var(--color-text-primary, #1D3B34)',
+                fontSize: 13
+              }}
+            />
+            {isSearchingStart && (
+              <span style={{ position: 'absolute', right: 10, top: 8, fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
+                Searching...
+              </span>
+            )}
+
+            {/* Geocode Results Dropdown */}
+            {showStartResults && startResults.length > 0 && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  right: 0,
+                  marginTop: 4,
+                  backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+                  border: '1px solid var(--color-divider, #D1D8D8)',
+                  borderRadius: 8,
+                  zIndex: 50,
+                  maxHeight: 180,
+                  overflowY: 'auto',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                }}
+              >
+                {startResults.map((item, idx) => (
+                  <div
+                    key={idx}
+                    className="start-geocode-item"
+                    data-testid="start-geocode-item"
+                    onClick={() => handleSelectStartLocation(item)}
+                    style={{
+                      padding: '8px 12px',
+                      cursor: 'pointer',
+                      borderBottom: '1px solid var(--color-divider, #E7ECEC)',
+                      fontSize: 13,
+                      color: 'var(--color-text-primary, #1D3B34)'
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-subtle, #F3F7F7)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    <div style={{ fontWeight: 600 }}>{item.name}</div>
+                    <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>{item.display_name}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Current Selected Location Indicator */}
+          <div
             style={{
-              width: '100%',
-              padding: '10px 12px',
-              borderRadius: 8,
-              border: '1px solid #D1D8D8',
-              backgroundColor: '#FFFFFF',
-              color: '#1D3B34',
-              fontSize: 14,
-              fontWeight: 600
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              backgroundColor: 'var(--color-bg-subtle, #F3F7F7)',
+              padding: '6px 10px',
+              borderRadius: 6,
+              border: '1px solid var(--color-divider, #D1D8D8)',
+              marginTop: 6,
+              fontSize: 12
             }}
           >
-            {NH_TRAILHEAD_PRESETS.map(th => (
-              <option key={th.name} value={th.name}>
-                {th.name} ({th.region})
-              </option>
-            ))}
-          </select>
-          <div style={{ fontSize: 11, color: '#42675E', marginTop: 4 }}>
-            {start.lat.toFixed(4)}, {start.lon.toFixed(4)}
+            <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              📍 {start.name || 'Custom Start Point'}
+            </span>
+            <span className="num-tabular" style={{ color: 'var(--color-text-secondary, #42675E)', fontSize: 11, flexShrink: 0, marginLeft: 8 }}>
+              {start.lat.toFixed(4)}, {start.lon.toFixed(4)}
+            </span>
           </div>
         </div>
 
         {/* End Location for Point-to-Point */}
         {routeMode === 'point_to_point' && (
           <div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-              <label style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>
-                End Location
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
+                Destination Location
               </label>
               <button
                 type="button"
@@ -313,37 +417,99 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                   fontSize: 12,
                   padding: '2px 8px',
                   minHeight: 28,
-                  backgroundColor: pickingTarget === 'end' ? '#FF5B14' : '#E2ECF3',
-                  color: pickingTarget === 'end' ? '#FFFFFF' : '#1D3B34'
+                  backgroundColor: pickingTarget === 'end' ? 'var(--color-blaze, #FF5B14)' : 'var(--color-slate-light, #E2ECF3)',
+                  color: pickingTarget === 'end' ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)'
                 }}
               >
                 {pickingTarget === 'end' ? 'Tap Map...' : 'Tap Map'}
               </button>
             </div>
-            <select
-              value={end?.name || ''}
-              onChange={(e) => {
-                const th = NH_TRAILHEAD_PRESETS.find(p => p.name === e.target.value);
-                if (th) onEndChange({ lat: th.lat, lon: th.lon, name: th.name });
-              }}
-              style={{
-                width: '100%',
-                padding: '10px 12px',
-                borderRadius: 8,
-                border: '1px solid #D1D8D8',
-                backgroundColor: '#FFFFFF',
-                color: '#1D3B34',
-                fontSize: 14,
-                fontWeight: 600
-              }}
-            >
-              <option value="">Select Destination Trailhead...</option>
-              {NH_TRAILHEAD_PRESETS.map(th => (
-                <option key={th.name} value={th.name}>
-                  {th.name} ({th.region})
-                </option>
-              ))}
-            </select>
+
+            <div style={{ position: 'relative' }}>
+              <input
+                type="text"
+                placeholder="Search destination trailhead..."
+                value={endQuery}
+                onChange={(e) => handleEndSearch(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  borderRadius: 8,
+                  border: '1px solid var(--color-divider, #D1D8D8)',
+                  backgroundColor: 'var(--color-input-bg, #FFFFFF)',
+                  color: 'var(--color-text-primary, #1D3B34)',
+                  fontSize: 13
+                }}
+              />
+              {isSearchingEnd && (
+                <span style={{ position: 'absolute', right: 10, top: 8, fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
+                  Searching...
+                </span>
+              )}
+
+              {showEndResults && endResults.length > 0 && (
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    marginTop: 4,
+                    backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+                    border: '1px solid var(--color-divider, #D1D8D8)',
+                    borderRadius: 8,
+                    zIndex: 50,
+                    maxHeight: 180,
+                    overflowY: 'auto',
+                    boxShadow: '0 4px 12px rgba(0,0,0,0.15)'
+                  }}
+                >
+                  {endResults.map((item, idx) => (
+                    <div
+                      key={idx}
+                      className="end-geocode-item"
+                      data-testid="end-geocode-item"
+                      onClick={() => handleSelectEndLocation(item)}
+                      style={{
+                        padding: '8px 12px',
+                        cursor: 'pointer',
+                        borderBottom: '1px solid var(--color-divider, #E7ECEC)',
+                        fontSize: 13,
+                        color: 'var(--color-text-primary, #1D3B34)'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--color-bg-subtle, #F3F7F7)'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                    >
+                      <div style={{ fontWeight: 600 }}>{item.name}</div>
+                      <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>{item.display_name}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {end && (
+              <div
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: 'var(--color-bg-subtle, #F3F7F7)',
+                  padding: '6px 10px',
+                  borderRadius: 6,
+                  border: '1px solid var(--color-divider, #D1D8D8)',
+                  marginTop: 6,
+                  fontSize: 12
+                }}
+              >
+                <span style={{ fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)' }}>
+                  🏁 {end.name || 'Custom End Point'}
+                </span>
+                <span className="num-tabular" style={{ color: 'var(--color-text-secondary, #42675E)', fontSize: 11 }}>
+                  {end.lat.toFixed(4)}, {end.lon.toFixed(4)}
+                </span>
+              </div>
+            )}
           </div>
         )}
       </section>
@@ -351,24 +517,24 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
       {/* 4. Target Distance in Miles (Strictly Miles!) */}
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
             Target Distance
           </label>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <button
               type="button"
               onClick={() => onTargetMilesChange(Math.max(1, targetMiles - 1))}
-              style={{ width: 28, height: 28, minHeight: 28, padding: 0, borderRadius: 4, backgroundColor: '#FFFFFF', border: '1px solid #D1D8D8' }}
+              style={{ width: 28, height: 28, minHeight: 28, padding: 0, borderRadius: 4, backgroundColor: 'var(--color-card-bg, #FFFFFF)', border: '1px solid var(--color-divider, #D1D8D8)' }}
             >
               -
             </button>
-            <span className="num-tabular" style={{ fontSize: 20, fontWeight: 700, color: '#FF5B14', minWidth: 64, textAlign: 'center' }}>
+            <span className="num-tabular" style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)', minWidth: 64, textAlign: 'center' }}>
               {targetMiles.toFixed(1)} mi
             </span>
             <button
               type="button"
               onClick={() => onTargetMilesChange(Math.min(50, targetMiles + 1))}
-              style={{ width: 28, height: 28, minHeight: 28, padding: 0, borderRadius: 4, backgroundColor: '#FFFFFF', border: '1px solid #D1D8D8' }}
+              style={{ width: 28, height: 28, minHeight: 28, padding: 0, borderRadius: 4, backgroundColor: 'var(--color-card-bg, #FFFFFF)', border: '1px solid var(--color-divider, #D1D8D8)' }}
             >
               +
             </button>
@@ -381,9 +547,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
           step="0.5"
           value={targetMiles}
           onChange={(e) => onTargetMilesChange(parseFloat(e.target.value))}
-          style={{ width: '100%', accentColor: '#FF5B14' }}
+          style={{ width: '100%', accentColor: 'var(--color-blaze, #FF5B14)' }}
         />
-        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#42675E' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
           <span>1.0 mi (Quick spin)</span>
           <span>12.0 mi</span>
           <span>35.0 mi (Epic)</span>
@@ -393,7 +559,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
       {/* 5. Terrain Mix Sliders & Presets */}
       <section>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 6 }}>
-          <label style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>
+          <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
             Terrain Mix
           </label>
         </div>
@@ -410,9 +576,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                 padding: '4px 10px',
                 minHeight: 32,
                 borderRadius: 6,
-                backgroundColor: selectedPresetName === preset.name ? '#1D3B34' : '#FFFFFF',
-                color: selectedPresetName === preset.name ? '#FFFFFF' : '#1D3B34',
-                borderColor: selectedPresetName === preset.name ? '#1D3B34' : '#D1D8D8'
+                backgroundColor: selectedPresetName === preset.name ? 'var(--color-header-bg, #1D3B34)' : 'var(--color-card-bg, #FFFFFF)',
+                color: selectedPresetName === preset.name ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
+                borderColor: selectedPresetName === preset.name ? 'var(--color-header-bg, #1D3B34)' : 'var(--color-divider, #D1D8D8)'
               }}
             >
               {preset.name}
@@ -443,7 +609,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                   <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: t.color }} />
                   {t.label}
                 </span>
-                <span className="num-tabular" style={{ fontWeight: 600, color: '#1D3B34' }}>
+                <span className="num-tabular" style={{ fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)' }}>
                   {Math.round(val * 100)}%
                 </span>
               </div>
@@ -453,31 +619,31 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
       </section>
 
       {/* 5b. Trust & DNR Settings */}
-      <section style={{ backgroundColor: '#F3F7F7', padding: '10px 12px', borderRadius: 8, border: '1px solid #D1D8D8' }}>
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1D3B34' }}>
+      <section style={{ backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: '10px 12px', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)' }}>
           <input
             type="checkbox"
             checked={overrideDnr}
             onChange={(e) => onOverrideDnrChange?.(e.target.checked)}
-            style={{ width: 16, height: 16, accentColor: '#FF5B14' }}
+            style={{ width: 16, height: 16, accentColor: 'var(--color-blaze, #FF5B14)' }}
           />
           <span>Allow Soft DNR Override (Warn & Log)</span>
         </label>
-        <div style={{ fontSize: 11, color: '#42675E', marginTop: 4, paddingLeft: 24 }}>
+        <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)', marginTop: 4, paddingLeft: 24 }}>
           If enabled, routing may pass through soft user DNR segments when necessary, adding a warning and penalty. Hard closures remain strictly blocked.
         </div>
       </section>
 
       {/* 5c. Find New Trails Mode (Stage 6 Differentiator) */}
       <section style={{
-        backgroundColor: findNewTrailsMode ? '#E8F5E9' : '#F3F7F7',
+        backgroundColor: findNewTrailsMode ? 'rgba(46, 111, 64, 0.12)' : 'var(--color-bg-subtle, #F3F7F7)',
         padding: '12px 14px',
         borderRadius: 8,
-        border: `1px solid ${findNewTrailsMode ? '#81C784' : '#D1D8D8'}`,
+        border: `1px solid ${findNewTrailsMode ? '#81C784' : 'var(--color-divider, #D1D8D8)'}`,
         transition: 'all 0.2s ease'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: findNewTrailsMode ? 10 : 0 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: findNewTrailsMode ? '#1B5E20' : '#1D3B34' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: findNewTrailsMode ? '#2E6F40' : 'var(--color-text-primary, #1D3B34)' }}>
             <input
               type="checkbox"
               checked={findNewTrailsMode}
@@ -495,7 +661,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         
         {findNewTrailsMode && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#42675E' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
               <span>Minimum Unridden Trails Target:</span>
               <span className="num-tabular" style={{ fontWeight: 600 }}>{minNewTrailPercent}%</span>
             </div>
@@ -508,7 +674,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
               onChange={(e) => onMinNewTrailPercentChange?.(Number(e.target.value))}
               style={{ width: '100%', accentColor: '#2E6F40' }}
             />
-            <div style={{ fontSize: 11, color: '#388E3C', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: '#2E6F40', marginTop: 2 }}>
               Highlights trails with strong recent heat that you have not yet ridden or run based on your activity history.
             </div>
           </div>
@@ -516,7 +682,6 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
       </section>
 
       {/* 6. Primary Action: Build Routes */}
-
       <button
         type="button"
         onClick={onBuildRoutes}
@@ -530,3 +695,5 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     </div>
   );
 };
+
+export default PlanPanel;

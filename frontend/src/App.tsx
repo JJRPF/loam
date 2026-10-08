@@ -6,8 +6,7 @@ import type {
   RouteResponse 
 } from './types';
 import {
-  TERRAIN_PRESETS,
-  NH_TRAILHEAD_PRESETS 
+  TERRAIN_PRESETS
 } from './types';
 import { calculateRoute, streamRouteOptions } from './services/api';
 import { MapView } from './components/MapView';
@@ -16,8 +15,19 @@ import { ResultsPanel } from './components/ResultsPanel';
 import { SavedRoutesPanel } from './components/SavedRoutesPanel';
 import { ExplorePanel } from './components/ExplorePanel';
 import { YouPanel } from './components/YouPanel';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const App: React.FC = () => {
+  // Dark mode state
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    return localStorage.getItem('loam_theme') === 'dark';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
+    localStorage.setItem('loam_theme', isDarkMode ? 'dark' : 'light');
+  }, [isDarkMode]);
+
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'plan' | 'results' | 'explore' | 'saved' | 'you'>('plan');
   
@@ -26,11 +36,11 @@ export const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 800);
 
   // Router Input State
-  const [sport, setSport] = useState<SportProfile>('mtb_hardtail');
+  const [sport, setSport] = useState<SportProfile>('mtb');
   const [start, setStart] = useState<LatLon>({
-    lat: NH_TRAILHEAD_PRESETS[0].lat,
-    lon: NH_TRAILHEAD_PRESETS[0].lon,
-    name: NH_TRAILHEAD_PRESETS[0].name
+    lat: 43.1305,
+    lon: -71.3524,
+    name: "Bear Brook State Park"
   });
   const [end, setEnd] = useState<LatLon | undefined>(undefined);
   const [waypoints] = useState<LatLon[]>([]);
@@ -141,7 +151,6 @@ export const App: React.FC = () => {
     );
   };
 
-
   const handleLoadSavedRoute = (savedRoute: RouteResponse) => {
     setRoute(savedRoute);
     setOptions([savedRoute]);
@@ -179,8 +188,8 @@ export const App: React.FC = () => {
             width: 400,
             minWidth: 400,
             height: '100%',
-            backgroundColor: '#E7ECEC',
-            borderRight: '1px solid #D1D8D8',
+            backgroundColor: 'var(--color-panel-bg, #E7ECEC)',
+            borderRight: '1px solid var(--color-divider, #D1D8D8)',
             display: 'flex',
             flexDirection: 'column',
             zIndex: 10,
@@ -191,7 +200,7 @@ export const App: React.FC = () => {
           <header
             style={{
               padding: '16px 20px',
-              backgroundColor: '#1D3B34',
+              backgroundColor: 'var(--color-header-bg, #1D3B34)',
               color: '#FFFFFF',
               display: 'flex',
               alignItems: 'center',
@@ -201,27 +210,46 @@ export const App: React.FC = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px' }}>Loam</span>
-                <span style={{ fontSize: 11, backgroundColor: '#A9BF7A', color: '#1D3B34', fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
+                <span style={{ fontSize: 11, backgroundColor: 'var(--color-lichen, #A9BF7A)', color: '#1D3B34', fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
                   NH MVP
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: '#A9BF7A', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--color-lichen, #A9BF7A)', marginTop: 2 }}>
                 Trail Route Builder • Atkinson Hyperlegible
               </div>
             </div>
-            {route && (
-              <span className="num-tabular" style={{ fontSize: 13, color: '#FFFFFF', backgroundColor: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>
-                {route.distance_miles.toFixed(1)} mi
-              </span>
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {route && (
+                <span className="num-tabular" style={{ fontSize: 13, color: '#FFFFFF', backgroundColor: 'rgba(255,255,255,0.15)', padding: '4px 8px', borderRadius: 6 }}>
+                  {route.distance_miles.toFixed(1)} mi
+                </span>
+              )}
+              {/* Dark mode button */}
+              <button
+                type="button"
+                onClick={() => setIsDarkMode(!isDarkMode)}
+                style={{
+                  backgroundColor: 'rgba(255,255,255,0.15)',
+                  border: 'none',
+                  borderRadius: 6,
+                  color: '#FFFFFF',
+                  padding: '4px 8px',
+                  minHeight: 30,
+                  fontSize: 14
+                }}
+                title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
+              >
+                {isDarkMode ? '🌙' : '☀️'}
+              </button>
+            </div>
           </header>
 
           {/* Desktop Navigation Tabs */}
           <nav
             style={{
               display: 'flex',
-              borderBottom: '1px solid #D1D8D8',
-              backgroundColor: '#FFFFFF'
+              borderBottom: '1px solid var(--color-divider, #D1D8D8)',
+              backgroundColor: 'var(--color-nav-bg, #FFFFFF)'
             }}
           >
             {[
@@ -242,9 +270,9 @@ export const App: React.FC = () => {
                   fontSize: 14,
                   fontWeight: activeTab === tab.id ? 700 : 500,
                   backgroundColor: 'transparent',
-                  color: activeTab === tab.id ? '#FF5B14' : '#1D3B34',
+                  color: activeTab === tab.id ? 'var(--color-blaze, #FF5B14)' : 'var(--color-text-primary, #1D3B34)',
                   border: 'none',
-                  borderBottom: activeTab === tab.id ? '3px solid #FF5B14' : '3px solid transparent',
+                  borderBottom: activeTab === tab.id ? '3px solid var(--color-blaze, #FF5B14)' : '3px solid transparent',
                   borderRadius: 0
                 }}
               >
@@ -255,73 +283,60 @@ export const App: React.FC = () => {
 
           {/* Tab Content Body */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '16px 20px' }}>
-            {activeTab === 'plan' && (
-              <PlanPanel
-                sport={sport}
-                onSportChange={setSport}
-                start={start}
-                onStartChange={setStart}
-                end={end}
-                onEndChange={setEnd}
-                routeMode={routeMode}
-                onRouteChange={setRouteMode}
-                targetMiles={targetMiles}
-                onTargetMilesChange={setTargetMiles}
-                terrainPref={terrainPref}
-                onTerrainPrefChange={setTerrainPref}
-                onBuildRoutes={handleBuildRoutes}
-                isLoading={isLoading}
-                onPickOnMap={(target) => setPickingTarget(target)}
-                pickingTarget={pickingTarget}
-                overrideDnr={overrideDnr}
-                onOverrideDnrChange={setOverrideDnr}
-                findNewTrailsMode={findNewTrailsMode}
-                onFindNewTrailsModeChange={setFindNewTrailsMode}
-                minNewTrailPercent={minNewTrailPercent}
-                onMinNewTrailPercentChange={setMinNewTrailPercent}
-                trailRunSteeperGrades={trailRunSteeperGrades}
-                onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
-                trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
-                onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
-              />
+            <ErrorBoundary fallbackTitle="Panel Error" onReset={() => setActiveTab('plan')}>
+              {activeTab === 'plan' && (
+                <PlanPanel
+                  sport={sport}
+                  onSportChange={setSport}
+                  start={start}
+                  onStartChange={setStart}
+                  end={end}
+                  onEndChange={setEnd}
+                  routeMode={routeMode}
+                  onRouteChange={setRouteMode}
+                  targetMiles={targetMiles}
+                  onTargetMilesChange={setTargetMiles}
+                  terrainPref={terrainPref}
+                  onTerrainPrefChange={setTerrainPref}
+                  onBuildRoutes={handleBuildRoutes}
+                  isLoading={isLoading}
+                  onPickOnMap={(target) => setPickingTarget(target)}
+                  pickingTarget={pickingTarget}
+                  overrideDnr={overrideDnr}
+                  onOverrideDnrChange={setOverrideDnr}
+                  findNewTrailsMode={findNewTrailsMode}
+                  onFindNewTrailsModeChange={setFindNewTrailsMode}
+                  minNewTrailPercent={minNewTrailPercent}
+                  onMinNewTrailPercentChange={setMinNewTrailPercent}
+                  trailRunSteeperGrades={trailRunSteeperGrades}
+                  onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
+                  trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
+                  onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
+                />
+              )}
 
-            )}
+              {activeTab === 'results' && (
+                <ResultsPanel
+                  route={route}
+                  options={options}
+                  onSelectRoute={setRoute}
+                  onHoverRoute={setHoverRoute}
+                  onBackToPlan={() => setActiveTab('plan')}
+                  onScrubCoord={setScrubCoord}
+                  onRouteSaved={() => {}}
+                  isLoading={isLoading}
+                />
+              )}
 
-            {activeTab === 'results' && (route || options.length > 0 || isLoading) && (
-              <ResultsPanel
-                route={route || options[0]}
-                options={options}
-                onSelectRoute={setRoute}
-                onHoverRoute={setHoverRoute}
-                onBackToPlan={() => setActiveTab('plan')}
-                onScrubCoord={setScrubCoord}
-                onRouteSaved={() => {}}
-                isLoading={isLoading}
-              />
-            )}
-
-            {activeTab === 'results' && !route && options.length === 0 && !isLoading && (
-              <div style={{ padding: 24, textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 8 }}>
-                <div style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34', marginBottom: 4 }}>
-                  No active route
-                </div>
-                <div style={{ fontSize: 13, color: '#42675E', marginBottom: 16 }}>
-                  Configure your starting point and terrain preferences in the Plan tab, then tap "Build Routes".
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('plan')}
-                  className="btn-primary"
-                  style={{ width: '100%' }}
-                >
-                  Go to Plan
-                </button>
-              </div>
-            )}
-
-            {activeTab === 'explore' && <ExplorePanel />}
-            {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
-            {activeTab === 'you' && <YouPanel />}
+              {activeTab === 'explore' && <ExplorePanel />}
+              {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
+              {activeTab === 'you' && (
+                <YouPanel
+                  isDarkMode={isDarkMode}
+                  onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                />
+              )}
+            </ErrorBoundary>
           </div>
         </aside>
       )}
@@ -338,6 +353,7 @@ export const App: React.FC = () => {
           waypoints={waypoints}
           scrubCoord={scrubCoord}
           onMapClick={handleMapClick}
+          isDarkMode={isDarkMode}
         />
 
         {/* Picking Location Banner */}
@@ -348,7 +364,7 @@ export const App: React.FC = () => {
               top: 16,
               left: '50%',
               transform: 'translateX(-50%)',
-              backgroundColor: '#FF5B14',
+              backgroundColor: 'var(--color-blaze, #FF5B14)',
               color: '#FFFFFF',
               padding: '8px 16px',
               borderRadius: 20,
@@ -374,7 +390,7 @@ export const App: React.FC = () => {
             left: 0,
             right: 0,
             height: getSheetHeight(),
-            backgroundColor: '#E7ECEC',
+            backgroundColor: 'var(--color-panel-bg, #E7ECEC)',
             borderTopLeftRadius: 16,
             borderTopRightRadius: 16,
             boxShadow: '0 -4px 16px rgba(0,0,0,0.18)',
@@ -404,7 +420,7 @@ export const App: React.FC = () => {
               style={{
                 width: 36,
                 height: 4,
-                backgroundColor: '#9BA8A8',
+                backgroundColor: 'var(--color-divider, #9BA8A8)',
                 borderRadius: 2,
                 marginBottom: 6
               }}
@@ -412,21 +428,33 @@ export const App: React.FC = () => {
             {/* Peek Bar Summary */}
             {sheetSnap === 'peek' && (
               <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34' }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
                   {route ? `${route.distance_miles.toFixed(1)} mi • ${route.name}` : `${start.name || 'Bear Brook'} (${targetMiles} mi)`}
                 </div>
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (!route) handleBuildRoutes();
-                    else setSheetSnap('half');
-                  }}
-                  className="btn-primary"
-                  style={{ minHeight: 36, padding: '4px 12px', fontSize: 13 }}
-                >
-                  {route ? 'Inspect' : 'Build'}
-                </button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setIsDarkMode(!isDarkMode);
+                    }}
+                    style={{ minHeight: 32, padding: '2px 8px', fontSize: 12, backgroundColor: 'transparent', border: '1px solid var(--color-divider)' }}
+                  >
+                    {isDarkMode ? '🌙' : '☀️'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!route) handleBuildRoutes();
+                      else setSheetSnap('half');
+                    }}
+                    className="btn-primary"
+                    style={{ minHeight: 36, padding: '4px 12px', fontSize: 13 }}
+                  >
+                    {route ? 'Inspect' : 'Build'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -434,82 +462,72 @@ export const App: React.FC = () => {
           {/* Sheet Scrollable Content (visible on half & full snap) */}
           {sheetSnap !== 'peek' && (
             <div style={{ flex: 1, overflowY: 'auto', padding: '0 16px 12px 16px' }}>
-              {activeTab === 'plan' && (
-                <PlanPanel
-                  sport={sport}
-                  onSportChange={setSport}
-                  start={start}
-                  onStartChange={setStart}
-                  end={end}
-                  onEndChange={setEnd}
-                  routeMode={routeMode}
-                  onRouteChange={setRouteMode}
-                  targetMiles={targetMiles}
-                  onTargetMilesChange={setTargetMiles}
-                  terrainPref={terrainPref}
-                  onTerrainPrefChange={setTerrainPref}
-                  onBuildRoutes={handleBuildRoutes}
-                  isLoading={isLoading}
-                  onPickOnMap={(target) => {
-                    setPickingTarget(target);
-                    setSheetSnap('peek');
-                  }}
-                  pickingTarget={pickingTarget}
-                  overrideDnr={overrideDnr}
-                  onOverrideDnrChange={setOverrideDnr}
-                  findNewTrailsMode={findNewTrailsMode}
-                  onFindNewTrailsModeChange={setFindNewTrailsMode}
-                  minNewTrailPercent={minNewTrailPercent}
-                  onMinNewTrailPercentChange={setMinNewTrailPercent}
-                  trailRunSteeperGrades={trailRunSteeperGrades}
-                  onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
-                  trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
-                  onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
-                />
+              <ErrorBoundary fallbackTitle="Panel Error" onReset={() => setActiveTab('plan')}>
+                {activeTab === 'plan' && (
+                  <PlanPanel
+                    sport={sport}
+                    onSportChange={setSport}
+                    start={start}
+                    onStartChange={setStart}
+                    end={end}
+                    onEndChange={setEnd}
+                    routeMode={routeMode}
+                    onRouteChange={setRouteMode}
+                    targetMiles={targetMiles}
+                    onTargetMilesChange={setTargetMiles}
+                    terrainPref={terrainPref}
+                    onTerrainPrefChange={setTerrainPref}
+                    onBuildRoutes={handleBuildRoutes}
+                    isLoading={isLoading}
+                    onPickOnMap={(target) => {
+                      setPickingTarget(target);
+                      setSheetSnap('peek');
+                    }}
+                    pickingTarget={pickingTarget}
+                    overrideDnr={overrideDnr}
+                    onOverrideDnrChange={setOverrideDnr}
+                    findNewTrailsMode={findNewTrailsMode}
+                    onFindNewTrailsModeChange={setFindNewTrailsMode}
+                    minNewTrailPercent={minNewTrailPercent}
+                    onMinNewTrailPercentChange={setMinNewTrailPercent}
+                    trailRunSteeperGrades={trailRunSteeperGrades}
+                    onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
+                    trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
+                    onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
+                  />
+                )}
 
-              )}
+                {activeTab === 'results' && (
+                  <ResultsPanel
+                    route={route}
+                    options={options}
+                    onSelectRoute={setRoute}
+                    onHoverRoute={setHoverRoute}
+                    onBackToPlan={() => setActiveTab('plan')}
+                    onScrubCoord={setScrubCoord}
+                    onRouteSaved={() => {}}
+                    isLoading={isLoading}
+                  />
+                )}
 
-              {activeTab === 'results' && (route || options.length > 0 || isLoading) && (
-                <ResultsPanel
-                  route={route || options[0]}
-                  options={options}
-                  onSelectRoute={setRoute}
-                  onHoverRoute={setHoverRoute}
-                  onBackToPlan={() => setActiveTab('plan')}
-                  onScrubCoord={setScrubCoord}
-                  onRouteSaved={() => {}}
-                  isLoading={isLoading}
-                />
-              )}
-
-              {activeTab === 'results' && !route && options.length === 0 && !isLoading && (
-                <div style={{ padding: 24, textAlign: 'center', backgroundColor: '#FFFFFF', borderRadius: 8 }}>
-                  <div style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34', marginBottom: 4 }}>
-                    No active route
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('plan')}
-                    className="btn-primary"
-                    style={{ width: '100%', marginTop: 8 }}
-                  >
-                    Go to Plan
-                  </button>
-                </div>
-              )}
-
-              {activeTab === 'explore' && <ExplorePanel />}
-              {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
-              {activeTab === 'you' && <YouPanel />}
+                {activeTab === 'explore' && <ExplorePanel />}
+                {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
+                {activeTab === 'you' && (
+                  <YouPanel
+                    isDarkMode={isDarkMode}
+                    onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
+                  />
+                )}
+              </ErrorBoundary>
             </div>
           )}
 
-          {/* Bottom Tabs Bar (Plan, Explore, Saved, You) */}
+          {/* Bottom Tabs Bar (Plan, Results/Route, Explore, Saved, You) */}
           <nav
             style={{
               display: 'flex',
-              borderTop: '1px solid #D1D8D8',
-              backgroundColor: '#FFFFFF',
+              borderTop: '1px solid var(--color-divider, #D1D8D8)',
+              backgroundColor: 'var(--color-nav-bg, #FFFFFF)',
               minHeight: 52
             }}
           >
@@ -532,9 +550,9 @@ export const App: React.FC = () => {
                   fontSize: 13,
                   fontWeight: activeTab === tab.id ? 700 : 500,
                   backgroundColor: 'transparent',
-                  color: activeTab === tab.id ? '#FF5B14' : '#1D3B34',
+                  color: activeTab === tab.id ? 'var(--color-blaze, #FF5B14)' : 'var(--color-text-primary, #1D3B34)',
                   border: 'none',
-                  borderTop: activeTab === tab.id ? '3px solid #FF5B14' : '3px solid transparent',
+                  borderTop: activeTab === tab.id ? '3px solid var(--color-blaze, #FF5B14)' : '3px solid transparent',
                   borderRadius: 0,
                   padding: '8px 0'
                 }}
