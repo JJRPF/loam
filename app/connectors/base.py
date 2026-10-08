@@ -45,8 +45,8 @@ class BaseConnector(ABC):
         pass
 
     @abstractmethod
-    async def sync_activities(self, user_id: str) -> Dict[str, Any]:
-        """Syncs and ingests recent activities into Loam's activity table."""
+    async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:
+        """Syncs and ingests recent activities into Loam's activity and heat tables."""
         pass
 
     @abstractmethod

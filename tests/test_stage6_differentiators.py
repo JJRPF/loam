@@ -319,8 +319,11 @@ def test_trail_running_profile_custom_model_and_scoring():
 # =========================================================================
 
 @pytest.mark.asyncio
-async def test_connectors_disabled_by_default_and_status_list():
-    """Validates that all third-party connectors are disabled by default."""
+async def test_connectors_disabled_by_default_and_status_list(monkeypatch):
+    """Validates connector status list and behavior when disabled."""
+    monkeypatch.setattr(settings, "enable_strava_connector", False)
+    monkeypatch.setattr(settings, "enable_garmin_connector", False)
+    monkeypatch.setattr(settings, "enable_trailforks_connector", False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/connectors", headers={"X-User-Id": "test_user_conn"})

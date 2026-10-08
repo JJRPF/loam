@@ -4,6 +4,7 @@ import {
   Marker, 
   NavigationControl, 
   ScaleControl, 
+  GeolocateControl,
   type StyleSpecification, 
   type GeoJSONSource 
 } from 'maplibre-gl';
@@ -33,7 +34,7 @@ const buildMapStyle = (isDark: boolean): StyleSpecification => ({
         `https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
       ],
       tileSize: 256,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>'
     },
     'carto-dark': {
       type: 'raster',
@@ -43,7 +44,7 @@ const buildMapStyle = (isDark: boolean): StyleSpecification => ({
         `https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
       ],
       tileSize: 256,
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>'
     }
   },
   layers: [
@@ -85,6 +86,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const endMarkerRef = useRef<Marker | null>(null);
   const scrubMarkerRef = useRef<Marker | null>(null);
   const onMapClickRef = useRef(onMapClick);
+  const prevStartRef = useRef<{ lat: number; lon: number } | null>(null);
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
@@ -94,16 +96,25 @@ export const MapView: React.FC<MapViewProps> = ({
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
 
+    const initialCenter: [number, number] = [start?.lon ?? -71.3524, start?.lat ?? 43.1305];
+
     const map = new Map({
       container: mapContainer.current,
       style: buildMapStyle(isDarkMode),
-      center: [start.lon || -71.3524, start.lat || 43.1305], // Bear Brook State Park, NH
+      center: initialCenter,
       zoom: 12.5,
       pitch: 0,
-      attributionControl: false // Using custom permanently visible attribution badge
+      attributionControl: false // Handled via dedicated responsive attribution badge below
     });
 
     map.addControl(new NavigationControl({ showCompass: true }), 'top-right');
+    map.addControl(
+      new GeolocateControl({
+        positionOptions: { enableHighAccuracy: true },
+        trackUserLocation: false
+      }),
+      'top-right'
+    );
     map.addControl(new ScaleControl({ unit: 'imperial' }), 'bottom-left');
 
     map.on('load', () => {
@@ -172,6 +183,27 @@ export const MapView: React.FC<MapViewProps> = ({
           'line-opacity': 1.0
         }
       });
+
+      // Auto center on GPS if no route and default/no start selected
+      if (!route && (!start || (start.lat === 43.1305 && start.lon === -71.3524))) {
+        if ('geolocation' in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              if (mapRef.current && !route) {
+                mapRef.current.flyTo({
+                  center: [pos.coords.longitude, pos.coords.latitude],
+                  zoom: 13,
+                  duration: 800
+                });
+              }
+            },
+            () => {
+              // Geolocation denied or unavailable; stay at default start
+            },
+            { timeout: 6000, enableHighAccuracy: true }
+          );
+        }
+      }
     });
 
     map.on('click', (e) => {
@@ -215,7 +247,7 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   }, [isDarkMode]);
 
-  // Update Route GeoJSON
+  // Auto center on route when route changes; fit bounds to route geometry
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !map.isStyleLoaded()) return;
@@ -233,7 +265,7 @@ export const MapView: React.FC<MapViewProps> = ({
         }
       });
 
-      // Fit map bounds to route
+      // Auto center on the route
       if (route.bbox && route.bbox.length === 4) {
         map.fitBounds(
           [
@@ -242,14 +274,40 @@ export const MapView: React.FC<MapViewProps> = ({
           ],
           { padding: { top: 60, bottom: 240, left: 60, right: 60 }, maxZoom: 15.5, duration: 800 }
         );
+      } else {
+        const first = route.coordinates[0];
+        map.flyTo({ center: [first[0], first[1]], zoom: 13, duration: 600 });
       }
     } else {
       source.setData({
         type: 'FeatureCollection',
         features: []
       });
+
+      // When route is cleared, auto center back to route start or GPS
+      if (start && start.lon && start.lat) {
+        map.flyTo({ center: [start.lon, start.lat], zoom: 13, duration: 600 });
+      }
     }
   }, [route]);
+
+  // Auto center on route start when start position changes and no route is active
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const prev = prevStartRef.current;
+    const startChanged = !prev || prev.lat !== start.lat || prev.lon !== start.lon;
+    prevStartRef.current = { lat: start.lat, lon: start.lon };
+
+    if (startChanged && !route && start && start.lon && start.lat) {
+      map.flyTo({
+        center: [start.lon, start.lat],
+        zoom: 13,
+        duration: 600
+      });
+    }
+  }, [start, route]);
 
   // Update Hover Preview Route GeoJSON
   useEffect(() => {
@@ -281,7 +339,7 @@ export const MapView: React.FC<MapViewProps> = ({
     const map = mapRef.current;
     if (!map) return;
 
-    // Start Marker (Forest Green)
+    // Start Marker (Forest Green #2E6F40)
     if (!startMarkerRef.current) {
       const el = document.createElement('div');
       el.style.width = '18px';
@@ -296,7 +354,7 @@ export const MapView: React.FC<MapViewProps> = ({
       startMarkerRef.current.setLngLat([start.lon, start.lat]);
     }
 
-    // End Marker (Spruce / Blaze)
+    // End Marker (Spruce / Blaze #C73E00)
     if (end) {
       if (!endMarkerRef.current) {
         const el = document.createElement('div');
@@ -346,23 +404,23 @@ export const MapView: React.FC<MapViewProps> = ({
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainer} className="maplibre-container" />
       
-      {/* Permanently Visible Map Attribution per Item 3 */}
+      {/* Map Attribution Badge per Item 5: CARTO and OpenStreetMap */}
       <div
         className="map-attribution-badge"
         style={{
           position: 'absolute',
-          bottom: 8,
-          right: 8,
+          bottom: 12,
+          right: 12,
           fontSize: 11,
           lineHeight: '14px',
-          color: isDarkMode ? '#E7ECEC' : '#1D3B34',
-          backgroundColor: isDarkMode ? 'rgba(18, 36, 32, 0.90)' : 'rgba(231, 236, 236, 0.90)',
-          border: isDarkMode ? '1px solid rgba(169, 191, 122, 0.3)' : '1px solid rgba(209, 216, 216, 0.8)',
+          color: 'var(--color-text-primary, #1D3B34)',
+          backgroundColor: isDarkMode ? 'rgba(14, 29, 25, 0.90)' : 'rgba(231, 236, 236, 0.90)',
+          border: '1px solid var(--color-divider, #D1D8D8)',
           padding: '4px 8px',
           borderRadius: 4,
           zIndex: 10,
           pointerEvents: 'auto',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
           backdropFilter: 'blur(4px)'
         }}
       >

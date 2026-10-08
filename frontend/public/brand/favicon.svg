@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img"><title>Loam</title>
+<rect width="64" height="64" rx="14" fill="#1D3B34"/>
+<polygon points="10,36 22,22 30,30 42,14 54,36" fill="#E7ECEC" stroke="#E7ECEC" stroke-width="2" stroke-linejoin="round"/>
+<clipPath id="f"><rect x="10" y="41" width="44" height="11" rx="3"/></clipPath>
+<g clip-path="url(#f)"><rect x="10" y="41" width="16" height="11" fill="#A9BF7A"/><rect x="26" y="41" width="6" height="11" fill="#3F6C8F"/><rect x="32" y="41" width="13" height="11" fill="#A9BF7A"/><rect x="45" y="41" width="9" height="11" fill="#FF5B14"/></g>
+</svg>

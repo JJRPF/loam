@@ -413,15 +413,25 @@ class ConnectorStatus(BaseModel):
 class GarminLoginRequest(BaseModel):
     username: str
     password: str
+    import_to_heat: bool = True
 
 class StravaAuthRequest(BaseModel):
     code: str
     scope: Optional[str] = None
 
+class TrailforksAuthRequest(BaseModel):
+    token: Optional[str] = None
+    username: Optional[str] = None
+
+class ConnectorSyncRequest(BaseModel):
+    import_to_heat: bool = True
+
 class ConnectorSyncResponse(BaseModel):
     connector: str
     status: str # 'success', 'disabled', 'failed'
     activities_imported: int = 0
+    heat_edges_updated: int = 0
+    bulk_heat_imported: bool = False
     message: Optional[str] = None
 
 

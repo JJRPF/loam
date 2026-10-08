@@ -106,7 +106,7 @@ class StravaConnector(BaseConnector):
             for idx in range(min(limit, 2))
         ]
 
-    async def sync_activities(self, user_id: str) -> Dict[str, Any]:
+    async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:
         if not self.is_enabled():
             return {
                 "connector": self.name,

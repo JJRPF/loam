@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 630" width="1200" height="630" role="img"><title>loam</title>
+<rect width="1200" height="630" fill="#1D3B34"/>
+<g transform="translate(300 195)"><rect width="240" height="240" rx="52" fill="#E7ECEC" fill-opacity="0.08"/><g transform="translate(0 0) scale(0.46875)">
+<polygon points="116,290 186,210 236,250 306,150 396,290" fill="#E7ECEC" stroke="#E7ECEC" stroke-width="12" stroke-linejoin="round"/>
+<clipPath id="so1"><rect x="116" y="312" width="280" height="40" rx="14"/></clipPath>
+<g clip-path="url(#so1)"><rect x="116" y="312" width="100" height="40" fill="#A9BF7A"/><rect x="216" y="312" width="40" height="40" fill="#3F6C8F"/><rect x="256" y="312" width="80" height="40" fill="#A9BF7A"/><rect x="336" y="312" width="60" height="40" fill="#FF5B14"/></g>
+</g></g>
+<g transform="translate(590 248) scale(3.6)"><g fill="none" stroke="#E7ECEC" stroke-width="7" stroke-linecap="round" stroke-linejoin="round">
+<path d="M4 4V36"/>
+<circle cx="26.5" cy="25.5" r="10.5"/>
+<circle cx="59.5" cy="25.5" r="10.5"/><path d="M70 25.5V36"/>
+<path d="M82 15V36"/><path d="M82 24C82 17 87 15 91 15C96 15 100 18 100 24V36"/><path d="M100 24C100 17 105 15 109 15C114 15 118 18 118 24V36"/>
+</g></g>
+</svg>

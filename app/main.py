@@ -26,7 +26,8 @@ from app.models import (
     TrailSubmissionCreate, TrailSubmissionResponse,
     TrailSubmissionEvidenceCreate, TrailSubmissionEvidenceResponse,
     TrailSubmissionReviewRequest, UnriddenTrailItem,
-    ConnectorStatus, GarminLoginRequest, StravaAuthRequest, ConnectorSyncResponse
+    ConnectorStatus, GarminLoginRequest, StravaAuthRequest, TrailforksAuthRequest,
+    ConnectorSyncRequest, ConnectorSyncResponse
 )
 from app.routing import fetch_route, generate_route_options, generate_route_options_stream
 from app.db import (
@@ -582,16 +583,6 @@ async def upload_activity(
         edge_counts = await map_match_activity(trimmed_pts, sport=chosen_sport)
         matched_edges_count = len(edge_counts)
 
-        # Record edge visits if consent is granted
-        if consent_given:
-            record_activity_edge_visits(
-                activity_id=act_id,
-                edge_counts=edge_counts,
-                user_id=uid,
-                sport=chosen_sport,
-                visited_at=act_time
-            )
-
     # Record activity in db
     # Retention rule: raw file deleted after processing unless retain_file requested
     record_activity({
@@ -607,6 +598,16 @@ async def upload_activity(
         "consent_given": consent_given,
         "matched_edge_count": matched_edges_count
     })
+
+    # Record edge visits if consent is granted
+    if consent_given and matched_edges_count > 0:
+        record_activity_edge_visits(
+            activity_id=act_id,
+            edge_counts=edge_counts,
+            user_id=uid,
+            sport=chosen_sport,
+            visited_at=act_time
+        )
 
     return ActivityUploadResponse(
         activity_id=act_id,
@@ -1227,12 +1228,42 @@ async def connect_garmin(
     - Never stores passwords anywhere.
     - Password is discarded immediately.
     - Tokens encrypted at rest with AES Fernet.
-    - Feature-flagged: off by default.
+    - Bulk imports activities to heat if user agrees (import_to_heat=True).
     """
     uid = resolve_user_id(authorization, x_user_id)
     res = await connector_manager.authenticate("garmin", uid, username=req.username, password=req.password)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Garmin login failed"))
+    
+    # Bulk import to heat if user agreed
+    sync_res = await connector_manager.sync("garmin", uid, import_to_heat=req.import_to_heat)
+    res["bulk_sync"] = sync_res
+    res["message"] = f"Connected to Garmin Connect. {sync_res.get('message', '')}"
+    return res
+
+@app.post("/api/connectors/garmin/bulk-import", response_model=ConnectorSyncResponse)
+async def garmin_bulk_import(
+    req: Optional[ConnectorSyncRequest] = None,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Bulk imports all activities from Garmin Connect to heat layer if user agrees."""
+    uid = resolve_user_id(authorization, x_user_id)
+    import_heat = req.import_to_heat if req else True
+    res = await connector_manager.sync("garmin", uid, import_to_heat=import_heat)
+    return ConnectorSyncResponse(**res)
+
+@app.post("/api/connectors/trailforks/auth")
+async def connect_trailforks(
+    req: TrailforksAuthRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Trailforks connector: authorizes and links trail metadata service (© Trailforks)."""
+    uid = resolve_user_id(authorization, x_user_id)
+    res = await connector_manager.authenticate("trailforks", uid, token=req.token, username=req.username)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Trailforks connection failed"))
     return res
 
 @app.post("/api/connectors/strava/auth")
@@ -1243,7 +1274,6 @@ async def connect_strava(
 ):
     """
     Strava connector: exchanges authorization code for encrypted tokens.
-    Feature-flagged: off by default.
     """
     uid = resolve_user_id(authorization, x_user_id)
     res = await connector_manager.authenticate("strava", uid, code=req.code, scope=req.scope)
@@ -1254,12 +1284,14 @@ async def connect_strava(
 @app.post("/api/connectors/{provider}/sync", response_model=ConnectorSyncResponse)
 async def sync_connector_activities(
     provider: str,
+    req: Optional[ConnectorSyncRequest] = None,
     authorization: Optional[str] = Header(None),
     x_user_id: Optional[str] = Header(None)
 ):
     """Syncs activities from a connected third-party provider."""
     uid = resolve_user_id(authorization, x_user_id)
-    res = await connector_manager.sync(provider, uid)
+    import_heat = req.import_to_heat if req else True
+    res = await connector_manager.sync(provider, uid, import_to_heat=import_heat)
     return ConnectorSyncResponse(**res)
 
 @app.delete("/api/connectors/{provider}")

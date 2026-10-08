@@ -208,13 +208,17 @@ export const App: React.FC = () => {
             }}
           >
             <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: '-0.5px' }}>Loam</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <img
+                  src="/brand/loam-logo-horizontal-reversed.svg"
+                  alt="Loam"
+                  style={{ height: 26, width: 'auto', display: 'block' }}
+                />
                 <span style={{ fontSize: 11, backgroundColor: 'var(--color-lichen, #A9BF7A)', color: '#1D3B34', fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
                   NH MVP
                 </span>
               </div>
-              <div style={{ fontSize: 12, color: 'var(--color-lichen, #A9BF7A)', marginTop: 2 }}>
+              <div style={{ fontSize: 12, color: 'var(--color-lichen, #A9BF7A)', marginTop: 4 }}>
                 Trail Route Builder • Atkinson Hyperlegible
               </div>
             </div>
@@ -428,8 +432,11 @@ export const App: React.FC = () => {
             {/* Peek Bar Summary */}
             {sheetSnap === 'peek' && (
               <div style={{ display: 'flex', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
-                  {route ? `${route.distance_miles.toFixed(1)} mi • ${route.name}` : `${start.name || 'Bear Brook'} (${targetMiles} mi)`}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, overflow: 'hidden' }}>
+                  <img src="/brand/loam-icon.svg" alt="Loam" style={{ width: 20, height: 20, flexShrink: 0 }} />
+                  <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {route ? `${route.distance_miles.toFixed(1)} mi • ${route.name}` : `${start.name || 'Bear Brook'} (${targetMiles} mi)`}
+                  </div>
                 </div>
                 <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                   <button

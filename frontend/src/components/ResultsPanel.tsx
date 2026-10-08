@@ -399,13 +399,13 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         {showFlagModal && (
           <div style={{ backgroundColor: 'var(--color-bg-subtle, #F8F9FA)', border: '1px solid var(--color-divider, #D1D8D8)', borderRadius: 6, padding: 10, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
             <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Report Trail Condition</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
               <label>
                 Type:{' '}
                 <select
                   value={flagType}
                   onChange={(e) => setFlagType(e.target.value as any)}
-                  style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)' }}
+                  style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)' }}
                 >
                   <option value="blocked">Blocked (Trees/Mud)</option>
                   <option value="gone">Gone / Overgrown</option>
@@ -419,7 +419,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               placeholder="Optional details (e.g. large oak down 0.5mi in)"
               value={flagDetails}
               onChange={(e) => setFlagDetails(e.target.value)}
-              style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)', fontSize: 12 }}
+              style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 12 }}
             />
             <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
               <button
@@ -440,7 +440,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               </button>
             </div>
             {flagStatus && (
-              <div style={{ fontSize: 11, color: '#2E6F40' }}>{flagStatus}</div>
+              <div style={{ fontSize: 11, color: 'var(--color-lichen, #2E6F40)' }}>{flagStatus}</div>
             )}
           </div>
         )}
@@ -480,7 +480,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                 { label: '15% Trail Heat (Activity Recency)', val: breakdown.heat, color: '#3F6C8F' },
                 { label: '10% Mode Value (Trail Quality)', val: breakdown.mode_value, color: '#2E6F40' },
                 { label: '10% Quality (Surface Continuity)', val: breakdown.quality, color: '#8D6E63' },
-                { label: '5% Penalties (Repetition & DNR)', val: breakdown.penalties, color: '#1D3B34' }
+                { label: '5% Penalties (Repetition & DNR)', val: breakdown.penalties, color: 'var(--color-slate, #3F6C8F)' }
               ].map(item => (
                 <div key={item.label}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>

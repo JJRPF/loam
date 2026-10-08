@@ -1,10 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
   exportMyData, deleteMyAccount,
-  getConnectors, connectGarmin, connectStrava, syncConnector, disconnectConnector
+  getConnectors, connectGarmin, connectStrava, connectTrailforks, bulkImportGarmin,
+  syncConnector, disconnectConnector
 } from '../services/api';
-import { getStoredUser, mockGoogleLogin, logoutUser } from '../services/auth';
+import { 
+  getStoredUser, 
+  loginWithRealCredentials, 
+  renderGoogleButton,
+  logoutUser 
+} from '../services/auth';
 import type { UserDNR, ConnectorStatus, AuthUser } from '../types';
 
 interface YouPanelProps {
@@ -16,8 +22,8 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
   const isSignedIn = !!currentUser;
   const user = {
-    name: currentUser?.displayName || 'Justin Pfister',
-    email: currentUser?.email || 'justin@example.com',
+    name: currentUser?.displayName || (isSignedIn ? 'User' : 'Guest'),
+    email: currentUser?.email || '',
     device: 'Garmin fenix 7 Pro'
   };
   const [privacyZoneEnabled, setPrivacyZoneEnabled] = useState(true);
@@ -30,9 +36,16 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
 
+  // Google SSO Modal State
+  const [showGoogleModal, setShowGoogleModal] = useState(false);
+  const [googleEmail, setGoogleEmail] = useState('');
+  const [googleName, setGoogleName] = useState('');
+  const [googleSubmitting, setGoogleSubmitting] = useState(false);
+  const googleBtnContainerRef = useRef<HTMLDivElement>(null);
+
   const loadDnr = async () => {
     try {
-      const items = await listUserDNR('justin_default_user');
+      const items = await listUserDNR(currentUser?.id || 'justin_default_user');
       setDnrList(items);
     } catch (e) {
       console.error('Failed to load DNR', e);
@@ -41,7 +54,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
 
   useEffect(() => {
     let ignore = false;
-    listUserDNR('justin_default_user')
+    listUserDNR(currentUser?.id || 'justin_default_user')
       .then((items) => {
         if (!ignore) setDnrList(items);
       })
@@ -49,7 +62,21 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
     return () => {
       ignore = true;
     };
-  }, []);
+  }, [currentUser]);
+
+  // Attempt Google GIS button render when modal opens or on mount
+  useEffect(() => {
+    if (!isSignedIn && googleBtnContainerRef.current) {
+      renderGoogleButton(
+        googleBtnContainerRef.current,
+        (authedUser) => {
+          setCurrentUser(authedUser);
+          setShowGoogleModal(false);
+        },
+        (err) => console.warn('GIS error:', err)
+      );
+    }
+  }, [isSignedIn, showGoogleModal]);
 
   const handleCreateDnr = async () => {
     if (!newDnrName.trim()) return;
@@ -84,7 +111,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
     setIsExporting(true);
     setExportMessage(null);
     try {
-      const data = await exportMyData('justin_default_user');
+      const data = await exportMyData(currentUser?.id || 'justin_default_user');
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -110,7 +137,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
     if (!confirmed) return;
 
     try {
-      await deleteMyAccount('justin_default_user');
+      await deleteMyAccount(currentUser?.id || 'justin_default_user');
       logoutUser();
       setCurrentUser(null);
       alert('Account and all personal data permanently deleted.');
@@ -119,12 +146,20 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
     }
   };
 
-  const handleSignInGoogle = async () => {
+  const handleGoogleFormSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!googleEmail.trim()) return;
+    setGoogleSubmitting(true);
     try {
-      const authUser = await mockGoogleLogin('justin@example.com', 'Justin Pfister');
-      setCurrentUser(authUser);
-    } catch (e: any) {
-      alert(`Google Sign-In failed: ${e.message}`);
+      const authedUser = await loginWithRealCredentials(googleEmail, googleName);
+      setCurrentUser(authedUser);
+      setShowGoogleModal(false);
+      setGoogleEmail('');
+      setGoogleName('');
+    } catch (err: any) {
+      alert(`Google Sign-In failed: ${err.message}`);
+    } finally {
+      setGoogleSubmitting(false);
     }
   };
 
@@ -135,7 +170,9 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0 24px 0' }}>
-      <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Profile & Settings</h2>
+      <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
+        Profile & Settings
+      </h2>
 
       {/* Auth Card */}
       <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
@@ -148,7 +185,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
                   height: 44,
                   borderRadius: '50%',
                   backgroundColor: 'var(--color-header-bg, #1D3B34)',
-                  color: '#FFFFFF',
+                  color: 'var(--color-header-text, #FFFFFF)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
@@ -156,7 +193,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
                   fontWeight: 700
                 }}
               >
-                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2) || 'JP'}
+                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
               </div>
               <div>
                 <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{user.name}</div>
@@ -180,11 +217,11 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
         ) : (
           <div style={{ textAlign: 'center', padding: '10px 0' }}>
             <p style={{ fontSize: 14, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 12 }}>
-              Sign in with Google to sync routes across devices, backup to PostgreSQL, and export to Garmin Connect.
+              Sign in with your Google account to sync routes across devices, backup to PostgreSQL, and export to Garmin Connect.
             </p>
             <button
               type="button"
-              onClick={handleSignInGoogle}
+              onClick={() => setShowGoogleModal(true)}
               className="btn-primary"
               style={{ width: '100%' }}
             >
@@ -193,6 +230,135 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
           </div>
         )}
       </div>
+
+      {/* Google Sign-In Modal */}
+      {showGoogleModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowGoogleModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              color: 'var(--color-text-primary, #1D3B34)',
+              borderRadius: 10,
+              maxWidth: 400,
+              width: '100%',
+              padding: 20,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 14,
+              border: '1px solid var(--color-divider, #D1D8D8)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--color-text-primary, #1D3B34)' }}>
+                Sign In with Google
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(false)}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: 0 }}>
+              Authenticate with your Google account. We authenticate directly with Google SSO to secure your profile and routes.
+            </p>
+
+            {/* Container for GIS rendered button if loaded */}
+            <div ref={googleBtnContainerRef} style={{ display: 'flex', justifyContent: 'center', minHeight: 40 }} />
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
+              <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-divider, #D1D8D8)' }} />
+              <span style={{ fontSize: 11, color: 'var(--color-text-secondary, #888)' }}>or sign in with email</span>
+              <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-divider, #D1D8D8)' }} />
+            </div>
+
+            <form onSubmit={handleGoogleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--color-text-primary, #1D3B34)' }}>
+                  Google Email Address
+                </label>
+                <input
+                  type="email"
+                  value={googleEmail}
+                  onChange={(e) => setGoogleEmail(e.target.value)}
+                  placeholder="your.email@gmail.com"
+                  required
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--color-input-border, #D1D8D8)',
+                    backgroundColor: 'var(--color-input-bg, #FFFFFF)',
+                    color: 'var(--color-text-primary, #1D3B34)',
+                    fontSize: 13,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--color-text-primary, #1D3B34)' }}>
+                  Display Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={googleName}
+                  onChange={(e) => setGoogleName(e.target.value)}
+                  placeholder="e.g. Justin Pfister"
+                  style={{
+                    width: '100%',
+                    padding: '8px 10px',
+                    borderRadius: 6,
+                    border: '1px solid var(--color-input-border, #D1D8D8)',
+                    backgroundColor: 'var(--color-input-bg, #FFFFFF)',
+                    color: 'var(--color-text-primary, #1D3B34)',
+                    fontSize: 13,
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowGoogleModal(false)}
+                  className="btn-outline"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 12px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={googleSubmitting}
+                  className="btn-primary"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 16px' }}
+                >
+                  {googleSubmitting ? 'Signing In...' : 'Continue'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Heat v1 Activity Upload Card */}
       <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
@@ -203,11 +369,11 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
           Ingest your GPX or Garmin FIT files into Loam's recency heat layer. Starts & ends are automatically trimmed by 0.2 mi.
         </p>
 
-        <ActivityUploadWidget />
+        <ActivityUploadWidget isDarkMode={isDarkMode} />
       </div>
 
-      {/* Connected Services (Stage 6) */}
-      <ConnectedServicesSection />
+      {/* Connected Services (Stage 6 & GH-19) */}
+      <ConnectedServicesSection isDarkMode={isDarkMode} />
 
       {/* Settings & Privacy */}
       <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -237,28 +403,28 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
           <span style={{ fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Imperial (mi / ft)</span>
         </div>
 
-        <div style={{ borderTop: '1px solid #E7ECEC', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+        <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
           <div>
             <strong>Endpoint Trimming Protection</strong>
-            <div style={{ fontSize: 12, color: '#42675E' }}>Automatically strip first & last 0.2 mi of ride uploads</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Automatically strip first & last 0.2 mi of ride uploads</div>
           </div>
           <input
             type="checkbox"
             checked={privacyZoneEnabled}
             onChange={(e) => setPrivacyZoneEnabled(e.target.checked)}
-            style={{ width: 18, height: 18, accentColor: '#FF5B14' }}
+            style={{ width: 18, height: 18, accentColor: 'var(--color-blaze, #FF5B14)' }}
           />
         </div>
 
-        <div style={{ borderTop: '1px solid #E7ECEC', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
+        <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
           <div>
             <strong>Privacy Threshold Invariant</strong>
-            <div style={{ fontSize: 12, color: '#42675E' }}>Public routes only influenced when ≥ 3 unique riders contribute</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Public routes only influenced when ≥ 3 unique riders contribute</div>
           </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34' }}>≥ 3 Riders</span>
+          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>≥ 3 Riders</span>
         </div>
 
-        <div style={{ borderTop: '1px solid #E7ECEC', paddingTop: 10, fontSize: 13 }}>
+        <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <strong>DNR (Do Not Ride) Trail List</strong>
             <button
@@ -270,19 +436,19 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
               {showAddDnr ? 'Cancel' : '+ Add DNR'}
             </button>
           </div>
-          <div style={{ fontSize: 12, color: '#42675E', marginTop: 2, marginBottom: 8 }}>
+          <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', marginTop: 2, marginBottom: 8 }}>
             Manage private or overgrown trails you wish the router to strictly avoid.
           </div>
 
           {showAddDnr && (
-            <div style={{ backgroundColor: '#F3F7F7', border: '1px solid #D1D8D8', borderRadius: 6, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>Add Do-Not-Ride Rule</div>
+            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', border: '1px solid var(--color-divider, #D1D8D8)', borderRadius: 6, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Add Do-Not-Ride Rule</div>
               <input
                 type="text"
                 placeholder="Name / Label (e.g. Overgrown Logging Rd)"
                 value={newDnrName}
                 onChange={(e) => setNewDnrName(e.target.value)}
-                style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #D1D8D8', fontSize: 13 }}
+                style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
               />
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
                 <label>
@@ -290,7 +456,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
                   <select
                     value={newDnrType}
                     onChange={(e) => setNewDnrType(e.target.value as any)}
-                    style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #D1D8D8' }}
+                    style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)' }}
                   >
                     <option value="trail">Trail (OSM Way ID)</option>
                     <option value="area">Area Boundary</option>
@@ -302,7 +468,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
                     placeholder="OSM Edge ID (e.g. 999101)"
                     value={newDnrEdgeId}
                     onChange={(e) => setNewDnrEdgeId(e.target.value)}
-                    style={{ flex: 1, padding: '4px 6px', borderRadius: 4, border: '1px solid #D1D8D8', fontSize: 12 }}
+                    style={{ flex: 1, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 12 }}
                   />
                 )}
               </div>
@@ -311,7 +477,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
                 placeholder="Reason (e.g. Private signs, active logging, blowdowns)"
                 value={newDnrReason}
                 onChange={(e) => setNewDnrReason(e.target.value)}
-                style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #D1D8D8', fontSize: 13 }}
+                style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
               />
               <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
                 <button
@@ -335,7 +501,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
           )}
 
           {dnrList.length === 0 ? (
-            <div style={{ fontSize: 12, color: '#6A7D78', fontStyle: 'italic', padding: '6px 0' }}>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #6A7D78)', fontStyle: 'italic', padding: '6px 0' }}>
               No custom DNR rules configured.
             </div>
           ) : (
@@ -348,21 +514,21 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
                     alignItems: 'center',
                     justifyContent: 'space-between',
                     padding: '6px 10px',
-                    backgroundColor: '#F8F9FA',
+                    backgroundColor: 'var(--color-bg-subtle, #F8F9FA)',
                     borderRadius: 6,
-                    border: '1px solid #E0E0E0',
+                    border: '1px solid var(--color-divider, #E0E0E0)',
                     fontSize: 12
                   }}
                 >
                   <div>
-                    <div style={{ fontWeight: 600, color: '#1D3B34' }}>
+                    <div style={{ fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)' }}>
                       {item.name}
-                      <span style={{ fontSize: 10, marginLeft: 6, padding: '1px 5px', borderRadius: 3, backgroundColor: item.is_soft ? '#FFF3E0' : '#FFEBEE', color: item.is_soft ? '#E65100' : '#C62828', fontWeight: 700 }}>
+                      <span style={{ fontSize: 10, marginLeft: 6, padding: '1px 5px', borderRadius: 3, backgroundColor: item.is_soft ? 'rgba(230,81,0,0.15)' : 'rgba(198,40,40,0.15)', color: item.is_soft ? '#FF8C42' : '#FF6B6B', fontWeight: 700 }}>
                         {item.is_soft ? 'Soft DNR' : 'Hard DNR'}
                       </span>
                     </div>
-                    {item.reason && <div style={{ fontSize: 11, color: '#42675E' }}>{item.reason}</div>}
-                    {item.edge_osm_id && <div style={{ fontSize: 10, color: '#888' }}>OSM ID: {item.edge_osm_id}</div>}
+                    {item.reason && <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>{item.reason}</div>}
+                    {item.edge_osm_id && <div style={{ fontSize: 10, color: 'var(--color-text-secondary, #888)' }}>OSM ID: {item.edge_osm_id}</div>}
                   </div>
                   <button
                     type="button"
@@ -370,8 +536,8 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
                     style={{
                       border: 'none',
                       backgroundColor: 'transparent',
-                      color: '#C62828',
-                      fontSize: 12,
+                      color: 'var(--color-blaze, #FF5B14)',
+                      fontSize: 14,
                       cursor: 'pointer',
                       padding: '4px 6px'
                     }}
@@ -387,16 +553,16 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
       </div>
 
       {/* Privacy & Compliance (GDPR/CCPA/Full Export & Deletion) */}
-      <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34', margin: 0 }}>
+      <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
           Data Rights & Privacy Compliance
         </h3>
-        <p style={{ fontSize: 12, color: '#42675E', margin: 0 }}>
+        <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: 0 }}>
           You have complete ownership of your data under Loam's privacy guarantees. Raw GPS tracks are discarded after matching; personal rides are never exposed to other users.
         </p>
 
         {exportMessage && (
-          <div style={{ fontSize: 12, color: '#2E6F40', backgroundColor: '#E8F5E9', padding: '6px 10px', borderRadius: 4 }}>
+          <div style={{ fontSize: 12, color: '#A9BF7A', backgroundColor: 'var(--color-bg-subtle, #162C27)', padding: '6px 10px', borderRadius: 4, border: '1px solid var(--color-divider)' }}>
             {exportMessage}
           </div>
         )}
@@ -415,7 +581,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
             type="button"
             onClick={handleDeleteAccount}
             className="btn-outline"
-            style={{ flex: 1, fontSize: 12, minHeight: 34, color: '#C62828', borderColor: '#FFCDD2' }}
+            style={{ flex: 1, fontSize: 12, minHeight: 34, color: 'var(--color-blaze, #FF5B14)', borderColor: 'var(--color-divider)' }}
           >
             Delete Account & Rides
           </button>
@@ -423,15 +589,15 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
       </div>
 
       {/* About & Stack */}
-      <div style={{ fontSize: 12, color: '#42675E', textAlign: 'center', lineHeight: 1.5 }}>
-        Loam Trail Route Builder • Stage 4 Heat v1<br />
+      <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.5 }}>
+        loam Trail Route Builder • Stage 4 Heat v1<br />
         Built with MapLibre GL JS, GraphHopper & PostGIS
       </div>
     </div>
   );
 };
 
-const ActivityUploadWidget: React.FC = () => {
+const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
   const [file, setFile] = useState<File | null>(null);
   const [sport, setSport] = useState('mtb');
   const [consent, setConsent] = useState(true);
@@ -450,7 +616,6 @@ const ActivityUploadWidget: React.FC = () => {
       setResult(res);
       setFile(null);
     } catch (err: any) {
-
       setError(err.message || 'Upload failed');
     } finally {
       setUploading(false);
@@ -463,16 +628,16 @@ const ActivityUploadWidget: React.FC = () => {
         type="file"
         accept=".gpx,.fit"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
-        style={{ fontSize: 13 }}
+        style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}
       />
 
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}>
         <label>
           Sport:{' '}
           <select
             value={sport}
             onChange={(e) => setSport(e.target.value)}
-            style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid #D1D8D8' }}
+            style={{ padding: '4px 8px', borderRadius: 4, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)' }}
           >
             <option value="mtb">MTB</option>
             <option value="trail_run">Trail Run</option>
@@ -480,12 +645,12 @@ const ActivityUploadWidget: React.FC = () => {
           </select>
         </label>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer' }}>
           <input
             type="checkbox"
             checked={consent}
             onChange={(e) => setConsent(e.target.checked)}
-            style={{ accentColor: '#FF5B14' }}
+            style={{ accentColor: 'var(--color-blaze, #FF5B14)' }}
           />
           Contribute Heat
         </label>
@@ -502,15 +667,15 @@ const ActivityUploadWidget: React.FC = () => {
       </button>
 
       {result && (
-        <div style={{ backgroundColor: '#F3F7F7', border: '1px solid #B0C4DE', borderRadius: 6, padding: 10, fontSize: 12 }}>
-          <div style={{ fontWeight: 700, color: '#1D3B34' }}>Upload & Map-Match Complete</div>
+        <div style={{ backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', border: '1px solid var(--color-divider, #B0C4DE)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
+          <div style={{ fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Upload & Map-Match Complete</div>
           <div>Distance: {result.distance_miles} mi • Matched edges: {result.matched_edges_count}</div>
-          {result.message && <div style={{ color: '#8B4513', marginTop: 4 }}>{result.message}</div>}
+          {result.message && <div style={{ color: 'var(--color-blaze, #8B4513)', marginTop: 4 }}>{result.message}</div>}
         </div>
       )}
 
       {error && (
-        <div style={{ backgroundColor: '#FFF0F0', border: '1px solid #FFCCCC', borderRadius: 6, padding: 10, fontSize: 12, color: '#D32F2F' }}>
+        <div style={{ backgroundColor: 'rgba(255, 91, 20, 0.1)', border: '1px solid var(--color-blaze, #FF5B14)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-blaze, #FF5B14)' }}>
           {error}
         </div>
       )}
@@ -518,7 +683,7 @@ const ActivityUploadWidget: React.FC = () => {
   );
 };
 
-const ConnectedServicesSection: React.FC = () => {
+const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMode = false }) => {
   const [connectors, setConnectors] = useState<ConnectorStatus[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
@@ -527,7 +692,14 @@ const ConnectedServicesSection: React.FC = () => {
   const [showGarminModal, setShowGarminModal] = useState(false);
   const [garminUser, setGarminUser] = useState('');
   const [garminPass, setGarminPass] = useState('');
+  const [garminImportHeat, setGarminImportHeat] = useState(true);
   const [garminSubmitting, setGarminSubmitting] = useState(false);
+
+  // Trailforks connect form state
+  const [showTrailforksModal, setShowTrailforksModal] = useState(false);
+  const [tfUsername, setTfUsername] = useState('');
+  const [tfToken, setTfToken] = useState('');
+  const [tfSubmitting, setTfSubmitting] = useState(false);
 
   // Strava connect form state
   const [showStravaModal, setShowStravaModal] = useState(false);
@@ -556,17 +728,54 @@ const ConnectedServicesSection: React.FC = () => {
 
     setGarminSubmitting(true);
     try {
-      await connectGarmin({ username: garminUser.trim(), password: garminPass.trim() });
+      const res = await connectGarmin({
+        username: garminUser.trim(),
+        password: garminPass.trim(),
+        import_to_heat: garminImportHeat
+      });
       setShowGarminModal(false);
       setGarminUser('');
       setGarminPass('');
-      setStatusMsg('Garmin session connected successfully! Tokens stored AES-encrypted at rest.');
-      setTimeout(() => setStatusMsg(null), 4000);
+      setStatusMsg(res.message || 'Garmin connected! Activities synced to heat layer.');
+      setTimeout(() => setStatusMsg(null), 5000);
       await loadConnectors();
     } catch (err: any) {
       alert(`Garmin connection failed: ${err.message}`);
     } finally {
       setGarminSubmitting(false);
+    }
+  };
+
+  const handleBulkImportGarmin = async () => {
+    try {
+      setStatusMsg('Bulk importing Garmin activities to heat...');
+      const res = await bulkImportGarmin(true);
+      setStatusMsg(res.message || `Bulk imported ${res.activities_imported} activities to heat.`);
+      setTimeout(() => setStatusMsg(null), 5000);
+      await loadConnectors();
+    } catch (err: any) {
+      alert(`Garmin bulk import failed: ${err.message}`);
+    }
+  };
+
+  const handleConnectTrailforks = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setTfSubmitting(true);
+    try {
+      const res = await connectTrailforks({
+        username: tfUsername.trim() || undefined,
+        token: tfToken.trim() || undefined
+      });
+      setShowTrailforksModal(false);
+      setTfUsername('');
+      setTfToken('');
+      setStatusMsg(res.message || 'Trailforks connected! Trail reports active (© Trailforks).');
+      setTimeout(() => setStatusMsg(null), 5000);
+      await loadConnectors();
+    } catch (err: any) {
+      alert(`Trailforks connection failed: ${err.message}`);
+    } finally {
+      setTfSubmitting(false);
     }
   };
 
@@ -591,8 +800,8 @@ const ConnectedServicesSection: React.FC = () => {
 
   const handleSync = async (provider: string) => {
     try {
-      const res = await syncConnector(provider);
-      setStatusMsg(`Synced ${provider}: ${res.activities_imported || 0} activities imported.`);
+      const res = await syncConnector(provider, 'justin_default_user', true);
+      setStatusMsg(res.message || `Synced ${provider}: ${res.activities_imported || 0} activities imported.`);
       setTimeout(() => setStatusMsg(null), 4000);
       await loadConnectors();
     } catch (err: any) {
@@ -615,34 +824,33 @@ const ConnectedServicesSection: React.FC = () => {
   };
 
   return (
-    <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
-        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34', margin: 0 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
           Connected Services (Connectors)
         </h3>
-        <p style={{ fontSize: 12, color: '#42675E', margin: '4px 0 0 0' }}>
-          Connect third-party platforms to automatically sync activities into your private heat layer.
-          Connectors are disabled by default. Passwords are never stored; session tokens are AES-encrypted at rest.
+        <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: '4px 0 0 0' }}>
+          Connect Garmin Connect and Trailforks to sync activities into your private heat layer and view condition reports. Passwords are never stored; tokens are AES-encrypted at rest.
         </p>
       </div>
 
       {statusMsg && (
-        <div style={{ fontSize: 12, color: '#065F46', backgroundColor: '#D1FAE5', padding: '6px 10px', borderRadius: 4 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', backgroundColor: 'var(--color-bg-subtle, #D1FAE5)', border: '1px solid var(--color-divider)', padding: '6px 10px', borderRadius: 4 }}>
           {statusMsg}
         </div>
       )}
 
       {loading && connectors.length === 0 ? (
-        <div style={{ fontSize: 12, color: '#42675E' }}>Loading connectors...</div>
+        <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Loading connectors...</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {connectors.map((c) => (
             <div
               key={c.name}
               style={{
-                backgroundColor: '#F8F9FA',
+                backgroundColor: 'var(--color-bg-subtle, #F8F9FA)',
                 borderRadius: 6,
-                border: '1px solid #E0E0E0',
+                border: '1px solid var(--color-divider, #E0E0E0)',
                 padding: '10px 12px',
                 display: 'flex',
                 flexDirection: 'column',
@@ -651,18 +859,22 @@ const ConnectedServicesSection: React.FC = () => {
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <strong style={{ fontSize: 13, color: '#1D3B34' }}>{c.display_name}</strong>
+                  <strong style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}>{c.display_name}</strong>
                   <span
                     style={{
                       fontSize: 10,
                       fontWeight: 700,
                       padding: '1px 5px',
                       borderRadius: 3,
-                      backgroundColor: c.enabled ? '#E8F5E9' : '#ECEFF1',
-                      color: c.enabled ? '#2E6F40' : '#78909C'
+                      backgroundColor: c.enabled 
+                        ? (isDarkMode ? '#163826' : '#E8F5E9') 
+                        : (isDarkMode ? '#243431' : '#ECEFF1'),
+                      color: c.enabled 
+                        ? (isDarkMode ? '#86EFAC' : '#2E6F40') 
+                        : (isDarkMode ? '#94A3B8' : '#78909C')
                     }}
                   >
-                    {c.enabled ? 'Enabled' : 'Disabled (off by default)'}
+                    {c.enabled ? 'Enabled' : 'Disabled'}
                   </span>
                   {c.connected && (
                     <span
@@ -671,8 +883,8 @@ const ConnectedServicesSection: React.FC = () => {
                         fontWeight: 700,
                         padding: '1px 5px',
                         borderRadius: 3,
-                        backgroundColor: '#E0F2FE',
-                        color: '#0369A1'
+                        backgroundColor: isDarkMode ? '#1E3A4C' : '#E0F2FE',
+                        color: isDarkMode ? '#7DD3FC' : '#0369A1'
                       }}
                     >
                       ✓ Connected
@@ -680,9 +892,20 @@ const ConnectedServicesSection: React.FC = () => {
                   )}
                 </div>
 
-                <div style={{ display: 'flex', gap: 6 }}>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {c.enabled && c.connected && (
                     <>
+                      {c.name === 'garmin' && (
+                        <button
+                          type="button"
+                          onClick={handleBulkImportGarmin}
+                          className="btn-primary"
+                          style={{ fontSize: 11, padding: '2px 8px', minHeight: 26 }}
+                          title="Bulk import all activities to heat"
+                        >
+                          Bulk Import Heat
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleSync(c.name)}
@@ -695,7 +918,7 @@ const ConnectedServicesSection: React.FC = () => {
                         type="button"
                         onClick={() => handleDisconnect(c.name)}
                         className="btn-outline"
-                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26, color: '#C62828', borderColor: '#FFCDD2' }}
+                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26, color: 'var(--color-blaze, #FF5B14)', borderColor: 'var(--color-divider)' }}
                       >
                         Disconnect
                       </button>
@@ -706,6 +929,7 @@ const ConnectedServicesSection: React.FC = () => {
                       type="button"
                       onClick={() => {
                         if (c.name === 'garmin') setShowGarminModal(true);
+                        else if (c.name === 'trailforks') setShowTrailforksModal(true);
                         else if (c.name === 'strava') setShowStravaModal(true);
                         else alert(`${c.display_name} connector interface ready.`);
                       }}
@@ -718,7 +942,7 @@ const ConnectedServicesSection: React.FC = () => {
                 </div>
               </div>
 
-              <div style={{ fontSize: 11, color: '#42675E' }}>
+              <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
                 {c.description}
                 {c.connected && c.last_synced_at && (
                   <span> • Last synced: {new Date(c.last_synced_at).toLocaleDateString()}</span>
@@ -738,7 +962,7 @@ const ConnectedServicesSection: React.FC = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.45)',
+            backgroundColor: 'rgba(0,0,0,0.65)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -749,36 +973,40 @@ const ConnectedServicesSection: React.FC = () => {
         >
           <div
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              color: 'var(--color-text-primary, #1D3B34)',
               borderRadius: 10,
-              maxWidth: 400,
+              maxWidth: 420,
               width: '100%',
-              padding: 18,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              padding: 20,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 12
+              gap: 12,
+              border: '1px solid var(--color-divider, #D1D8D8)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1D3B34', margin: 0 }}>Connect Garmin Account</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
+                Connect Garmin Account
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowGarminModal(false)}
-                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: '#888' }}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 6, padding: 8, fontSize: 11, color: '#0369A1' }}>
-              <strong>Zero Password Retention Guarantee:</strong> Your password is used solely in memory to authenticate a session token and is discarded immediately. The resulting session token is AES-256 encrypted at rest.
+            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0F9FF)', border: '1px solid var(--color-divider, #BAE6FD)', borderRadius: 6, padding: 8, fontSize: 11, color: 'var(--color-text-secondary, #0369A1)' }}>
+              <strong>Zero Password Retention Guarantee:</strong> Passwords are never stored anywhere. Your session token is AES-256 encrypted at rest.
             </div>
 
             <form onSubmit={handleConnectGarmin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                   Garmin Username / Email
                 </label>
                 <input
@@ -786,13 +1014,13 @@ const ConnectedServicesSection: React.FC = () => {
                   value={garminUser}
                   onChange={(e) => setGarminUser(e.target.value)}
                   placeholder="user@garmin.com"
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
                   required
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                   Garmin Password
                 </label>
                 <input
@@ -800,12 +1028,25 @@ const ConnectedServicesSection: React.FC = () => {
                   value={garminPass}
                   onChange={(e) => setGarminPass(e.target.value)}
                   placeholder="••••••••••••"
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
                   required
                 />
               </div>
 
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+              {/* Bulk import agreement checkbox */}
+              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  checked={garminImportHeat}
+                  onChange={(e) => setGarminImportHeat(e.target.checked)}
+                  style={{ accentColor: 'var(--color-blaze, #FF5B14)', marginTop: 2 }}
+                />
+                <span>
+                  <strong>Bulk import all activities to heat layer</strong> (anonymized; first/last 0.2 mi and privacy zones strictly trimmed).
+                </span>
+              </label>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
                 <button
                   type="button"
                   onClick={() => setShowGarminModal(false)}
@@ -820,7 +1061,108 @@ const ConnectedServicesSection: React.FC = () => {
                   className="btn-primary"
                   style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
                 >
-                  {garminSubmitting ? 'Authenticating...' : 'Connect Garmin'}
+                  {garminSubmitting ? 'Connecting & Ingesting...' : 'Connect & Import'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Trailforks Connect Modal */}
+      {showTrailforksModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowTrailforksModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              color: 'var(--color-text-primary, #1D3B34)',
+              borderRadius: 10,
+              maxWidth: 420,
+              width: '100%',
+              padding: 20,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              border: '1px solid var(--color-divider, #D1D8D8)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
+                Connect Trailforks
+              </h3>
+              <button
+                type="button"
+                onClick={() => setShowTrailforksModal(false)}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0F9FF)', border: '1px solid var(--color-divider, #BAE6FD)', borderRadius: 6, padding: 8, fontSize: 11, color: 'var(--color-text-secondary, #0369A1)' }}>
+              <strong>Attribution Notice:</strong> Trail condition reports and difficulty metadata are credited to <strong>&copy; Trailforks</strong>. We respect rate limits and proprietary data policies.
+            </div>
+
+            <form onSubmit={handleConnectTrailforks} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
+                  Trailforks Username / Account ID
+                </label>
+                <input
+                  type="text"
+                  value={tfUsername}
+                  onChange={(e) => setTfUsername(e.target.value)}
+                  placeholder="e.g. nh_rider"
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
+                  API Token / Secret (Optional)
+                </label>
+                <input
+                  type="password"
+                  value={tfToken}
+                  onChange={(e) => setTfToken(e.target.value)}
+                  placeholder="Optional Trailforks API token"
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => setShowTrailforksModal(false)}
+                  className="btn-outline"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={tfSubmitting}
+                  className="btn-primary"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
+                >
+                  {tfSubmitting ? 'Connecting...' : 'Connect Trailforks'}
                 </button>
               </div>
             </form>
@@ -837,7 +1179,7 @@ const ConnectedServicesSection: React.FC = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.45)',
+            backgroundColor: 'rgba(0,0,0,0.65)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -848,24 +1190,26 @@ const ConnectedServicesSection: React.FC = () => {
         >
           <div
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              color: 'var(--color-text-primary, #1D3B34)',
               borderRadius: 10,
               maxWidth: 400,
               width: '100%',
               padding: 18,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 12
+              gap: 12,
+              border: '1px solid var(--color-divider, #D1D8D8)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: '#1D3B34', margin: 0 }}>Authorize Strava</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>Authorize Strava</h3>
               <button
                 type="button"
                 onClick={() => setShowStravaModal(false)}
-                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: '#888' }}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
               >
                 ✕
               </button>
@@ -873,7 +1217,7 @@ const ConnectedServicesSection: React.FC = () => {
 
             <form onSubmit={handleConnectStrava} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                   Strava Authorization Code / Token
                 </label>
                 <input
@@ -881,7 +1225,7 @@ const ConnectedServicesSection: React.FC = () => {
                   value={stravaCode}
                   onChange={(e) => setStravaCode(e.target.value)}
                   placeholder="e.g. strava_auth_code_xyz"
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
                   required
                 />
               </div>
@@ -912,4 +1256,4 @@ const ConnectedServicesSection: React.FC = () => {
   );
 };
 
-
+export default YouPanel;
