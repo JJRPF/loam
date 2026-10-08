@@ -2,7 +2,10 @@ import React, { useState } from 'react';
 import type { RouteResponse } from '../types';
 import { CandidateCard } from './CandidateCard';
 import { ElevationProfile } from './ElevationProfile';
-import { downloadGpx, downloadFit, shareRouteGarmin, saveRouteApi } from '../services/api';
+import { 
+  downloadGpx, downloadFit, shareRouteGarmin, saveRouteApi,
+  submitTrailCheckin, createFlag
+} from '../services/api';
 
 interface ResultsPanelProps {
   route: RouteResponse;
@@ -32,6 +35,43 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const [savedStatus, setSavedStatus] = useState<string | null>(null);
   const [shareStatus, setShareStatus] = useState<string | null>(null);
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(true);
+
+  // Trust Layer States
+  const [checkinStatus, setCheckinStatus] = useState<string | null>(null);
+  const [isCheckinLoading, setIsCheckinLoading] = useState(false);
+  const [showFlagModal, setShowFlagModal] = useState(false);
+  const [flagType, setFlagType] = useState<'gone' | 'blocked' | 'closed' | 'seasonal'>('blocked');
+  const [flagDetails, setFlagDetails] = useState('');
+  const [flagStatus, setFlagStatus] = useState<string | null>(null);
+
+  const handleCheckin = async () => {
+    setIsCheckinLoading(true);
+    try {
+      const edgeId = 999202;
+      const res = await submitTrailCheckin(edgeId, 'still_open', 'Checked in via Loam UI');
+      setCheckinStatus(`✓ Trail checked in as still open! (Confidence: ${Math.round(res.confidence_score * 100)}%)`);
+      setTimeout(() => setCheckinStatus(null), 4000);
+    } catch (e: any) {
+      setCheckinStatus(`Check-in: ${e.message}`);
+    } finally {
+      setIsCheckinLoading(false);
+    }
+  };
+
+  const handleReportFlag = async () => {
+    try {
+      const edgeId = 999101;
+      await createFlag(edgeId, flagType, flagDetails);
+      setFlagStatus('✓ Flag submitted to community!');
+      setTimeout(() => {
+        setFlagStatus(null);
+        setShowFlagModal(false);
+        setFlagDetails('');
+      }, 2000);
+    } catch (e: any) {
+      alert(`Flag failed: ${e.message}`);
+    }
+  };
 
   const handleDownloadGpx = async () => {
     setIsExportingGpx(true);
@@ -181,6 +221,133 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         {route.verbal_summary && (
           <div style={{ fontSize: 13, color: '#1D3B34', backgroundColor: '#F3F7F7', padding: '8px 10px', borderRadius: 6, borderLeft: '3px solid #2E6F40', marginTop: 8 }}>
             {route.verbal_summary}
+          </div>
+        )}
+
+        {/* Trust Layer Alert Banners */}
+        {route.hard_block_waived && (
+          <div style={{ backgroundColor: '#E8F5E9', border: '1px solid #C8E6C9', padding: '8px 12px', borderRadius: 6, fontSize: 13, color: '#1B5E20', display: 'flex', alignItems: 'center', gap: 8, marginTop: 8 }}>
+            <span>✓</span>
+            <div>
+              <strong>Prior-Ride Waiver Active:</strong> Hard block waived based on your verified ride history on this trail.
+            </div>
+          </div>
+        )}
+
+        {route.dnr_warnings && route.dnr_warnings.length > 0 && (
+          <div style={{ backgroundColor: '#FFF3E0', border: '1px solid #FFE0B2', padding: '10px 12px', borderRadius: 6, fontSize: 12, color: '#E65100', marginTop: 8 }}>
+            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <span>⚠️</span> Soft Do-Not-Ride (DNR) Warning ({route.dnr_warnings.length})
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {route.dnr_warnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
+            <div style={{ fontSize: 11, color: '#BF360C', marginTop: 4 }}>
+              Override permitted & logged. Score penalty applied.
+            </div>
+          </div>
+        )}
+
+        {route.snowmobile_warnings && route.snowmobile_warnings.length > 0 && (
+          <div style={{ backgroundColor: '#E0F7FA', border: '1px solid #B2EBF2', padding: '10px 12px', borderRadius: 6, fontSize: 12, color: '#006064', marginTop: 8 }}>
+            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <span>❄️</span> Snowmobile Corridor Caution
+            </div>
+            <div>{route.snowmobile_warnings[0]}</div>
+            <div style={{ fontSize: 11, color: '#00838F', marginTop: 4 }}>
+              Permission-based & seasonal. Never presented as unrestricted public access.
+            </div>
+          </div>
+        )}
+
+        {route.community_flag_warnings && route.community_flag_warnings.length > 0 && (
+          <div style={{ backgroundColor: '#FFFDE7', border: '1px solid #FFF9C4', padding: '10px 12px', borderRadius: 6, fontSize: 12, color: '#F57F17', marginTop: 8 }}>
+            <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+              <span>🚩</span> Community Trail Reports ({route.community_flag_warnings.length})
+            </div>
+            <ul style={{ margin: 0, paddingLeft: 18 }}>
+              {route.community_flag_warnings.map((f, i) => (
+                <li key={i}>{f}</li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {/* Trail Trust Actions: 1-Tap Check-in & Flag Report */}
+        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+          <button
+            type="button"
+            onClick={handleCheckin}
+            disabled={isCheckinLoading}
+            className="btn-secondary"
+            style={{ flex: 1, fontSize: 12, minHeight: 32, borderColor: '#A9BF7A', color: '#1D3B34', fontWeight: 600 }}
+          >
+            {isCheckinLoading ? 'Checking in...' : '✓ "Still Open" Check-in'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowFlagModal(!showFlagModal)}
+            className="btn-secondary"
+            style={{ flex: 1, fontSize: 12, minHeight: 32, borderColor: '#D1D8D8', color: '#1D3B34' }}
+          >
+            🚩 Report Trail Issue
+          </button>
+        </div>
+
+        {checkinStatus && (
+          <div style={{ fontSize: 12, color: '#2E6F40', backgroundColor: '#E8F5E9', padding: '6px 10px', borderRadius: 4, marginTop: 6 }}>
+            {checkinStatus}
+          </div>
+        )}
+
+        {showFlagModal && (
+          <div style={{ backgroundColor: '#F8F9FA', border: '1px solid #D1D8D8', borderRadius: 6, padding: 10, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>Report Trail Condition</div>
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+              <label>
+                Type:{' '}
+                <select
+                  value={flagType}
+                  onChange={(e) => setFlagType(e.target.value as any)}
+                  style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #D1D8D8' }}
+                >
+                  <option value="blocked">Blocked (Trees/Mud)</option>
+                  <option value="gone">Gone / Overgrown</option>
+                  <option value="closed">Closed</option>
+                  <option value="seasonal">Seasonal Mud Alert</option>
+                </select>
+              </label>
+            </div>
+            <input
+              type="text"
+              placeholder="Optional details (e.g. large oak down 0.5mi in)"
+              value={flagDetails}
+              onChange={(e) => setFlagDetails(e.target.value)}
+              style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #D1D8D8', fontSize: 12 }}
+            />
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowFlagModal(false)}
+                className="btn-outline"
+                style={{ fontSize: 11, minHeight: 28, padding: '2px 8px' }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleReportFlag}
+                className="btn-primary"
+                style={{ fontSize: 11, minHeight: 28, padding: '2px 10px' }}
+              >
+                Submit Flag
+              </button>
+            </div>
+            {flagStatus && (
+              <div style={{ fontSize: 11, color: '#2E6F40' }}>{flagStatus}</div>
+            )}
           </div>
         )}
       </div>

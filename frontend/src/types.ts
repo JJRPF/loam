@@ -58,11 +58,63 @@ export interface RouteResponse {
   minimap_bounds?: number[];
   minimap_svg?: string;
   warnings: string[];
+  dnr_warnings?: string[];
+  snowmobile_warnings?: string[];
+  community_flag_warnings?: string[];
+  hard_block_waived?: boolean;
   heat_score?: number | null;
   match_score?: number;
   score_breakdown?: ScoreBreakdown;
   repetition_ratio?: number;
   verbal_summary?: string;
+}
+
+export interface CommunityFlag {
+  id: number;
+  edge_osm_id: number;
+  flag_type: 'gone' | 'blocked' | 'closed' | 'seasonal';
+  user_id?: string;
+  confirmed_count: number;
+  disputed_count: number;
+  status: string;
+  details?: string;
+  created_at: string;
+}
+
+export interface TrailCheckin {
+  id: number;
+  edge_osm_id: number;
+  user_id: string;
+  status: string;
+  note?: string;
+  checked_in_at: string;
+  confidence_score: number;
+}
+
+export interface UserDNR {
+  id: number;
+  user_id: string;
+  name: string;
+  dnr_type: 'trail' | 'area';
+  edge_osm_id?: number;
+  geom?: any;
+  is_soft: boolean;
+  reason?: string;
+  created_at: string;
+}
+
+export interface UserDataExport {
+  user_id: string;
+  email?: string;
+  display_name?: string;
+  consent: { consent_given: boolean; consented_at?: string };
+  privacy_zones: any[];
+  dnr_items: UserDNR[];
+  checkins: TrailCheckin[];
+  flags: CommunityFlag[];
+  activities: any[];
+  saved_routes: any[];
+  exported_at: string;
 }
 
 export interface RouteOptionsResponse {

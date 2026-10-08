@@ -27,6 +27,8 @@ interface PlanPanelProps {
   isLoading: boolean;
   onPickOnMap: (target: 'start' | 'end') => void;
   pickingTarget: 'start' | 'end' | null;
+  overrideDnr?: boolean;
+  onOverrideDnrChange?: (override: boolean) => void;
 }
 
 export const PlanPanel: React.FC<PlanPanelProps> = ({
@@ -45,7 +47,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   onBuildRoutes,
   isLoading,
   onPickOnMap,
-  pickingTarget
+  pickingTarget,
+  overrideDnr = false,
+  onOverrideDnrChange
 }) => {
   const [selectedPresetName, setSelectedPresetName] = useState<string>("Mostly Trail");
 
@@ -399,6 +403,22 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
               </div>
             );
           })}
+        </div>
+      </section>
+
+      {/* 5b. Trust & DNR Settings */}
+      <section style={{ backgroundColor: '#F3F7F7', padding: '10px 12px', borderRadius: 8, border: '1px solid #D1D8D8' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 600, color: '#1D3B34' }}>
+          <input
+            type="checkbox"
+            checked={overrideDnr}
+            onChange={(e) => onOverrideDnrChange?.(e.target.checked)}
+            style={{ width: 16, height: 16, accentColor: '#FF5B14' }}
+          />
+          <span>Allow Soft DNR Override (Warn & Log)</span>
+        </label>
+        <div style={{ fontSize: 11, color: '#42675E', marginTop: 4, paddingLeft: 24 }}>
+          If enabled, routing may pass through soft user DNR segments when necessary, adding a warning and penalty. Hard closures remain strictly blocked.
         </div>
       </section>
 

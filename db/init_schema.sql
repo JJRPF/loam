@@ -17,6 +17,8 @@ CREATE TABLE IF NOT EXISTS edges (
     bicycle TEXT,
     foot TEXT,
     snowmobile BOOLEAN DEFAULT FALSE,
+    access TEXT,
+    confidence_score DOUBLE PRECISION DEFAULT 1.0,
     geom GEOMETRY(LineString, 4326),
     length_m DOUBLE PRECISION,
     last_osm_edit DATE,
@@ -26,6 +28,8 @@ CREATE TABLE IF NOT EXISTS edges (
 CREATE INDEX IF NOT EXISTS idx_edges_geom ON edges USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_edges_highway ON edges (highway);
 CREATE INDEX IF NOT EXISTS idx_edges_surface ON edges (surface);
+CREATE INDEX IF NOT EXISTS idx_edges_bicycle ON edges (bicycle);
+CREATE INDEX IF NOT EXISTS idx_edges_access ON edges (access);
 
 -- Edge Heat Layer (recency weighted heat per sport)
 CREATE TABLE IF NOT EXISTS edge_heat (
@@ -106,27 +110,91 @@ CREATE INDEX IF NOT EXISTS idx_privacy_zones_user ON user_privacy_zones (user_id
 -- Trail Community Flags (closed, gone, blocked, seasonal)
 CREATE TABLE IF NOT EXISTS flags (
     id SERIAL PRIMARY KEY,
-    edge_osm_id BIGINT,
+    edge_osm_id BIGINT REFERENCES edges(osm_id) ON DELETE CASCADE,
     flag_type TEXT NOT NULL, -- 'gone', 'blocked', 'closed', 'seasonal'
     user_id TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     confirmed_count INT DEFAULT 1,
+    disputed_count INT DEFAULT 0,
+    status TEXT DEFAULT 'active', -- 'active', 'resolved', 'dismissed'
     details TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_flags_edge ON flags (edge_osm_id);
 
--- Land Restrictions and DNR
+-- Community Flag Confirmations & Disputes (abuse-resistant 1 vote per user)
+CREATE TABLE IF NOT EXISTS flag_votes (
+    id SERIAL PRIMARY KEY,
+    flag_id INT REFERENCES flags(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    vote_type TEXT NOT NULL, -- 'confirm' or 'dispute'
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(flag_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_flag_votes_flag ON flag_votes (flag_id);
+
+-- Rider Trail Check-ins ("still open" one-tap verification)
+CREATE TABLE IF NOT EXISTS trail_checkins (
+    id SERIAL PRIMARY KEY,
+    edge_osm_id BIGINT REFERENCES edges(osm_id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    status TEXT DEFAULT 'open', -- 'open', 'still_open'
+    note TEXT,
+    checked_in_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_checkins_edge ON trail_checkins (edge_osm_id);
+CREATE INDEX IF NOT EXISTS idx_checkins_user ON trail_checkins (user_id);
+
+-- User-settable DNR List (by trail or by area)
+CREATE TABLE IF NOT EXISTS user_dnr (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT,
+    dnr_type TEXT NOT NULL, -- 'trail' or 'area'
+    edge_osm_id BIGINT,
+    geom GEOMETRY(Geometry, 4326),
+    is_soft BOOLEAN DEFAULT TRUE, -- soft warns and allows override; hard block cannot be overridden
+    reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_dnr_user ON user_dnr (user_id);
+CREATE INDEX IF NOT EXISTS idx_user_dnr_edge ON user_dnr (edge_osm_id);
+CREATE INDEX IF NOT EXISTS idx_user_dnr_geom ON user_dnr USING GIST (geom);
+
+-- Logged Soft DNR Overrides (Audit Log)
+CREATE TABLE IF NOT EXISTS dnr_override_logs (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    route_id TEXT,
+    dnr_id INT,
+    edge_osm_id BIGINT,
+    reason TEXT,
+    logged_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_dnr_override_logs_user ON dnr_override_logs (user_id);
+
+-- Land Restrictions and Admin Takedowns
 CREATE TABLE IF NOT EXISTS restrictions (
     id SERIAL PRIMARY KEY,
     name TEXT,
-    restriction_type TEXT NOT NULL, -- 'dnr', 'closure', 'sensitive_wildlife', 'private'
+    restriction_type TEXT NOT NULL, -- 'dnr', 'closure', 'sensitive_wildlife', 'private', 'wilderness', 'takedown'
     source TEXT,
-    is_hard BOOLEAN DEFAULT FALSE, -- hard blocks cannot be overridden
+    is_hard BOOLEAN DEFAULT FALSE, -- hard blocks cannot be overridden unless user already rode
+    edge_osm_id BIGINT,
+    seasonal_start_month INT,
+    seasonal_end_month INT,
+    seasonal_tag TEXT,
+    description TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     geom GEOMETRY(Geometry, 4326)
 );
 
 CREATE INDEX IF NOT EXISTS idx_restrictions_geom ON restrictions USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_restrictions_edge ON restrictions (edge_osm_id);
 
 -- Users
 CREATE TABLE IF NOT EXISTS users (
