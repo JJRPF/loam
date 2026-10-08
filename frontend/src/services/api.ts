@@ -899,7 +899,7 @@ export async function getConnectors(userId: string = 'justin_default_user'): Pro
 }
 
 export async function connectGarmin(
-  credentials: { username: string; password: string; import_to_heat?: boolean },
+  credentials: { username: string; password: string; import_to_heat?: boolean; mfa_code?: string; mfa_session_id?: string },
   userId: string = 'justin_default_user'
 ): Promise<any> {
   const res = await fetch(`${API_BASE}/api/connectors/garmin/login`, {
@@ -911,11 +911,37 @@ export async function connectGarmin(
     body: JSON.stringify({
       username: credentials.username,
       password: credentials.password,
-      import_to_heat: credentials.import_to_heat ?? true
+      import_to_heat: credentials.import_to_heat ?? true,
+      mfa_code: credentials.mfa_code,
+      mfa_session_id: credentials.mfa_session_id
     })
   });
   if (!res.ok) {
     throw new Error(`Garmin login failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function verifyGarminMfa(
+  mfaSessionId: string,
+  mfaCode: string,
+  importToHeat: boolean = true,
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/garmin/verify-mfa`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({
+      mfa_session_id: mfaSessionId,
+      mfa_code: mfaCode,
+      import_to_heat: importToHeat
+    })
+  });
+  if (!res.ok) {
+    throw new Error(`Garmin 2FA verification failed: ${await res.text()}`);
   }
   return await res.json();
 }
@@ -957,7 +983,7 @@ export async function connectTrailforks(
 }
 
 export async function connectStrava(
-  code: string,
+  params: { code?: string; personal_token?: string },
   userId: string = 'justin_default_user'
 ): Promise<any> {
   const res = await fetch(`${API_BASE}/api/connectors/strava/auth`, {
@@ -966,10 +992,49 @@ export async function connectStrava(
       'Content-Type': 'application/json',
       'X-User-Id': userId
     },
-    body: JSON.stringify({ code })
+    body: JSON.stringify(params)
   });
   if (!res.ok) {
     throw new Error(`Strava auth failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function getDevStatus(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (devKey) headers['X-Dev-Key'] = devKey;
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  if (userEmail) headers['X-User-Id'] = userEmail;
+
+  const res = await fetch(`${API_BASE}/api/dev/status`, { headers });
+  if (!res.ok) {
+    throw new Error(`Dev status check failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function clearDevCache(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (devKey) headers['X-Dev-Key'] = devKey;
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  if (userEmail) headers['X-User-Id'] = userEmail;
+
+  const res = await fetch(`${API_BASE}/api/dev/cache/clear`, { method: 'POST', headers });
+  if (!res.ok) {
+    throw new Error(`Cache clear failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function recalculateDevHeat(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (devKey) headers['X-Dev-Key'] = devKey;
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  if (userEmail) headers['X-User-Id'] = userEmail;
+
+  const res = await fetch(`${API_BASE}/api/dev/heat/recalculate`, { method: 'POST', headers });
+  if (!res.ok) {
+    throw new Error(`Heat recalculation failed (${res.status}): ${await res.text()}`);
   }
   return await res.json();
 }

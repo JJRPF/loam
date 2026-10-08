@@ -59,7 +59,7 @@ async def test_garmin_connect_and_bulk_import_to_heat():
         login_resp = await client.post(
             "/api/connectors/garmin/login",
             json={
-                "username": "justin.pfister@example.com",
+                "username": "test_justin.pfister@example.com",
                 "password": "SecretGarminPassword123!",
                 "import_to_heat": True
             },
@@ -95,7 +95,7 @@ async def test_garmin_bulk_import_user_disagrees():
         login_resp = await client.post(
             "/api/connectors/garmin/login",
             json={
-                "username": "private.rider@example.com",
+                "username": "test_private.rider@example.com",
                 "password": "Password789!",
                 "import_to_heat": False
             },
@@ -169,3 +169,110 @@ async def test_real_google_sso_authentication():
         assert data["user"]["display_name"] == real_name
         # Not the hardcoded demo account
         assert data["user"]["email"] != "justin@example.com"
+
+
+@pytest.mark.asyncio
+async def test_garmin_2fa_challenge_and_verification():
+    """
+    Verifies that when an account requires 2FA:
+    1. /api/connectors/garmin/login returns needs_mfa=True with an mfa_session_id.
+    2. /api/connectors/garmin/verify-mfa accepts the code and finishes connection.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        test_uid = "test_gh19_garmin_2fa_rider"
+
+        # Step 1: Initial login returns MFA prompt
+        resp1 = await client.post(
+            "/api/connectors/garmin/login",
+            json={
+                "username": "test_mfa_user@example.com",
+                "password": "PasswordWith2FA123!",
+                "import_to_heat": True
+            },
+            headers={"X-User-Id": test_uid}
+        )
+        assert resp1.status_code == 200
+        data1 = resp1.json()
+        assert data1["needs_mfa"] is True
+        assert data1["connected"] is False
+        assert "mfa_session_id" in data1
+        session_id = data1["mfa_session_id"]
+
+        # Step 2: Submit 2FA code
+        resp2 = await client.post(
+            "/api/connectors/garmin/verify-mfa",
+            json={
+                "mfa_session_id": session_id,
+                "mfa_code": "654321",
+                "import_to_heat": True
+            },
+            headers={"X-User-Id": test_uid}
+        )
+        assert resp2.status_code == 200
+        data2 = resp2.json()
+        assert data2["connected"] is True
+        assert data2["needs_mfa"] is False
+        assert "bulk_sync" in data2
+
+
+@pytest.mark.asyncio
+async def test_strava_personal_token_auth():
+    """
+    Verifies that users can authenticate Strava using their personal access token,
+    requiring zero app-wide OAuth client secret from Loam.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        test_uid = "test_gh19_strava_user"
+
+        resp = await client.post(
+            "/api/connectors/strava/auth",
+            json={"personal_token": "test_personal_strava_pat_9988"},
+            headers={"X-User-Id": test_uid}
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["connected"] is True
+        assert "Strava" in data["message"]
+
+        # Check connector list shows Strava connected
+        status_resp = await client.get("/api/connectors", headers={"X-User-Id": test_uid})
+        assert status_resp.status_code == 200
+        strava_item = next(c for c in status_resp.json() if c["name"] == "strava")
+        assert strava_item["connected"] is True
+
+
+@pytest.mark.asyncio
+async def test_developer_console_access_and_actions():
+    """
+    Verifies that the Developer Console endpoints require authentication (Justin or dev key),
+    reject unauthorized requests with 403, and execute cache/heat maintenance actions.
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Unauthorized request is rejected
+        unauth_resp = await client.get("/api/dev/status", headers={"X-User-Id": "random_unauth_user"})
+        assert unauth_resp.status_code == 403
+
+        # 2. Authorized via dev key
+        dev_key = settings.developer_admin_key
+        auth_resp = await client.get("/api/dev/status", headers={"X-Dev-Key": dev_key})
+        assert auth_resp.status_code == 200
+        status_data = auth_resp.json()
+        assert status_data["status"] == "healthy"
+        assert status_data["developer_email"] == settings.developer_admin_email
+        assert "connectors" in status_data
+        assert isinstance(status_data["uptime_seconds"], (int, float))
+
+        # 3. Clear transient cache
+        cache_resp = await client.post("/api/dev/cache/clear", headers={"X-Dev-Key": dev_key})
+        assert cache_resp.status_code == 200
+        assert cache_resp.json()["status"] == "success"
+
+        # 4. Recalculate heat layer
+        heat_resp = await client.post("/api/dev/heat/recalculate", headers={"X-Dev-Key": dev_key})
+        assert heat_resp.status_code == 200
+        assert heat_resp.json()["status"] == "success"
+        assert "updated_edges" in heat_resp.json()
+

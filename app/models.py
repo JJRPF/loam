@@ -414,9 +414,17 @@ class GarminLoginRequest(BaseModel):
     username: str
     password: str
     import_to_heat: bool = True
+    mfa_code: Optional[str] = None
+    mfa_session_id: Optional[str] = None
+
+class GarminMfaVerifyRequest(BaseModel):
+    mfa_session_id: str
+    mfa_code: str
+    import_to_heat: bool = True
 
 class StravaAuthRequest(BaseModel):
-    code: str
+    code: Optional[str] = None
+    personal_token: Optional[str] = None
     scope: Optional[str] = None
 
 class TrailforksAuthRequest(BaseModel):
@@ -433,6 +441,19 @@ class ConnectorSyncResponse(BaseModel):
     heat_edges_updated: int = 0
     bulk_heat_imported: bool = False
     message: Optional[str] = None
+
+class DevConsoleStatusResponse(BaseModel):
+    status: str
+    app_name: str
+    app_version: str
+    database_connected: bool
+    edge_count: int = 0
+    activity_count: int = 0
+    heat_edge_count: int = 0
+    saved_route_count: int = 0
+    connectors: List[Dict[str, Any]] = []
+    developer_email: str
+    uptime_seconds: float = 0.0
 
 
 

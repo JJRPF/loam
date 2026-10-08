@@ -2,9 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
   exportMyData, deleteMyAccount,
-  getConnectors, connectGarmin, connectStrava, connectTrailforks, bulkImportGarmin,
+  getConnectors, connectGarmin, verifyGarminMfa, connectStrava, connectTrailforks, bulkImportGarmin,
   syncConnector, disconnectConnector
 } from '../services/api';
+import { DevConsolePanel } from './DevConsolePanel';
 import { 
   getStoredUser, 
   loginWithRealCredentials, 
@@ -35,6 +36,14 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
   const [newDnrReason, setNewDnrReason] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
+
+  // Developer Console State
+  const [showDevConsole, setShowDevConsole] = useState(false);
+  const [devKey, setDevKey] = useState<string>(() => localStorage.getItem('loam_dev_key') || '');
+  const [devKeyInput, setDevKeyInput] = useState('');
+  const [showDevKeyModal, setShowDevKeyModal] = useState(false);
+  const isJustinUser = currentUser?.email === 'jjrpfister@gmail.com';
+  const isDevAuthed = isJustinUser || (devKey.trim().length > 0);
 
   // Google SSO Modal State
   const [showGoogleModal, setShowGoogleModal] = useState(false);
@@ -588,6 +597,182 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
         </div>
       </div>
 
+      {/* Developer Console (Admin Justin) */}
+      <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
+              Developer Console
+            </h3>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
+              Telemetry, transient cache control, and heat recalculation.
+            </div>
+          </div>
+          {isDevAuthed && (
+            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, backgroundColor: '#DCFCE7', color: '#166534' }}>
+              ✓ Authorized
+            </span>
+          )}
+        </div>
+
+        {isDevAuthed ? (
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <button
+              type="button"
+              onClick={() => setShowDevConsole(true)}
+              className="btn-primary"
+              style={{ flex: 1, fontSize: 12, minHeight: 34 }}
+            >
+              🛠️ Open Developer Console
+            </button>
+            {devKey && !isJustinUser && (
+              <button
+                type="button"
+                onClick={() => {
+                  localStorage.removeItem('loam_dev_key');
+                  setDevKey('');
+                }}
+                className="btn-outline"
+                style={{ fontSize: 11, minHeight: 34, padding: '0 10px' }}
+                title="Lock Console"
+              >
+                Lock
+              </button>
+            )}
+          </div>
+        ) : (
+          <div>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: '0 0 8px 0' }}>
+              Requires authentication as Justin Pfister (<code>jjrpfister@gmail.com</code>) or a valid Developer Access Key.
+            </p>
+            <button
+              type="button"
+              onClick={() => setShowDevKeyModal(true)}
+              className="btn-outline"
+              style={{ width: '100%', fontSize: 12, minHeight: 34 }}
+            >
+              🔑 Enter Developer Access Key
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Developer Access Key Modal */}
+      {showDevKeyModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowDevKeyModal(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              color: 'var(--color-text-primary, #1D3B34)',
+              borderRadius: 10,
+              maxWidth: 400,
+              width: '100%',
+              padding: 20,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              border: '1px solid var(--color-divider, #D1D8D8)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Developer Authentication</h3>
+            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: 0 }}>
+              Enter your developer access key to manage app caches, heat layers, and telemetry.
+            </p>
+            <input
+              type="password"
+              placeholder="Developer Key"
+              value={devKeyInput}
+              onChange={(e) => setDevKeyInput(e.target.value)}
+              style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
+            />
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                onClick={() => setShowDevKeyModal(false)}
+                className="btn-outline"
+                style={{ fontSize: 12, minHeight: 32 }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (devKeyInput.trim()) {
+                    localStorage.setItem('loam_dev_key', devKeyInput.trim());
+                    setDevKey(devKeyInput.trim());
+                    setShowDevKeyModal(false);
+                    setShowDevConsole(true);
+                  }
+                }}
+                className="btn-primary"
+                style={{ fontSize: 12, minHeight: 32 }}
+              >
+                Unlock Console
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Developer Console Modal */}
+      {showDevConsole && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1100,
+            padding: 16
+          }}
+          onClick={() => setShowDevConsole(false)}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              borderRadius: 10,
+              maxWidth: 680,
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
+              border: '1px solid var(--color-divider, #D1D8D8)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <DevConsolePanel
+              userEmail={currentUser?.email}
+              idToken={currentUser?.idToken}
+              devKey={devKey}
+              onClose={() => setShowDevConsole(false)}
+              isDarkMode={isDarkMode}
+            />
+          </div>
+        </div>
+      )}
+
       {/* About & Stack */}
       <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.5 }}>
         loam Trail Route Builder • Stage 4 Heat v1<br />
@@ -694,6 +879,11 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const [garminPass, setGarminPass] = useState('');
   const [garminImportHeat, setGarminImportHeat] = useState(true);
   const [garminSubmitting, setGarminSubmitting] = useState(false);
+  const [garminNeedsMfa, setGarminNeedsMfa] = useState(false);
+  const [garminMfaSessionId, setGarminMfaSessionId] = useState('');
+  const [garminMfaCode, setGarminMfaCode] = useState('');
+  const [garminMfaMessage, setGarminMfaMessage] = useState('');
+  const [garminError, setGarminError] = useState<string | null>(null);
 
   // Trailforks connect form state
   const [showTrailforksModal, setShowTrailforksModal] = useState(false);
@@ -701,10 +891,11 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const [tfToken, setTfToken] = useState('');
   const [tfSubmitting, setTfSubmitting] = useState(false);
 
-  // Strava connect form state
+  // Strava connect form state (Personal Token)
   const [showStravaModal, setShowStravaModal] = useState(false);
-  const [stravaCode, setStravaCode] = useState('');
+  const [stravaToken, setStravaToken] = useState('');
   const [stravaSubmitting, setStravaSubmitting] = useState(false);
+  const [stravaError, setStravaError] = useState<string | null>(null);
 
   const loadConnectors = async () => {
     setLoading(true);
@@ -727,20 +918,54 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     if (!garminUser.trim() || !garminPass.trim()) return;
 
     setGarminSubmitting(true);
+    setGarminError(null);
     try {
       const res = await connectGarmin({
         username: garminUser.trim(),
         password: garminPass.trim(),
         import_to_heat: garminImportHeat
       });
+      if (res.needs_mfa) {
+        setGarminNeedsMfa(true);
+        setGarminMfaSessionId(res.mfa_session_id || '');
+        setGarminMfaMessage(res.message || 'Garmin Two-Factor Authentication required. Please enter the security code sent to your email or phone.');
+        return;
+      }
       setShowGarminModal(false);
       setGarminUser('');
       setGarminPass('');
+      setGarminNeedsMfa(false);
+      setGarminMfaSessionId('');
+      setGarminMfaCode('');
       setStatusMsg(res.message || 'Garmin connected! Activities synced to heat layer.');
       setTimeout(() => setStatusMsg(null), 5000);
       await loadConnectors();
     } catch (err: any) {
-      alert(`Garmin connection failed: ${err.message}`);
+      setGarminError(err.message || 'Garmin connection failed. Please check credentials.');
+    } finally {
+      setGarminSubmitting(false);
+    }
+  };
+
+  const handleVerifyGarminMfa = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!garminMfaCode.trim()) return;
+
+    setGarminSubmitting(true);
+    setGarminError(null);
+    try {
+      const res = await verifyGarminMfa(garminMfaSessionId, garminMfaCode.trim(), garminImportHeat);
+      setShowGarminModal(false);
+      setGarminNeedsMfa(false);
+      setGarminMfaCode('');
+      setGarminMfaSessionId('');
+      setGarminUser('');
+      setGarminPass('');
+      setStatusMsg(res.message || 'Garmin 2FA verified! Activities synced to heat layer.');
+      setTimeout(() => setStatusMsg(null), 5000);
+      await loadConnectors();
+    } catch (err: any) {
+      setGarminError(err.message || 'Garmin 2FA code verification failed. Please try again.');
     } finally {
       setGarminSubmitting(false);
     }
@@ -781,18 +1006,19 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
 
   const handleConnectStrava = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!stravaCode.trim()) return;
+    if (!stravaToken.trim()) return;
 
     setStravaSubmitting(true);
+    setStravaError(null);
     try {
-      await connectStrava(stravaCode.trim());
+      const res = await connectStrava({ personal_token: stravaToken.trim() });
       setShowStravaModal(false);
-      setStravaCode('');
-      setStatusMsg('Strava account authorized successfully!');
+      setStravaToken('');
+      setStatusMsg(res.message || 'Strava personal API token connected! Encrypted at rest.');
       setTimeout(() => setStatusMsg(null), 4000);
       await loadConnectors();
     } catch (err: any) {
-      alert(`Strava authorization failed: ${err.message}`);
+      setStravaError(err.message || 'Strava personal token authorization failed');
     } finally {
       setStravaSubmitting(false);
     }
@@ -969,7 +1195,11 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
             zIndex: 1000,
             padding: 16
           }}
-          onClick={() => setShowGarminModal(false)}
+          onClick={() => {
+            setShowGarminModal(false);
+            setGarminNeedsMfa(false);
+            setGarminError(null);
+          }}
         >
           <div
             style={{
@@ -989,82 +1219,141 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
-                Connect Garmin Account
+                {garminNeedsMfa ? 'Garmin Two-Factor Authentication' : 'Connect Garmin Account'}
               </h3>
               <button
                 type="button"
-                onClick={() => setShowGarminModal(false)}
+                onClick={() => {
+                  setShowGarminModal(false);
+                  setGarminNeedsMfa(false);
+                  setGarminError(null);
+                }}
                 style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
               >
                 ✕
               </button>
             </div>
 
-            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0F9FF)', border: '1px solid var(--color-divider, #BAE6FD)', borderRadius: 6, padding: 8, fontSize: 11, color: 'var(--color-text-secondary, #0369A1)' }}>
-              <strong>Zero Password Retention Guarantee:</strong> Passwords are never stored anywhere. Your session token is AES-256 encrypted at rest.
-            </div>
+            {garminError && (
+              <div style={{ backgroundColor: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '8px 10px', borderRadius: 6, fontSize: 12 }}>
+                <strong>Authentication Notice:</strong> {garminError}
+              </div>
+            )}
 
-            <form onSubmit={handleConnectGarmin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
-                  Garmin Username / Email
+            {garminNeedsMfa ? (
+              <form onSubmit={handleVerifyGarminMfa} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0FDF4)', border: '1px solid #BBF7D0', borderRadius: 6, padding: 10, fontSize: 12, color: '#166534' }}>
+                  <strong>Security Verification:</strong> {garminMfaMessage}
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 4 }}>
+                    6-Digit Security Code
+                  </label>
+                  <input
+                    type="text"
+                    value={garminMfaCode}
+                    onChange={(e) => setGarminMfaCode(e.target.value)}
+                    placeholder="e.g. 123456"
+                    maxLength={10}
+                    autoFocus
+                    required
+                    style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 16, letterSpacing: '2px', fontWeight: 700, textAlign: 'center', boxSizing: 'border-box' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setGarminNeedsMfa(false);
+                      setGarminError(null);
+                    }}
+                    className="btn-outline"
+                    style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
+                  >
+                    Back to Login
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={garminSubmitting}
+                    className="btn-primary"
+                    style={{ fontSize: 12, minHeight: 32, padding: '4px 16px' }}
+                  >
+                    {garminSubmitting ? 'Verifying...' : 'Verify & Connect'}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <form onSubmit={handleConnectGarmin} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0F9FF)', border: '1px solid var(--color-divider, #BAE6FD)', borderRadius: 6, padding: 8, fontSize: 11, color: 'var(--color-text-secondary, #0369A1)' }}>
+                  <strong>Zero Password Retention Guarantee:</strong> Passwords are never stored anywhere. Your session token is AES-256 encrypted at rest. Supports 2FA/MFA.
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
+                    Garmin Username / Email
+                  </label>
+                  <input
+                    type="text"
+                    value={garminUser}
+                    onChange={(e) => setGarminUser(e.target.value)}
+                    placeholder="user@garmin.com"
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
+                    Garmin Password
+                  </label>
+                  <input
+                    type="password"
+                    value={garminPass}
+                    onChange={(e) => setGarminPass(e.target.value)}
+                    placeholder="••••••••••••"
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
+                    required
+                  />
+                </div>
+
+                {/* Bulk import agreement checkbox */}
+                <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', marginTop: 4 }}>
+                  <input
+                    type="checkbox"
+                    checked={garminImportHeat}
+                    onChange={(e) => setGarminImportHeat(e.target.checked)}
+                    style={{ accentColor: 'var(--color-blaze, #FF5B14)', marginTop: 2 }}
+                  />
+                  <span>
+                    <strong>Bulk import all activities to heat layer</strong> (anonymized; first/last 0.2 mi and privacy zones strictly trimmed).
+                  </span>
                 </label>
-                <input
-                  type="text"
-                  value={garminUser}
-                  onChange={(e) => setGarminUser(e.target.value)}
-                  placeholder="user@garmin.com"
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
-                  required
-                />
-              </div>
 
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
-                  Garmin Password
-                </label>
-                <input
-                  type="password"
-                  value={garminPass}
-                  onChange={(e) => setGarminPass(e.target.value)}
-                  placeholder="••••••••••••"
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
-                  required
-                />
-              </div>
-
-              {/* Bulk import agreement checkbox */}
-              <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, cursor: 'pointer', fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', marginTop: 4 }}>
-                <input
-                  type="checkbox"
-                  checked={garminImportHeat}
-                  onChange={(e) => setGarminImportHeat(e.target.checked)}
-                  style={{ accentColor: 'var(--color-blaze, #FF5B14)', marginTop: 2 }}
-                />
-                <span>
-                  <strong>Bulk import all activities to heat layer</strong> (anonymized; first/last 0.2 mi and privacy zones strictly trimmed).
-                </span>
-              </label>
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowGarminModal(false)}
-                  className="btn-outline"
-                  style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={garminSubmitting}
-                  className="btn-primary"
-                  style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
-                >
-                  {garminSubmitting ? 'Connecting & Ingesting...' : 'Connect & Import'}
-                </button>
-              </div>
-            </form>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowGarminModal(false);
+                      setGarminError(null);
+                    }}
+                    className="btn-outline"
+                    style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={garminSubmitting}
+                    className="btn-primary"
+                    style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
+                  >
+                    {garminSubmitting ? 'Authenticating...' : 'Connect & Import'}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
@@ -1170,7 +1459,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
         </div>
       )}
 
-      {/* Strava Connect Modal */}
+      {/* Strava Connect Modal (Personal API Token) */}
       {showStravaModal && (
         <div
           style={{
@@ -1186,16 +1475,19 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
             zIndex: 1000,
             padding: 16
           }}
-          onClick={() => setShowStravaModal(false)}
+          onClick={() => {
+            setShowStravaModal(false);
+            setStravaError(null);
+          }}
         >
           <div
             style={{
               backgroundColor: 'var(--color-card-bg, #FFFFFF)',
               color: 'var(--color-text-primary, #1D3B34)',
               borderRadius: 10,
-              maxWidth: 400,
+              maxWidth: 440,
               width: '100%',
-              padding: 18,
+              padding: 20,
               boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
               display: 'flex',
               flexDirection: 'column',
@@ -1205,27 +1497,51 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>Authorize Strava</h3>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
+                Connect Strava (Personal API Token)
+              </h3>
               <button
                 type="button"
-                onClick={() => setShowStravaModal(false)}
+                onClick={() => {
+                  setShowStravaModal(false);
+                  setStravaError(null);
+                }}
                 style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
               >
                 ✕
               </button>
             </div>
 
+            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0F9FF)', border: '1px solid var(--color-divider, #BAE6FD)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-text-secondary, #0369A1)', lineHeight: 1.4 }}>
+              <strong>Zero App Secret Architecture:</strong> Loam does not require an app-wide Strava client. You can generate a free personal API token on Strava to sync your rides and runs directly.
+            </div>
+
+            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F8F9FA)', border: '1px solid var(--color-divider, #E5E7EB)', borderRadius: 6, padding: 10, fontSize: 11, color: 'var(--color-text-secondary, #4B5563)', lineHeight: 1.5 }}>
+              <strong>How to get your Personal Access Token:</strong>
+              <ol style={{ margin: '4px 0 0 0', paddingLeft: 18 }}>
+                <li>Log in to <a href="https://www.strava.com/settings/api" target="_blank" rel="noopener noreferrer" style={{ color: '#FF5B14', fontWeight: 600 }}>strava.com/settings/api</a>.</li>
+                <li>Under <em>My API Application</em>, copy <strong>Your Access Token</strong>.</li>
+                <li>Paste it below. Your token is encrypted at rest using AES-256.</li>
+              </ol>
+            </div>
+
+            {stravaError && (
+              <div style={{ backgroundColor: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '8px 10px', borderRadius: 6, fontSize: 12 }}>
+                <strong>Authorization Notice:</strong> {stravaError}
+              </div>
+            )}
+
             <form onSubmit={handleConnectStrava} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
-                  Strava Authorization Code / Token
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 4 }}>
+                  Personal Access Token
                 </label>
                 <input
-                  type="text"
-                  value={stravaCode}
-                  onChange={(e) => setStravaCode(e.target.value)}
-                  placeholder="e.g. strava_auth_code_xyz"
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
+                  type="password"
+                  value={stravaToken}
+                  onChange={(e) => setStravaToken(e.target.value)}
+                  placeholder="Paste your Strava personal access token"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
                   required
                 />
               </div>
@@ -1233,7 +1549,10 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
                 <button
                   type="button"
-                  onClick={() => setShowStravaModal(false)}
+                  onClick={() => {
+                    setShowStravaModal(false);
+                    setStravaError(null);
+                  }}
                   className="btn-outline"
                   style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
                 >
@@ -1245,7 +1564,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
                   className="btn-primary"
                   style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
                 >
-                  {stravaSubmitting ? 'Authorizing...' : 'Authorize Strava'}
+                  {stravaSubmitting ? 'Verifying Token...' : 'Connect Personal Token'}
                 </button>
               </div>
             </form>

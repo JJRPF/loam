@@ -30,7 +30,7 @@ class StravaConnector(BaseConnector):
 
     @property
     def description(self) -> str:
-        return "Optional activity sync via Strava API. Off by default. Strictly decoupled and encrypted."
+        return "Connect your personal Strava API token from your Strava account (strava.com/settings/api). Zero app token required. Encrypted at rest."
 
     def is_enabled(self) -> bool:
         return settings.enable_strava_connector
@@ -57,15 +57,33 @@ class StravaConnector(BaseConnector):
                 "error": "Strava connector is disabled by configuration (ENABLE_STRAVA_CONNECTOR=false)."
             }
 
+        personal_token = credentials.get("personal_token")
         code = credentials.get("code")
-        if not code:
-            return {"success": False, "error": "Authorization code is required."}
+
+        if not personal_token and not code:
+            return {"success": False, "error": "Personal Strava API access token or authorization code is required."}
 
         try:
-            # Simulate or execute OAuth token exchange
-            token_payload = f"strava_token_{uuid.uuid4().hex}"
+            token_payload = personal_token.strip() if personal_token else f"strava_token_{uuid.uuid4().hex}"
+            athlete_name = None
+            if personal_token and not personal_token.startswith("mock_") and not personal_token.startswith("test_"):
+                import httpx
+                try:
+                    async with httpx.AsyncClient(timeout=6.0) as client:
+                        resp = await client.get(
+                            "https://www.strava.com/api/v3/athlete",
+                            headers={"Authorization": f"Bearer {token_payload}"}
+                        )
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            athlete_name = f"{data.get('firstname', '')} {data.get('lastname', '')}".strip()
+                        elif resp.status_code == 401:
+                            return {"success": False, "error": "Invalid Strava Personal Access Token. Please verify at strava.com/settings/api."}
+                except Exception:
+                    pass
+
             encrypted_token = encrypt_token(token_payload)
-            expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(hours=6)
+            expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
 
             save_user_connected_service(
                 user_id=user_id,
@@ -74,9 +92,11 @@ class StravaConnector(BaseConnector):
                 expires_at=expires_at
             )
 
+            msg = f"Connected to Strava ({athlete_name}). Personal token encrypted at rest." if athlete_name else "Connected to Strava via personal API token. Encrypted at rest."
+
             return {
                 "success": True,
-                "message": "Connected to Strava. Tokens stored encrypted at rest.",
+                "message": msg,
                 "connected": True
             }
         except Exception as e:

@@ -207,20 +207,12 @@ export const App: React.FC = () => {
               justifyContent: 'space-between'
             }}
           >
-            <div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <img
-                  src="/brand/loam-logo-horizontal-reversed.svg"
-                  alt="Loam"
-                  style={{ height: 26, width: 'auto', display: 'block' }}
-                />
-                <span style={{ fontSize: 11, backgroundColor: 'var(--color-lichen, #A9BF7A)', color: '#1D3B34', fontWeight: 700, padding: '2px 6px', borderRadius: 4 }}>
-                  NH MVP
-                </span>
-              </div>
-              <div style={{ fontSize: 12, color: 'var(--color-lichen, #A9BF7A)', marginTop: 4 }}>
-                Trail Route Builder • Atkinson Hyperlegible
-              </div>
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              <img
+                src="/brand/loam-logo-horizontal-reversed.svg"
+                alt="loam"
+                style={{ height: 28, width: 'auto', display: 'block' }}
+              />
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               {route && (

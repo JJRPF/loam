@@ -275,7 +275,7 @@ async def test_full_e2e_acceptance_lifecycle():
         conn_map = {c["name"]: c for c in connectors_list}
         assert conn_map["garmin"]["enabled"] is True
         assert conn_map["trailforks"]["enabled"] is True
-        assert conn_map["strava"]["enabled"] is False
+        assert conn_map["strava"]["enabled"] is True
         for c in connectors_list:
             assert c["connected"] is False
 

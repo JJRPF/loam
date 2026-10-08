@@ -164,17 +164,13 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     setEndResults([]);
   };
 
-  // Functionally active sports mapping per Item 6
-  // Keep only: MTB, Gravel, Trail Run
-  const activeSport = sport === 'mtb_gravel' ? 'gravel' : (sport === 'trail_run' ? 'trail_run' : 'mtb');
+  // Functionally active sports: Mountain Bike and Trail Run
+  const activeSport = sport === 'trail_run' ? 'trail_run' : 'mtb';
 
-  const handleSportSelect = (targetSport: 'mtb' | 'gravel' | 'trail_run') => {
+  const handleSportSelect = (targetSport: 'mtb' | 'trail_run') => {
     if (targetSport === 'mtb') {
       onSportChange('mtb');
       handleApplyTerrainPreset("Mostly Trail");
-    } else if (targetSport === 'gravel') {
-      onSportChange('mtb_gravel');
-      handleApplyTerrainPreset("Gravel Grind");
     } else {
       onSportChange('trail_run');
       handleApplyTerrainPreset("Mostly Trail");
@@ -184,7 +180,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0 24px 0' }}>
       
-      {/* 1. Sport Mode Selector: Functionally active choices only */}
+      {/* 1. Sport Mode Selector: Mountain Bike & Trail Run */}
       <section>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
           Sport & Route Profile
@@ -192,7 +188,6 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         <div style={{ display: 'flex', gap: 8 }}>
           {[
             { id: 'mtb', label: '🚵 Mountain Bike' },
-            { id: 'gravel', label: '🚲 Gravel' },
             { id: 'trail_run', label: '🏃 Trail Run' }
           ].map(s => {
             const isSelected = activeSport === s.id;

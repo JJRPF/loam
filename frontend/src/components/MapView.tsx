@@ -404,26 +404,8 @@ export const MapView: React.FC<MapViewProps> = ({
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainer} className="maplibre-container" />
       
-      {/* Map Attribution Badge per Item 5: CARTO and OpenStreetMap */}
-      <div
-        className="map-attribution-badge"
-        style={{
-          position: 'absolute',
-          bottom: 12,
-          right: 12,
-          fontSize: 11,
-          lineHeight: '14px',
-          color: 'var(--color-text-primary, #1D3B34)',
-          backgroundColor: isDarkMode ? 'rgba(14, 29, 25, 0.90)' : 'rgba(231, 236, 236, 0.90)',
-          border: '1px solid var(--color-divider, #D1D8D8)',
-          padding: '4px 8px',
-          borderRadius: 4,
-          zIndex: 10,
-          pointerEvents: 'auto',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.18)',
-          backdropFilter: 'blur(4px)'
-        }}
-      >
+      {/* Map Attribution Badge: CARTO and OpenStreetMap (Responsive: top on mobile, bottom on desktop) */}
+      <div className="map-attribution-badge">
         &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>CARTO</a>
       </div>
     </div>
