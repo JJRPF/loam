@@ -1,82 +1,217 @@
-# Loam (Trail Route Builder)
+# Loam — Trail Route Builder
 
-A specialized route builder for mountain biking and trail running featuring terrain-mix control, a 12-month recency heat layer to eliminate overgrown ghost trails, and multi-candidate route ranking.
+<p align="center">
+  <img src="frontend/src/assets/hero.png" alt="Loam Hero Banner" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
+</p>
 
-## Stage 1: Foundation and Spikes (Completed)
+<p align="center">
+  <strong>An intelligent, privacy-first route builder for mountain biking and trail running.</strong><br>
+  Eliminates overgrown ghost trails with 12-month recency heat decay, generates 10 distinct terrain-tuned candidates, and provides seamless Garmin GPX/FIT export.
+</p>
 
-This repository contains the foundation and technical spikes for the Loam platform:
-- **Routing Engine**: GraphHopper 11.1 running on ARM64 (Apple Silicon Mac & Raspberry Pi 5).
-- **Spatial Database**: PostgreSQL 18 with PostGIS 3.6 and pgRouting.
-- **Base Map Extract**: New Hampshire OpenStreetMap extract (Geofabrik).
-- **Backend API**: Python / FastAPI point-to-point routing skeleton with automatic surface-strip categorization (`singletrack`, `doubletrack`, `gravel`, `paved`), imperial unit conversions (miles/feet), and heat integration.
-- **Spikes Documentation**: Written conclusions in [docs/spikes-report.md](docs/spikes-report.md).
-
----
-
-## Technical Spike Conclusions
-
-### 1. Spike (a): Nightly Heat in Router
-- **Conclusion**: Feasible via **Hybrid Nightly Re-import + PostGIS Scoring**.
-- **Benchmark**: GraphHopper re-import on the Raspberry Pi 5 takes **32.5 seconds** and uses **959 MB RAM** for the entire state of New Hampshire (881k ways).
-- **Strategy**: Nightly cron job on the Pi updates `edge_heat` in PostGIS, writes ghost trail exclusions/encoded values, and triggers a 35s GraphHopper re-import with zero downtime. Real-time query ranking applies candidate-level heat scoring.
-
-### 2. Spike (b): Elevation Source Selection
-- **Conclusion**: **USGS 3DEP (1/3 arc-second ~ 10m)** selected over SRTM.
-- **Rationale**: SRTM (30m/90m) flattens rolling trail climbs by 15–25% or generates artificial cliff-edge spikes. 10m USGS 3DEP accurately models trail switchbacks and punchy climbing.
-- **Strategy**: GraphHopper provides slope heuristics, while the Loam API layer enriches route polylines with 10m USGS 3DEP for precision elevation profiles, climb stats, and surface strip cross-sections.
-
-### 3. Spike (c): Latency for ~10 Options on Raspberry Pi 5
-- **Conclusion**: **Exceeds requirements by 8x**.
-- **Benchmark**:
-  - Single point-to-point query on Pi 5: **16.7 ms – 33.7 ms** median.
-  - Full batch of 40 candidate routes with detour waypoints: **1,038 ms (~1.04 s)** total.
-  - End-to-end latency for 10 deduplicated, scored options: **~1.2 – 1.5 seconds** on the Pi 5 (well under the 10-second budget).
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.14-blue.svg" alt="Python 3.14" />
+  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI" />
+  <img src="https://img.shields.io/badge/PostGIS-3.6-336791.svg" alt="PostGIS 3.6" />
+  <img src="https://img.shields.io/badge/GraphHopper-11.1-orange.svg" alt="GraphHopper 11.1" />
+  <img src="https://img.shields.io/badge/MapLibre_GL-6.13-blueviolet.svg" alt="MapLibre GL" />
+  <img src="https://img.shields.io/badge/Tests-55%20Passed-brightgreen.svg" alt="Tests Passed" />
+  <img src="https://img.shields.io/badge/License-Open%20Source-green.svg" alt="Open Source" />
+</p>
 
 ---
 
-## Quickstart
+## The Vision
+
+Popular routing tools fail trail athletes in predictable ways:
+- **Global heatmaps remember dead trails forever**: Strava aggregates ten years of GPS data, sending riders down washed-out logging roads, overgrown briar patches, and decommissioned trails that haven't been rideable since 2017.
+- **Road routers don't understand trail textures**: Traditional navigation apps treat singletrack, fire roads, and asphalt as interchangeable lines on a map, resulting in boring pavement connectors or impassable boulder fields.
+- **Lack of variety**: Most engines produce a single "optimal" line rather than a rich palette of distinct loop options tailored to target distance and terrain appetite.
+
+**Loam solves this from first principles:**
+1. **Dynamic Recency Decay**: Heat isn't eternal. A 12-month rolling window with an exponential 6-month half-life rewards actively ridden trails and systematically penalizes neglected ghost trails.
+2. **Terrain-Mix Control & Signature Surface Strip**: Dial in your preferred blend of singletrack, doubletrack, gravel, and pavement. Every candidate route renders with an interactive, color-coded **Surface Strip** synchronized with high-resolution USGS 3DEP elevation cross-sections.
+3. **Multi-Candidate Ranking Engine**: Generates ~10 structurally distinct candidate routes radiating through diverse geographic sectors, evaluated with a multi-objective scoring formula and out-and-back repetition penalties.
+4. **Community Trust Layer**: One-tap rider check-ins ("still open & clear"), community caution flags (downed trees, seasonal mud, washouts), and strict DNR/closure enforcement protect riders and sensitive terrain.
+5. **Privacy by Design**: Mandatory 3+ rider anonymity thresholds before heat is shared, automatic 0.2-mile start/finish trimming, customizable privacy exclusion zones, and instant account erasure.
+6. **Frictionless Hardware Sync**: Direct one-click download of GPX 1.1 and native binary Garmin FIT course files compatible with Garmin fenix 7 Pro and Edge cycling computers.
+
+---
+
+## Architecture Overview
+
+```mermaid
+flowchart TD
+    subgraph UI ["Client Layer (MapLibre GL PWA)"]
+        MapView["Interactive Vector Map\n(Fog / Spruce / Blaze Palette)"]
+        SurfaceStrip["Signature Surface Strip\n(Singletrack / Gravel / Paved)"]
+        ElevationProfile["Elevation Profile\n(USGS 3DEP 10m Cross-Section)"]
+        CandidateCards["Multi-Candidate Cards\n(Minimap SVGs & Match Scores)"]
+    end
+
+    subgraph API ["Loam Core API (FastAPI)"]
+        RouterGateway["Route Gateway\nPOST /api/route/options"]
+        ScoringEngine["Multi-Objective Scorer\n(Match 60% • Heat 15% • Sport 10% • Quality 10% • Penalties 5%)"]
+        HeatPipeline["Decay & Ingestion Pipeline\n(0.2mi Trimming • 6-Month Half-Life)"]
+        TrustManager["Trust Layer\n(Flags • Check-ins • DNR • Access Hard-Blocks)"]
+        ExportService["Export Serializers\n(Garmin FIT • GPX 1.1)"]
+    end
+
+    subgraph Engines ["Routing & Spatial Engines"]
+        GH["GraphHopper 11.1\n(Custom Profile Weighting)"]
+        PostGIS[("PostgreSQL 18 + PostGIS 3.6\n(Edges • Edge Heat • Restrictions • Users)")]
+        DEM["USGS 3DEP Elevation Engine\n(10m Trail-Scale Resolution)"]
+    end
+
+    UI <-->|JSON / Streaming SSE| API
+    RouterGateway --> GH
+    RouterGateway --> ScoringEngine
+    ScoringEngine <--> PostGIS
+    RouterGateway --> DEM
+    HeatPipeline <--> PostGIS
+    TrustManager <--> PostGIS
+    ExportService --> UI
+```
+
+---
+
+## Key Features
+
+### 1. Signature Surface Strip & Terrain Slider
+Rather than treating a route as an opaque polyline, Loam breaks every meter into categorized surface segments:
+- 🟢 **Singletrack**: Technical dirt, bench-cut trails, and flow paths.
+- 🟡 **Doubletrack / Two-track**: Old woods roads, forest access roads, and snowmobile paths.
+- 🟤 **Gravel**: Graded unpaved public rights of way.
+- ⚪ **Paved**: Asphalt and chip-seal (minimized by default for trail profiles).
+
+The synchronized **Surface Strip** allows athletes to inspect exactly where technical trail begins and ends relative to climbs, descents, and parking areas.
+
+### 2. Multi-Candidate Route Engine & Scoring
+Loam formulates route generation as a multi-candidate exploration problem. For any trailhead or target distance:
+- Computes up to 40 intermediate candidates across divergent cardinal sectors (North, Northeast, East, Southeast, etc.).
+- Deduplicates geometry and applies an **out-and-back repetition penalty** to minimize redundant backtrack segments.
+- Scores candidates against five weighted dimensions:
+  $$\text{Score} = 0.60 \cdot S_{\text{input}} + 0.15 \cdot S_{\text{heat}} + 0.10 \cdot S_{\text{mode}} + 0.10 \cdot S_{\text{quality}} - S_{\text{penalties}}$$
+- Outputs 10 cleanly ranked options with vector minimaps, elevation gain/loss, and surface percentage breakdowns.
+
+### 3. Recency Heat Decay & Ghost Trail Suppression
+- **Exponential Time Decay**: Recorded rides degrade smoothly over time using $e^{-\lambda \Delta t}$ with a 180-day half-life.
+- **Coverage-Aware Penalty**: Trails with zero heat in well-mapped trail networks are heavily deprioritized. In remote, unmapped areas, heat remains neutral to prevent false penalties.
+- **Known Trail Benchmark**: Tested against verified New Hampshire trail datasets (Bear Brook, Highland Mountain, Fort Rock, Franklin Falls), ensuring active lines are favored and overgrown ghost paths are bypassed.
+
+### 4. Community Trust Layer & Land Ethics
+- **One-Tap Rider Check-Ins**: Riders confirm trail status ("still open & clear") with confidence scores refreshed upon each report.
+- **Community Caution Flags**: Warns fellow athletes of downed trees, muddy ruts, washouts, and active trail work with abuse-resistant, verified voting.
+- **Strict Access Controls**: Hard blocks on `access=private/no`, `bicycle=no`, wilderness areas, and wildlife sanctuaries. Seasonal warnings for shared snowmobile trail permissions.
+- **Personal DNR List**: Athletes can mark trails as "Do Not Route" (soft warning with override log, or hard block).
+
+### 5. "Find New Trails" Novelty Engine
+Exploration mode rewards routes containing trail segments the athlete has **never ridden before**, using a discovery novelty boost to expand personal riding horizons while ensuring selected paths have verified community heat.
+
+### 6. Ironclad Privacy & Data Sovereignty
+- **3+ Rider Minimum Anonymity Threshold**: A trail segment's heat is never broadcast or used in other users' routing unless at least 3 distinct riders have ridden it.
+- **Start/Finish Buffer Trimming**: Automatically removes the first and last 0.2 miles (320 meters) of all uploaded GPX/FIT rides to prevent revealing homes or trailheads.
+- **Privacy Zones**: Custom exclusion zones (e.g. home, work) where activity coordinates are stripped prior to map-matching.
+- **Right to Erasure**: Complete, one-click account deletion and comprehensive personal data export (`GET /api/privacy/export`).
+
+---
+
+## User Interface Design (Section 18 Guidelines)
+
+Loam is built from the ground up to adhere to high-standard outdoor design tokens:
+
+| Token | Hex | Role |
+| :--- | :--- | :--- |
+| **Fog** | `#E7ECEC` | Clean, low-glare outdoor canvas background |
+| **Spruce** | `#1D3B34` | Primary brand deep evergreen tone for panels and text |
+| **Blaze** | `#E05A2B` | High-contrast trail marker orange for active route lines and CTAs |
+| **Lichen** | `#8FA382` | Secondary muted accent for singletrack surfaces and badges |
+| **Slate** | `#3A4A48` | Neutral structural elements, secondary borders, and minimap bounds |
+
+- **Phone-First, Map-First**: Fully responsive Progressive Web App (PWA) with offline-capable service worker and web manifest.
+- **Imperial by Default**: All distances, climbs, and paces display in miles and feet.
+
+---
+
+## Quickstart & Local Setup
 
 ### Prerequisites
-- Docker & Docker Compose
-- Python 3.12+ (or 3.14)
+- [Docker](https://www.docker.com/) & Docker Compose
+- Python 3.12+ (or Python 3.14)
+- Node.js 20+ & npm
 
-### Running Locally with Docker Compose
+### Option A: Complete Stack via Docker Compose
+Start GraphHopper (with New Hampshire graph extract), PostGIS 18 (with spatial schema), and the Loam API in containers:
+
 ```bash
-# 1. Start GraphHopper, PostGIS, and FastAPI API
+# Clone the repository
+git clone https://github.com/JJRPF/loam.git
+cd loam
+
+# Launch all services
 docker compose up -d
 
-# 2. Check service health
+# Verify system health
 curl http://localhost:8080/health
 ```
 
-### Running Locally with Python Virtual Environment
+### Option B: Local Python Development
 ```bash
-# 1. Activate venv
+# 1. Activate Python virtual environment
 source .venv/bin/activate
 
-# 2. Run backend
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+# 2. Install backend dependencies
+pip install -r requirements.txt
 
-# 3. Run test suite
-pytest -v
+# 3. Build frontend PWA assets
+cd frontend && npm install && npm run build && cd ..
+
+# 4. Start Loam FastAPI server
+PYTHONPATH=. python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
 ---
 
-## API Endpoints
+## Running the Test Suite
 
-- `GET /health`: Health check for API, GraphHopper routing engine, and PostGIS.
-- `POST /api/route`: Point-to-point routing with surface strip segmentation and miles/feet stats.
-- `GET /api/edges/{osm_id}`: Query OSM edge heat and ride recency data.
-- `POST /api/heat/record`: Ingest user ride edge heat into PostGIS.
+Loam maintains comprehensive automated coverage across all 6 architectural stages:
 
-### Example Route Request
 ```bash
-curl -X POST http://localhost:8080/api/route \
-  -H "Content-Type: application/json" \
-  -d '{
-    "start": {"lat": 43.1305, "lon": -71.3524},
-    "end": {"lat": 43.1482, "lon": -71.3651},
-    "profile": "mtb"
-  }'
+# Run all 55 integration and end-to-end acceptance tests
+PYTHONPATH=. pytest -v
 ```
+
+### Test Coverage Highlights:
+- `tests/test_api.py`: Baseline point-to-point routing, surface classification, and PostGIS heat recording.
+- `tests/test_stage2_mvp.py`: Loop mode, sport profiles, saved routes CRUD, Garmin FIT & GPX export, and PWA static serving.
+- `tests/test_stage3_options.py`: Multi-candidate generation, repetition penalties, minimap SVG generator, and streaming API.
+- `tests/test_stage4_heat.py`: GPX/FIT defensive parsing (XXE immunity, size limits), 0.2 mi trimming, privacy zones, recency decay formula, and 3-rider threshold.
+- `tests/test_stage5_trust.py`: Community flags, rider check-ins, user DNR overrides, land manager restrictions, and account deletion.
+- `tests/test_stage6_differentiators.py`: "Find New Trails" discovery mode, trail submissions, trail running profile, and decoupled connectors.
+- `tests/test_e2e_acceptance.py`: Unified full lifecycle test traversing all 6 stages sequentially.
+
+---
+
+## API Reference Highlights
+
+| Method | Endpoint | Description |
+| :--- | :--- | :--- |
+| `GET` | `/health` | System health check (GraphHopper, PostGIS, elevation engine). |
+| `POST` | `/api/route/options` | Generate and rank ~10 candidate routes for a given trailhead and distance. |
+| `POST` | `/api/routes/options/stream` | Server-Sent Events (SSE) streaming candidate routes in real-time. |
+| `POST` | `/api/export/fit` | Export route as Garmin binary FIT Course (fenix 7 Pro & Edge compatible). |
+| `POST` | `/api/export/gpx` | Export route as standardized GPX 1.1 track. |
+| `POST` | `/api/activities/upload` | Ingest GPX/FIT ride with automatic 0.2-mile privacy buffer trimming. |
+| `POST` | `/api/trails/{edge_id}/checkin` | Submit one-tap rider check-in ("still open & clear"). |
+| `POST` | `/api/flags` | Report trail hazard (downed tree, muddy, washed out, overgrown). |
+| `GET` | `/api/trails/new-to-me` | Discover unridden trail segments with verified community heat. |
+| `GET` | `/api/connectors` | Check third-party connector statuses (Strava, Garmin, Trailforks). |
+| `DELETE`| `/api/privacy/account` | Permanently erase user account, routes, and personal GPS history. |
+
+---
+
+## Open Source & Data Attribution
+
+- **Base Map Data**: [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licensed under the Open Database License (ODbL).
+- **Elevation**: USGS 3D Elevation Program (3DEP) high-resolution 1/3 arc-second bare-earth DEM.
+- **Routing Engine**: Powered by [GraphHopper](https://www.graphhopper.com/).
