@@ -10,7 +10,7 @@ from app.scoring import (
     generate_minimap,
     get_sector_info
 )
-from app.db import get_edges_heat, check_restrictions_along_line
+from app.db import get_edges_heat, check_restrictions_along_line, is_region_covered
 
 METERS_TO_MILES = 0.000621371192
 METERS_TO_FEET = 3.280839895
@@ -173,7 +173,9 @@ def process_graphhopper_path(
     sector_name: Optional[str] = None,
     sector_code: Optional[str] = None,
     edge_heat_cache: Optional[Dict[int, Dict[str, Any]]] = None,
-    additional_warnings: Optional[List[str]] = None
+    additional_warnings: Optional[List[str]] = None,
+    user_id: Optional[str] = None,
+    is_covered_region: bool = False
 ) -> RouteResponse:
     distance_m = path.get("distance", 0.0)
     ascend_m = path.get("ascend", 0.0)
@@ -300,8 +302,11 @@ def process_graphhopper_path(
         repetition_ratio=rep_ratio,
         warnings=warnings,
         edge_osm_ids=unique_ways,
-        edge_heat_dict=edge_heat_cache
+        edge_heat_dict=edge_heat_cache,
+        user_id=user_id,
+        is_covered_region=is_covered_region
     )
+
 
     # Generate lightweight SVG minimap & bounds
     mini_bbox, mini_svg = generate_minimap(points)
@@ -335,7 +340,7 @@ def process_graphhopper_path(
         verbal_summary=verbal_summary
     )
 
-async def fetch_route(req: RouteRequest) -> RouteResponse:
+async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> RouteResponse:
     # Handle loop / round trip mode
     is_loop = req.is_loop or req.route_mode in ("loop", "round_trip") or req.end is None
 
@@ -385,19 +390,24 @@ async def fetch_route(req: RouteRequest) -> RouteResponse:
 
     path = data["paths"][0]
     osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
-    heat_cache = get_edges_heat(list(set(osm_ways)), req.profile.value)
+    covered = is_region_covered(req.start.lat, req.start.lon)
+    heat_cache = get_edges_heat(list(set(osm_ways)), req.profile.value, user_id=user_id)
 
     return process_graphhopper_path(
         path=path,
         req=req,
         cand_id="route_primary",
-        edge_heat_cache=heat_cache
+        edge_heat_cache=heat_cache,
+        user_id=user_id,
+        is_covered_region=covered
     )
 
 async def generate_route_options(
     req: RouteRequest,
-    count: int = 10
+    count: int = 10,
+    user_id: Optional[str] = None
 ) -> List[RouteResponse]:
+
     """
     Generates ~10 distinct, scored candidate routes across compass quadrants and trail sectors.
     Applies multi-quadrant generation, restriction filtering, deduplication (>70% overlap),
@@ -544,7 +554,8 @@ async def generate_route_options(
             continue
 
     # Batch query edge heat from database
-    heat_cache = get_edges_heat(list(all_traversed_ways), req.profile.value)
+    covered = is_region_covered(req.start.lat, req.start.lon)
+    heat_cache = get_edges_heat(list(all_traversed_ways), req.profile.value, user_id=user_id)
 
     # Score and build RouteResponse for all valid candidates
     scored_candidates: List[Tuple[RouteResponse, Set[int]]] = []
@@ -557,7 +568,9 @@ async def generate_route_options(
             sector_name=meta["sector_name"],
             sector_code=meta["sector_code"],
             edge_heat_cache=heat_cache,
-            additional_warnings=item["warnings"]
+            additional_warnings=item["warnings"],
+            user_id=user_id,
+            is_covered_region=covered
         )
         # Trailhead name prefix if available
         if req.start.name and req.start.name != "Bear Brook Trailhead":
@@ -620,15 +633,17 @@ async def generate_route_options(
 
 async def generate_route_options_stream(
     req: RouteRequest,
-    count: int = 10
+    count: int = 10,
+    user_id: Optional[str] = None
 ) -> AsyncGenerator[RouteResponse, None]:
     """
     Async generator that yields scored candidate route options sequentially for SSE streaming.
     """
-    options = await generate_route_options(req, count=count)
+    options = await generate_route_options(req, count=count, user_id=user_id)
     for opt in options:
         yield opt
         await asyncio.sleep(0.01) # Yield to event loop for immediate network flush
+
 
 async def _query_gh(
     client: httpx.AsyncClient,

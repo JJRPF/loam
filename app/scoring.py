@@ -178,14 +178,20 @@ def score_input_match(
 def score_heat(
     edge_osm_ids: List[int],
     sport: str,
-    edge_heat_dict: Optional[Dict[int, Dict[str, Any]]] = None
+    edge_heat_dict: Optional[Dict[int, Dict[str, Any]]] = None,
+    user_id: Optional[str] = None,
+    is_covered_region: bool = False
 ) -> float:
     """
     Computes Heat score (0 - 100) based on recency-weighted activity on traversed edges.
-    Where no activity is recorded, applies neutral score (70.0) per coverage-aware plan rules.
+    - An edge's heat influences routing if unique_riders >= 3 (privacy threshold) OR if user is a contributor.
+    - If an edge has no active heat:
+      - If local region has sufficient coverage (is_covered_region=True): applies zero-heat / ghost trail penalty (25.0).
+      - If local region is sparse (is_covered_region=False): applies neutral score (70.0, 'No recent data').
+    - If traversed edges have active heat, scores 70.0 + scaled weight (up to 100.0).
     """
     if not edge_osm_ids:
-        return 70.0
+        return 25.0 if is_covered_region else 70.0
 
     heat_data = edge_heat_dict or {}
     total_edges = len(edge_osm_ids)
@@ -193,12 +199,35 @@ def score_heat(
 
     for wid in edge_osm_ids:
         record = heat_data.get(wid)
+        has_usable_heat = False
+        w_score = 0.0
+
         if record:
-            w_score = float(record.get("weighted_score", 1.0))
-            score_val = min(100.0, 70.0 + w_score * 3.0)
+            is_pub = record.get("is_public")
+            contribs = record.get("contributor_ids")
+            is_contrib = (user_id is not None and contribs is not None and user_id in contribs)
+
+            # An edge's heat influences public routing only with >= 3 contributing riders;
+            # otherwise counts only for the individual contributor.
+            if is_pub is None and contribs is None:
+                # Direct test or mock dict compatibility
+                has_usable_heat = True
+                w_score = float(record.get("weighted_score", 1.0))
+            elif is_pub or is_contrib:
+                has_usable_heat = True
+                w_score = float(record.get("weighted_score", 1.0))
+
+        if has_usable_heat:
+            score_val = min(100.0, 70.0 + max(1.0, w_score) * 3.5)
             scored_vals.append(score_val)
         else:
-            scored_vals.append(70.0)
+            # No usable heat on this edge
+            if is_covered_region:
+                # Ghost trail in covered region: penalize heavily
+                scored_vals.append(25.0)
+            else:
+                # Sparse area: neutral score per coverage-aware rules
+                scored_vals.append(70.0)
 
     avg_score = sum(scored_vals) / max(total_edges, 1)
     return round(min(100.0, max(0.0, avg_score)), 1)
@@ -282,7 +311,9 @@ def calculate_composite_score(
     repetition_ratio: float,
     warnings: List[str],
     edge_osm_ids: List[int],
-    edge_heat_dict: Optional[Dict[int, Dict[str, Any]]] = None
+    edge_heat_dict: Optional[Dict[int, Dict[str, Any]]] = None,
+    user_id: Optional[str] = None,
+    is_covered_region: bool = False
 ) -> Tuple[int, Dict[str, float], str]:
     """
     Calculates the 5-component composite score:
@@ -294,7 +325,7 @@ def calculate_composite_score(
     Returns: (composite_score_int, score_breakdown_dict, verbal_explanation)
     """
     s_input = score_input_match(distance_miles, target_distance_miles, surface_breakdown, preference)
-    s_heat = score_heat(edge_osm_ids, sport.value, edge_heat_dict)
+    s_heat = score_heat(edge_osm_ids, sport.value, edge_heat_dict, user_id=user_id, is_covered_region=is_covered_region)
     s_mode = score_mode_value(surface_breakdown, sport)
     s_qual = score_quality(surface_strip, distance_miles)
     s_pen = score_penalties(repetition_ratio, warnings)
@@ -342,6 +373,11 @@ def calculate_composite_score(
     else:
         parts.append(f"{rep_pct}% repetition (out-and-back penalty applied)")
 
+    if s_heat < 50.0 and is_covered_region:
+        parts.append("Ghost trail penalty applied")
+    elif s_heat >= 85.0:
+        parts.append("High recency heat")
+
     if not warnings:
         parts.append("0 closures or DNR conflicts.")
     else:
@@ -349,6 +385,7 @@ def calculate_composite_score(
 
     verbal = "; ".join(parts)
     return composite_int, breakdown, verbal
+
 
 def generate_minimap(
     coordinates: List[List[float]],

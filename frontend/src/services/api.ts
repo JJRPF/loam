@@ -418,3 +418,40 @@ function removeLocalSavedRoute(id: string) {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
   } catch {}
 }
+
+export async function uploadActivityFile(
+  file: File,
+  sport: string = 'mtb',
+  consentGiven: boolean = true,
+  retainFile: boolean = false,
+  userId: string = 'justin_default_user'
+): Promise<{
+  activity_id: string;
+  distance_miles: number;
+  duration_minutes: number;
+  matched_edges_count: number;
+  trimmed_points_count: number;
+  message?: string;
+}> {
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('sport', sport);
+  formData.append('consent_given', String(consentGiven));
+  formData.append('retain_file', String(retainFile));
+
+  const res = await fetch(`${API_BASE}/api/activities/upload`, {
+    method: 'POST',
+    headers: {
+      'X-User-Id': userId
+    },
+    body: formData
+  });
+
+  if (!res.ok) {
+    const errorText = await res.text();
+    throw new Error(`Upload failed (${res.status}): ${errorText}`);
+  }
+
+  return await res.json();
+}
+
