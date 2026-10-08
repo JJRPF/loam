@@ -1,4 +1,5 @@
-from typing import List, Optional, Dict, Any
+import datetime
+from typing import List, Optional, Dict, Any, Union
 from enum import Enum
 from pydantic import BaseModel, Field
 
@@ -124,3 +125,64 @@ class HealthResponse(BaseModel):
     graphhopper: bool
     postgis: bool
     elevation_provider: str
+
+class ActivityUploadResponse(BaseModel):
+    activity_id: str
+    user_id: str
+    sport: str
+    distance_miles: float
+    duration_minutes: float
+    raw_points_count: int
+    trimmed_points_count: int
+    matched_edges_count: int
+    consent_given: bool
+    raw_file_retained: bool
+    message: Optional[str] = None
+
+class PrivacyZoneCreate(BaseModel):
+    name: Optional[str] = "Home/Work"
+    lat: float = Field(..., ge=-90.0, le=90.0)
+    lon: float = Field(..., ge=-180.0, le=180.0)
+    radius_m: float = Field(default=320.0, ge=50.0, le=5000.0)
+
+class PrivacyZoneResponse(BaseModel):
+    id: int
+    user_id: str
+    name: str
+    lat: float
+    lon: float
+    radius_m: float
+    created_at: str
+
+class RegionalCoverageResponse(BaseModel):
+    cell_id: str
+    min_lat: float
+    min_lon: float
+    max_lat: float
+    max_lon: float
+    activity_count_12mo: int
+    is_sufficient: bool
+    threshold: int = 3
+
+class RecalculateHeatResponse(BaseModel):
+    status: str
+    edges_updated: int
+    public_edges_count: int
+    private_edges_count: int
+    coverage_cells_updated: int
+    ghost_trails_detected: int
+    duration_seconds: float
+
+class EdgeHeatDetailResponse(BaseModel):
+    edge_osm_id: int
+    sport: str
+    unique_riders_12mo: int
+    total_passes_12mo: int
+    weighted_score: float
+    is_public: bool
+    last_ridden_date: Optional[Union[str, datetime.date]] = None
+    is_contributor: bool = False
+    coverage_sufficient: bool = False
+    message: Optional[str] = None
+
+

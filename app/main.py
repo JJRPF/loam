@@ -1,6 +1,8 @@
 import time
+import uuid
+import datetime
 import httpx
-from fastapi import FastAPI, HTTPException, Header, Response, status
+from fastapi import FastAPI, HTTPException, Header, Response, status, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional, List
@@ -10,17 +12,26 @@ from app.models import (
     RouteRequest, RouteResponse, HealthResponse,
     EdgeHeatRecord, SavedRouteCreate, SavedRouteItem,
     ExportRequest, RouteOptionsRequest, RouteOptionsResponse,
-    LatLon, SportProfile
+    LatLon, SportProfile, ActivityUploadResponse,
+    PrivacyZoneCreate, PrivacyZoneResponse, RegionalCoverageResponse,
+    RecalculateHeatResponse, EdgeHeatDetailResponse
 )
 from app.routing import fetch_route, generate_route_options, generate_route_options_stream
 from app.db import (
     check_db_health, get_edge_heat, record_edge_heat,
     save_route_to_db, get_saved_routes_from_db,
     get_saved_route_by_id, delete_saved_route_from_db,
-    ensure_user_exists
+    ensure_user_exists, record_activity, record_activity_edge_visits,
+    get_privacy_zones, create_privacy_zone, delete_privacy_zone,
+    get_user_consent, set_user_consent, get_regional_coverage_cell,
+    is_region_covered
 )
 from app.gpx_export import build_gpx_track
 from app.fit_export import build_fit_course
+from app.activity_parser import parse_activity_file, MAX_FILE_SIZE
+from app.privacy import apply_privacy_filters, haversine_m
+from app.map_matching import map_match_activity
+from app.worker import run_nightly_job
 
 app = FastAPI(
     title=settings.app_name,
@@ -70,10 +81,15 @@ async def health():
     )
 
 @app.post("/api/route", response_model=RouteResponse)
-async def calculate_route(request: RouteRequest):
+async def calculate_route(
+    request: RouteRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
     try:
+        uid = resolve_user_id(authorization, x_user_id)
         t0 = time.perf_counter()
-        route = await fetch_route(request)
+        route = await fetch_route(request, user_id=uid)
         elapsed_ms = (time.perf_counter() - t0) * 1000
         return route
     except Exception as e:
@@ -83,9 +99,14 @@ async def calculate_route(request: RouteRequest):
         )
 
 @app.post("/api/route/options", response_model=RouteOptionsResponse)
-async def calculate_route_options(request: RouteOptionsRequest):
+async def calculate_route_options(
+    request: RouteOptionsRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
     try:
-        options = await generate_route_options(request, count=request.candidate_count)
+        uid = resolve_user_id(authorization, x_user_id)
+        options = await generate_route_options(request, count=request.candidate_count, user_id=uid)
         return RouteOptionsResponse(
             options=options,
             count=len(options),
@@ -99,16 +120,22 @@ async def calculate_route_options(request: RouteOptionsRequest):
         )
 
 @app.post("/api/route/options/stream")
-async def stream_route_options_post(request: RouteOptionsRequest):
+async def stream_route_options_post(
+    request: RouteOptionsRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
     async def event_generator():
         try:
             count = 0
-            async for opt in generate_route_options_stream(request, count=request.candidate_count):
+            async for opt in generate_route_options_stream(request, count=request.candidate_count, user_id=uid):
                 count += 1
                 yield f"event: candidate\ndata: {opt.model_dump_json()}\n\n"
             yield f"event: complete\ndata: {{\"status\": \"complete\", \"count\": {count}}}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {{\"error\": \"{str(e)}\"}}\n\n"
+
 
     return StreamingResponse(
         event_generator(),
@@ -310,21 +337,258 @@ async def get_current_user(
         "role": "rider"
     }
 
-# --- Edges & Heat ---
+# --- Stage 4: Activity Ingestion, Heat & Privacy Endpoints ---
 
-@app.get("/api/edges/{osm_id}")
-async def get_edge_info(osm_id: int, sport: str = "mtb"):
-    heat = get_edge_heat(osm_id, sport)
+@app.post("/api/activities/upload", response_model=ActivityUploadResponse)
+async def upload_activity(
+    file: UploadFile = File(...),
+    sport: Optional[str] = Form(None),
+    consent_given: bool = Form(True),
+    retain_file: bool = Form(False),
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Defensively parses uploaded GPX or FIT activity traces.
+    Applies endpoint trimming (first/last 0.2 mi) and privacy zone exclusions.
+    Deletes raw file unless explicit user retention is requested.
+    Map-matches GPS trackpoints to OSM/GraphHopper edges.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    content = await file.read()
+    if len(content) > MAX_FILE_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=f"Uploaded file exceeds maximum limit of {MAX_FILE_SIZE // (1024 * 1024)} MB."
+        )
+
+
+    try:
+        raw_pts, detected_sport, act_time = parse_activity_file(content, file.filename or "upload.gpx")
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Failed to parse activity: {e}")
+
+    chosen_sport = (sport or detected_sport or "mtb").lower()
+    raw_cnt = len(raw_pts)
+
+    # Calculate raw distance
+    raw_dist_m = 0.0
+    for i in range(raw_cnt - 1):
+        raw_dist_m += haversine_m(raw_pts[i].lon, raw_pts[i].lat, raw_pts[i+1].lon, raw_pts[i+1].lat)
+    raw_dist_mi = round(raw_dist_m * 0.000621371, 2)
+
+    # Estimate duration in minutes
+    if act_time and raw_pts[-1].time and raw_pts[-1].time > act_time:
+        duration_min = round((raw_pts[-1].time - act_time).total_seconds() / 60.0, 1)
+    else:
+        duration_min = round((raw_dist_mi / 10.0) * 60.0, 1)
+
+    # Fetch user privacy zones
+    user_zones = get_privacy_zones(uid)
+
+    # Apply privacy filters: 0.2 mi start/end trimming + privacy zones
+    trimmed_pts, priv_stats = apply_privacy_filters(raw_pts, user_zones)
+
+    act_id = str(uuid.uuid4())
+    matched_edges_count = 0
+    message = None
+
+    if priv_stats["is_empty"] or len(trimmed_pts) < 2:
+        message = "Activity trimmed completely due to endpoint trimming (first/last 0.2 mi) or privacy zones."
+    else:
+        # Map-matching against OSM road/trail network edges
+        edge_counts = await map_match_activity(trimmed_pts, sport=chosen_sport)
+        matched_edges_count = len(edge_counts)
+
+        # Record edge visits if consent is granted
+        if consent_given:
+            record_activity_edge_visits(
+                activity_id=act_id,
+                edge_counts=edge_counts,
+                user_id=uid,
+                sport=chosen_sport,
+                visited_at=act_time
+            )
+
+    # Record activity in db
+    # Retention rule: raw file deleted after processing unless retain_file requested
+    record_activity({
+        "id": act_id,
+        "user_id": uid,
+        "sport": chosen_sport,
+        "activity_date": act_time,
+        "distance_miles": raw_dist_mi,
+        "duration_minutes": max(duration_min, 1.0),
+        "file_format": "fit" if (file.filename or "").lower().endswith(".fit") else "gpx",
+        "raw_file_retained": retain_file,
+        "raw_file_path": None,  # Deleted per privacy rules unless retain_file requested
+        "consent_given": consent_given,
+        "matched_edge_count": matched_edges_count
+    })
+
+    return ActivityUploadResponse(
+        activity_id=act_id,
+        user_id=uid,
+        sport=chosen_sport,
+        distance_miles=raw_dist_mi,
+        duration_minutes=duration_min,
+        raw_points_count=raw_cnt,
+        trimmed_points_count=len(trimmed_pts),
+        matched_edges_count=matched_edges_count,
+        consent_given=consent_given,
+        raw_file_retained=retain_file,
+        message=message
+    )
+
+@app.get("/api/edges/{osm_id}", response_model=EdgeHeatDetailResponse)
+async def get_edge_info(
+    osm_id: int,
+    sport: str = "mtb",
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
+    heat = get_edge_heat(osm_id, sport, user_id=uid)
     if not heat:
-        return {"osm_id": osm_id, "sport": sport, "heat": None, "message": "No recent heat data"}
-    return heat
+        return EdgeHeatDetailResponse(
+            edge_osm_id=osm_id,
+            sport=sport,
+            unique_riders_12mo=0,
+            total_passes_12mo=0,
+            weighted_score=0.0,
+            is_public=False,
+            last_ridden_date=None,
+            is_contributor=False,
+            coverage_sufficient=False,
+            message="No recent heat data"
+        )
+    return EdgeHeatDetailResponse(
+        edge_osm_id=heat["edge_osm_id"],
+        sport=heat["sport"],
+        unique_riders_12mo=heat.get("unique_riders_12mo", 0),
+        total_passes_12mo=heat.get("total_passes_12mo", 0),
+        weighted_score=heat.get("weighted_score", 0.0),
+        is_public=heat.get("is_public", False),
+        last_ridden_date=heat.get("last_ridden_date"),
+        is_contributor=heat.get("is_contributor", False),
+        coverage_sufficient=True,
+        message=None if heat.get("is_accessible") else "Private to contributor (< 3 unique riders)"
+    )
 
 @app.post("/api/heat/record")
-async def record_heat(record: EdgeHeatRecord):
-    ok = record_edge_heat(record.edge_osm_id, record.sport.value, record.weighted_score)
+async def record_heat(
+    record: EdgeHeatRecord,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
+    ok = record_edge_heat(record.edge_osm_id, record.sport.value, record.weighted_score, user_id=uid)
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to record heat to database")
     return {"status": "recorded", "edge_osm_id": record.edge_osm_id, "sport": record.sport}
+
+# --- Privacy Zones & Consent Management ---
+
+@app.get("/api/privacy/zones", response_model=List[PrivacyZoneResponse])
+async def list_privacy_zones(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
+    return get_privacy_zones(uid)
+
+@app.post("/api/privacy/zones", response_model=PrivacyZoneResponse)
+async def add_privacy_zone(
+    zone: PrivacyZoneCreate,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
+    new_id = create_privacy_zone(uid, zone.name or "Home/Work", zone.lat, zone.lon, zone.radius_m)
+    if not new_id:
+        raise HTTPException(status_code=500, detail="Failed to create privacy zone")
+    return PrivacyZoneResponse(
+        id=new_id,
+        user_id=uid,
+        name=zone.name or "Home/Work",
+        lat=zone.lat,
+        lon=zone.lon,
+        radius_m=zone.radius_m,
+        created_at=datetime.datetime.now(datetime.timezone.utc).isoformat()
+    )
+
+@app.delete("/api/privacy/zones/{zone_id}")
+async def remove_privacy_zone(
+    zone_id: int,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
+    ok = delete_privacy_zone(zone_id, uid)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Privacy zone not found or deletion failed")
+    return {"status": "deleted", "id": zone_id}
+
+@app.get("/api/privacy/consent")
+async def check_consent(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
+    return {"user_id": uid, "consent_given": get_user_consent(uid)}
+
+@app.post("/api/privacy/consent")
+async def update_consent(
+    consent_given: bool = True,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    uid = resolve_user_id(authorization, x_user_id)
+    set_user_consent(uid, consent_given)
+    return {"user_id": uid, "consent_given": consent_given}
+
+# --- Regional Coverage & Nightly Worker ---
+
+@app.get("/api/coverage", response_model=RegionalCoverageResponse)
+async def get_regional_coverage(lat: float, lon: float):
+    cell = get_regional_coverage_cell(lat, lon)
+    if not cell:
+        return RegionalCoverageResponse(
+            cell_id=f"{lat:.2f}:{lon:.2f}",
+            min_lat=lat,
+            min_lon=lon,
+            max_lat=lat + 0.05,
+            max_lon=lon + 0.05,
+            activity_count_12mo=0,
+            is_sufficient=False,
+            threshold=3
+        )
+    return RegionalCoverageResponse(
+        cell_id=cell["cell_id"],
+        min_lat=cell["min_lat"],
+        min_lon=cell["min_lon"],
+        max_lat=cell["max_lat"],
+        max_lon=cell["max_lon"],
+        activity_count_12mo=cell.get("activity_count_12mo", 0),
+        is_sufficient=cell.get("is_sufficient", False),
+        threshold=3
+    )
+
+@app.post("/api/jobs/recalculate-heat", response_model=RecalculateHeatResponse)
+async def trigger_heat_recalculation():
+    result = run_nightly_job()
+    return RecalculateHeatResponse(
+        status=result.get("status", "success"),
+        edges_updated=result.get("edges_updated", 0),
+        public_edges_count=result.get("public_edges_count", 0),
+        private_edges_count=result.get("private_edges_count", 0),
+        coverage_cells_updated=result.get("coverage_cells_updated", 0),
+        ghost_trails_detected=result.get("ghost_trails_detected", 0),
+        duration_seconds=result.get("duration_seconds", 0.0)
+    )
+
 
 # --- Static Files / Frontend PWA ---
 import os
