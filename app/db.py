@@ -448,8 +448,8 @@ def record_activity_edge_visits(
                         (
                             edge_id, sport, pass_count, add_score, visited_at, user_id,
                             user_id, user_id,
-                            user_id, user_id,
-                            user_id, user_id
+                            user_id,
+                            user_id
                         )
                     )
                     inserted_count += 1
@@ -796,4 +796,992 @@ def recalculate_all_edge_heat(ref_date: Optional[datetime.datetime] = None) -> D
     duration = (datetime.datetime.now(datetime.timezone.utc) - start_time).total_seconds()
     stats["duration_seconds"] = round(duration, 3)
     return stats
+
+# =========================================================================
+# Stage 5: Trust Layer Database Operations
+# Flags, Check-ins, DNR, Restrictions, Waivers, and Privacy Compliance
+# =========================================================================
+
+def create_community_flag(
+    edge_osm_id: int,
+    flag_type: str,
+    user_id: str,
+    details: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Submits a community trail flag (gone, blocked, closed, seasonal).
+    Initializes confirmed_count=1 and registers the creator's vote.
+    """
+    ensure_user_exists(user_id)
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("INSERT INTO edges (osm_id) VALUES (%s) ON CONFLICT (osm_id) DO NOTHING;", (edge_osm_id,))
+            cur.execute(
+                """
+                INSERT INTO flags (edge_osm_id, flag_type, user_id, confirmed_count, disputed_count, status, details, created_at)
+                VALUES (%s, %s, %s, 1, 0, 'active', %s, NOW())
+                RETURNING id, edge_osm_id, flag_type, user_id, confirmed_count, disputed_count, status, details, created_at;
+                """,
+                (edge_osm_id, flag_type, user_id, details)
+            )
+            row = cur.fetchone()
+            flag_data = dict(row)
+            flag_id = flag_data["id"]
+
+            # Record vote from creator
+            cur.execute(
+                """
+                INSERT INTO flag_votes (flag_id, user_id, vote_type, created_at)
+                VALUES (%s, %s, 'confirm', NOW())
+                ON CONFLICT (flag_id, user_id) DO NOTHING;
+                """,
+                (flag_id, user_id)
+            )
+
+            # If 'gone' flag, reduce edge confidence score
+            if flag_type == "gone":
+                cur.execute(
+                    "UPDATE edges SET confidence_score = GREATEST(0.1, COALESCE(confidence_score, 1.0) - 0.25) WHERE osm_id = %s;",
+                    (edge_osm_id,)
+                )
+
+            conn.commit()
+            flag_data["created_at"] = flag_data["created_at"].isoformat() if flag_data.get("created_at") else ""
+            return flag_data
+
+def vote_community_flag(flag_id: int, user_id: str, vote_type: str) -> Dict[str, Any]:
+    """
+    Abuse-resistant voting on a community flag.
+    Enforces 1 vote per user per flag.
+    Recalculates confirmed/disputed counts and updates status (active, verified, dismissed).
+    """
+    ensure_user_exists(user_id)
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("SELECT id, edge_osm_id, flag_type, status FROM flags WHERE id = %s;", (flag_id,))
+            flag = cur.fetchone()
+            if not flag:
+                raise ValueError("Flag not found")
+
+            # Check previous vote
+            cur.execute("SELECT vote_type FROM flag_votes WHERE flag_id = %s AND user_id = %s;", (flag_id, user_id))
+            prev_vote = cur.fetchone()
+            if prev_vote and prev_vote["vote_type"] == vote_type:
+                raise ValueError("User has already submitted this vote for this flag")
+
+            cur.execute(
+                """
+                INSERT INTO flag_votes (flag_id, user_id, vote_type, created_at)
+                VALUES (%s, %s, %s, NOW())
+                ON CONFLICT (flag_id, user_id) DO UPDATE
+                SET vote_type = EXCLUDED.vote_type, created_at = NOW();
+                """,
+                (flag_id, user_id, vote_type)
+            )
+
+            # Recount votes
+            cur.execute(
+                """
+                SELECT
+                    COUNT(CASE WHEN vote_type = 'confirm' THEN 1 END) AS confirmed_cnt,
+                    COUNT(CASE WHEN vote_type = 'dispute' THEN 1 END) AS disputed_cnt
+                FROM flag_votes
+                WHERE flag_id = %s;
+                """,
+                (flag_id,)
+            )
+            counts = cur.fetchone()
+            conf_cnt = int(counts["confirmed_cnt"])
+            disp_cnt = int(counts["disputed_cnt"])
+
+            # Determine abuse-resistant status
+            if disp_cnt >= conf_cnt + 2 and conf_cnt < 3:
+                new_status = "dismissed"
+            elif conf_cnt >= 2:
+                new_status = "verified"
+            else:
+                new_status = "active"
+
+            cur.execute(
+                """
+                UPDATE flags
+                SET confirmed_count = %s, disputed_count = %s, status = %s
+                WHERE id = %s
+                RETURNING id, edge_osm_id, flag_type, user_id, confirmed_count, disputed_count, status, details, created_at;
+                """,
+                (conf_cnt, disp_cnt, new_status, flag_id)
+            )
+            updated = dict(cur.fetchone())
+            conn.commit()
+            updated["created_at"] = updated["created_at"].isoformat() if updated.get("created_at") else ""
+            return updated
+
+def get_community_flags(
+    edge_osm_id: Optional[int] = None,
+    status: Optional[str] = "active",
+    limit: int = 100
+) -> List[Dict[str, Any]]:
+    """Fetches community flags with optional edge and status filters."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            query = "SELECT id, edge_osm_id, flag_type, user_id, confirmed_count, disputed_count, status, details, created_at FROM flags WHERE 1=1"
+            params: List[Any] = []
+            if edge_osm_id is not None:
+                query += " AND edge_osm_id = %s"
+                params.append(edge_osm_id)
+            if status is not None and status.lower() != "all":
+                query += " AND status = %s"
+                params.append(status)
+            query += " ORDER BY created_at DESC LIMIT %s;"
+            params.append(limit)
+
+            cur.execute(query, tuple(params))
+            rows = cur.fetchall()
+            results = []
+            for r in rows:
+                item = dict(r)
+                item["created_at"] = item["created_at"].isoformat() if item.get("created_at") else ""
+                results.append(item)
+            return results
+
+def record_trail_checkin(
+    edge_osm_id: int,
+    user_id: str,
+    status: str = "open",
+    note: Optional[str] = None
+) -> Dict[str, Any]:
+    """
+    Records a one-tap rider check-in ("still open").
+    Refreshes trail confidence and recency:
+    1. Updates edges.check_date = CURRENT_DATE and confidence_score.
+    2. Updates edge_heat.last_ridden_date = CURRENT_DATE.
+    3. Counters/resolves stale 'gone' flags if check-ins confirm active status.
+    """
+    ensure_user_exists(user_id)
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute("INSERT INTO edges (osm_id) VALUES (%s) ON CONFLICT (osm_id) DO NOTHING;", (edge_osm_id,))
+
+            cur.execute(
+                """
+                INSERT INTO trail_checkins (edge_osm_id, user_id, status, note, checked_in_at)
+                VALUES (%s, %s, %s, %s, NOW())
+                RETURNING id, edge_osm_id, user_id, status, note, checked_in_at;
+                """,
+                (edge_osm_id, user_id, status, note)
+            )
+            checkin = dict(cur.fetchone())
+
+            # Refresh confidence score and check_date on edge
+            cur.execute(
+                """
+                UPDATE edges
+                SET check_date = CURRENT_DATE,
+                    confidence_score = LEAST(1.0, COALESCE(confidence_score, 0.7) + 0.2)
+                WHERE osm_id = %s
+                RETURNING confidence_score;
+                """,
+                (edge_osm_id,)
+            )
+            c_row = cur.fetchone()
+            conf_score = float(c_row["confidence_score"]) if c_row else 1.0
+
+            # Update edge_heat last_ridden_date
+            cur.execute(
+                """
+                UPDATE edge_heat
+                SET last_ridden_date = CURRENT_DATE
+                WHERE edge_osm_id = %s;
+                """,
+                (edge_osm_id,)
+            )
+
+            # Auto-resolve stale 'gone' or 'blocked' flags if verified by check-ins
+            cur.execute(
+                """
+                SELECT COUNT(*) as c_count FROM trail_checkins
+                WHERE edge_osm_id = %s AND checked_in_at >= NOW() - INTERVAL '14 days';
+                """,
+                (edge_osm_id,)
+            )
+            recent_cnt = cur.fetchone()["c_count"]
+            if recent_cnt >= 2:
+                cur.execute(
+                    """
+                    UPDATE flags
+                    SET status = 'resolved'
+                    WHERE edge_osm_id = %s AND flag_type IN ('gone', 'blocked') AND status = 'active';
+                    """,
+                    (edge_osm_id,)
+                )
+
+            conn.commit()
+            checkin["checked_in_at"] = checkin["checked_in_at"].isoformat() if checkin.get("checked_in_at") else ""
+            checkin["confidence_score"] = conf_score
+            return checkin
+
+def get_trail_checkins(edge_osm_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    """Returns recent check-in history for an edge."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, edge_osm_id, user_id, status, note, checked_in_at
+                FROM trail_checkins
+                WHERE edge_osm_id = %s
+                ORDER BY checked_in_at DESC LIMIT %s;
+                """,
+                (edge_osm_id, limit)
+            )
+            res = []
+            for r in cur.fetchall():
+                item = dict(r)
+                item["checked_in_at"] = item["checked_in_at"].isoformat() if item.get("checked_in_at") else ""
+                res.append(item)
+            return res
+
+def get_trail_status(edge_osm_id: int) -> Dict[str, Any]:
+    """Returns aggregated status for an edge including confidence, flags, and check-ins."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT osm_id, name, confidence_score, check_date, snowmobile, access, bicycle
+                FROM edges WHERE osm_id = %s;
+                """,
+                (edge_osm_id,)
+            )
+            edge = cur.fetchone()
+            conf_score = float(edge["confidence_score"]) if edge and edge.get("confidence_score") is not None else 1.0
+            check_date = edge["check_date"].isoformat() if edge and edge.get("check_date") else None
+            snowmobile = bool(edge.get("snowmobile")) if edge else False
+            access = edge.get("access") if edge else None
+            bicycle = edge.get("bicycle") if edge else None
+
+            # Get recent checkins count
+            cur.execute(
+                "SELECT COUNT(*) as cnt FROM trail_checkins WHERE edge_osm_id = %s;",
+                (edge_osm_id,)
+            )
+            checkins_cnt = cur.fetchone()["cnt"]
+
+            # Get active flags
+            cur.execute(
+                """
+                SELECT id, edge_osm_id, flag_type, user_id, confirmed_count, disputed_count, status, details, created_at
+                FROM flags
+                WHERE edge_osm_id = %s AND status IN ('active', 'verified')
+                ORDER BY created_at DESC;
+                """,
+                (edge_osm_id,)
+            )
+            flags = []
+            for f in cur.fetchall():
+                f_item = dict(f)
+                f_item["created_at"] = f_item["created_at"].isoformat() if f_item.get("created_at") else ""
+                flags.append(f_item)
+
+            overall_status = "open"
+            if any(f["flag_type"] == "closed" and f["confirmed_count"] >= 3 for f in flags):
+                overall_status = "closed"
+            elif any(f["flag_type"] == "gone" for f in flags):
+                overall_status = "gone"
+            elif any(f["flag_type"] == "blocked" for f in flags):
+                overall_status = "blocked"
+            elif flags or snowmobile or (access in ("private", "no")):
+                overall_status = "caution"
+
+            return {
+                "edge_osm_id": edge_osm_id,
+                "status": overall_status,
+                "confidence_score": conf_score,
+                "check_date": check_date,
+                "snowmobile": snowmobile,
+                "access": access,
+                "bicycle": bicycle,
+                "recent_checkins_count": checkins_cnt,
+                "active_flags": flags
+            }
+
+def create_user_dnr(
+    user_id: str,
+    name: str,
+    dnr_type: str,
+    edge_osm_id: Optional[int] = None,
+    geom: Optional[Dict[str, Any]] = None,
+    is_soft: bool = True,
+    reason: Optional[str] = None
+) -> Dict[str, Any]:
+    """Creates a user-settable DNR item by trail (edge_osm_id) or area (geom)."""
+    ensure_user_exists(user_id)
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if geom:
+                cur.execute(
+                    """
+                    INSERT INTO user_dnr (user_id, name, dnr_type, edge_osm_id, geom, is_soft, reason, created_at)
+                    VALUES (%s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), %s, %s, NOW())
+                    RETURNING id, user_id, name, dnr_type, edge_osm_id, ST_AsGeoJSON(geom) as geom_json, is_soft, reason, created_at;
+                    """,
+                    (user_id, name, dnr_type, edge_osm_id, Json(geom), is_soft, reason)
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO user_dnr (user_id, name, dnr_type, edge_osm_id, is_soft, reason, created_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, NOW())
+                    RETURNING id, user_id, name, dnr_type, edge_osm_id, is_soft, reason, created_at;
+                    """,
+                    (user_id, name, dnr_type, edge_osm_id, is_soft, reason)
+                )
+            row = dict(cur.fetchone())
+            conn.commit()
+            row["created_at"] = row["created_at"].isoformat() if row.get("created_at") else ""
+            if row.get("geom_json"):
+                row["geom"] = json.loads(row.pop("geom_json"))
+            else:
+                row["geom"] = None
+            return row
+
+def get_user_dnr_list(user_id: str) -> List[Dict[str, Any]]:
+    """Returns the user's active DNR list."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, user_id, name, dnr_type, edge_osm_id, ST_AsGeoJSON(geom) as geom_json, is_soft, reason, created_at
+                FROM user_dnr
+                WHERE user_id = %s
+                ORDER BY created_at DESC;
+                """,
+                (user_id,)
+            )
+            items = []
+            for r in cur.fetchall():
+                it = dict(r)
+                it["created_at"] = it["created_at"].isoformat() if it.get("created_at") else ""
+                it["geom"] = json.loads(it.pop("geom_json")) if it.get("geom_json") else None
+                items.append(it)
+            return items
+
+def delete_user_dnr(dnr_id: int, user_id: str) -> bool:
+    """Removes an item from the user's DNR list."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM user_dnr WHERE id = %s AND user_id = %s;", (dnr_id, user_id))
+            conn.commit()
+            return cur.rowcount > 0
+
+def log_dnr_override(
+    user_id: str,
+    route_id: Optional[str] = None,
+    dnr_id: Optional[int] = None,
+    edge_osm_id: Optional[int] = None,
+    reason: Optional[str] = None
+) -> int:
+    """Logs a soft DNR override to the audit trail per Section 8."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO dnr_override_logs (user_id, route_id, dnr_id, edge_osm_id, reason, logged_at)
+                VALUES (%s, %s, %s, %s, %s, NOW())
+                RETURNING id;
+                """,
+                (user_id, route_id, dnr_id, edge_osm_id, reason or "User override")
+            )
+            new_id = cur.fetchone()[0]
+            conn.commit()
+            return new_id
+
+def get_dnr_override_logs(user_id: Optional[str] = None, limit: int = 50) -> List[Dict[str, Any]]:
+    """Fetches audit log entries for DNR overrides."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if user_id:
+                cur.execute(
+                    """
+                    SELECT id, user_id, route_id, dnr_id, edge_osm_id, reason, logged_at
+                    FROM dnr_override_logs
+                    WHERE user_id = %s
+                    ORDER BY logged_at DESC LIMIT %s;
+                    """,
+                    (user_id, limit)
+                )
+            else:
+                cur.execute(
+                    """
+                    SELECT id, user_id, route_id, dnr_id, edge_osm_id, reason, logged_at
+                    FROM dnr_override_logs
+                    ORDER BY logged_at DESC LIMIT %s;
+                    """,
+                    (limit,)
+                )
+            res = []
+            for r in cur.fetchall():
+                it = dict(r)
+                it["logged_at"] = it["logged_at"].isoformat() if it.get("logged_at") else ""
+                res.append(it)
+            return res
+
+def user_has_ridden_edge(user_id: str, edge_osm_id: int) -> bool:
+    """Verifies whether the user has previously recorded a ride on this edge."""
+    if not user_id:
+        return False
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT 1 FROM activity_edge_visits
+                    WHERE user_id = %s AND edge_osm_id = %s
+                    LIMIT 1;
+                    """,
+                    (user_id, edge_osm_id)
+                )
+                return cur.fetchone() is not None
+    except Exception:
+        return False
+
+def user_has_ridden_area(user_id: str, geom_geojson: Dict[str, Any]) -> bool:
+    """Verifies whether the user has previously recorded visits intersecting this geometry."""
+    if not user_id or not geom_geojson:
+        return False
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT 1
+                    FROM activity_edge_visits v
+                    JOIN edges e ON v.edge_osm_id = e.osm_id
+                    WHERE v.user_id = %s
+                      AND e.geom IS NOT NULL
+                      AND ST_Intersects(e.geom, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))
+                    LIMIT 1;
+                    """,
+                    (user_id, Json(geom_geojson))
+                )
+                return cur.fetchone() is not None
+    except Exception:
+        return False
+
+def check_route_trust_layer(
+    geojson_linestring: Dict[str, Any],
+    edge_osm_ids: List[int],
+    user_id: Optional[str] = None,
+    sport: str = "mtb"
+) -> Dict[str, Any]:
+    """
+    Comprehensive Trust Layer verification for a route candidate:
+    1. Hard blocks: OSM access=private/no, bicycle=no, restrictions table, and confirmed closures.
+       - Hard blocks CANNOT be overridden UNLESS the user has already ridden that trail/area.
+    2. Soft DNR: User's DNR list (trail or area) and soft restriction warnings.
+    3. Snowmobile trails: Warnings issued, never presented as unrestricted public access.
+    4. Community flags: Active flags on traversed edges.
+    """
+    hard_blocks: List[Dict[str, Any]] = []
+    soft_dnrs: List[Dict[str, Any]] = []
+    snowmobile_warnings: List[str] = []
+    flag_warnings: List[str] = []
+    general_warnings: List[str] = []
+
+    is_bike_sport = sport not in ("trail_run", "foot")
+
+    try:
+        with get_connection() as conn:
+            with conn.cursor(cursor_factory=RealDictCursor) as cur:
+                # A. Check restrictions table (by spatial intersection OR edge_osm_id)
+                has_geom = bool(geojson_linestring and geojson_linestring.get("coordinates") and len(geojson_linestring["coordinates"]) >= 2)
+                if has_geom or edge_osm_ids:
+                    if has_geom and edge_osm_ids:
+                        cur.execute(
+                            """
+                            SELECT id, name, restriction_type, source, is_hard, edge_osm_id,
+                                   seasonal_start_month, seasonal_end_month, seasonal_tag,
+                                   ST_AsGeoJSON(geom) as geom_json
+                            FROM restrictions
+                            WHERE ST_Intersects(geom, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))
+                               OR edge_osm_id = ANY(%s);
+                            """,
+                            (Json(geojson_linestring), edge_osm_ids)
+                        )
+                    elif has_geom:
+                        cur.execute(
+                            """
+                            SELECT id, name, restriction_type, source, is_hard, edge_osm_id,
+                                   seasonal_start_month, seasonal_end_month, seasonal_tag,
+                                   ST_AsGeoJSON(geom) as geom_json
+                            FROM restrictions
+                            WHERE ST_Intersects(geom, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326));
+                            """,
+                            (Json(geojson_linestring),)
+                        )
+                    else:
+                        cur.execute(
+                            """
+                            SELECT id, name, restriction_type, source, is_hard, edge_osm_id,
+                                   seasonal_start_month, seasonal_end_month, seasonal_tag,
+                                   ST_AsGeoJSON(geom) as geom_json
+                            FROM restrictions
+                            WHERE edge_osm_id = ANY(%s);
+                            """,
+                            (edge_osm_ids,)
+                        )
+
+                    current_month = datetime.date.today().month
+                    for r in cur.fetchall():
+                        # Check seasonality
+                        s_start = r.get("seasonal_start_month")
+                        s_end = r.get("seasonal_end_month")
+                        if s_start and s_end:
+                            if s_start <= s_end:
+                                active_seasonal = (s_start <= current_month <= s_end)
+                            else:
+                                active_seasonal = (current_month >= s_start or current_month <= s_end)
+                            if not active_seasonal:
+                                continue
+
+                        r_hard = bool(r.get("is_hard"))
+                        r_name = r.get("name") or "Restricted Area"
+                        r_type = r.get("restriction_type") or "restriction"
+
+                        if r_hard:
+                            # Verify waiver: has user ridden this trail or area before?
+                            waived = False
+                            if user_id:
+                                if r.get("edge_osm_id") and user_has_ridden_edge(user_id, r["edge_osm_id"]):
+                                    waived = True
+                                elif r.get("geom_json") and user_has_ridden_area(user_id, json.loads(r["geom_json"])):
+                                    waived = True
+
+                            hard_blocks.append({
+                                "id": r["id"],
+                                "name": r_name,
+                                "type": r_type,
+                                "source": r.get("source"),
+                                "edge_osm_id": r.get("edge_osm_id"),
+                                "waived": waived,
+                                "reason": f"Hard block: {r_type} ({r_name})"
+                            })
+                        else:
+                            soft_dnrs.append({
+                                "id": r["id"],
+                                "name": r_name,
+                                "reason": f"Soft restriction: {r_type}",
+                                "edge_osm_id": r.get("edge_osm_id")
+                            })
+
+                # B. Check OSM Edge Attributes (access, bicycle, snowmobile)
+                if edge_osm_ids:
+                    cur.execute(
+                        """
+                        SELECT osm_id, name, access, bicycle, snowmobile
+                        FROM edges
+                        WHERE osm_id = ANY(%s);
+                        """,
+                        (edge_osm_ids,)
+                    )
+                    for e in cur.fetchall():
+                        eid = e["osm_id"]
+                        ename = e.get("name") or f"Edge {eid}"
+                        acc = (e.get("access") or "").lower()
+                        bike = (e.get("bicycle") or "").lower()
+                        is_snow = bool(e.get("snowmobile"))
+
+                        # 1. access=private or access=no -> Hard block
+                        if acc in ("private", "no"):
+                            waived = user_has_ridden_edge(user_id, eid) if user_id else False
+                            hard_blocks.append({
+                                "name": ename,
+                                "type": "osm_access_private_no",
+                                "edge_osm_id": eid,
+                                "waived": waived,
+                                "reason": f"OSM access={acc}"
+                            })
+
+                        # 2. bicycle=no for biking profiles -> Hard block
+                        if is_bike_sport and bike in ("no", "prohibited"):
+                            waived = user_has_ridden_edge(user_id, eid) if user_id else False
+                            hard_blocks.append({
+                                "name": ename,
+                                "type": "osm_bicycle_no",
+                                "edge_osm_id": eid,
+                                "waived": waived,
+                                "reason": "Bicycles prohibited on this trail"
+                            })
+
+                        # 3. Snowmobile trail warning
+                        if is_snow:
+                            snowmobile_warnings.append(
+                                f"Snowmobile trail: permission-based / seasonal access on '{ename}'; not guaranteed public right-of-way."
+                            )
+
+                # C. Check Active Community Flags on Edges
+                if edge_osm_ids:
+                    cur.execute(
+                        """
+                        SELECT id, edge_osm_id, flag_type, confirmed_count, status, details
+                        FROM flags
+                        WHERE edge_osm_id = ANY(%s) AND status IN ('active', 'verified');
+                        """,
+                        (edge_osm_ids,)
+                    )
+                    for f in cur.fetchall():
+                        ftype = f["flag_type"]
+                        feid = f["edge_osm_id"]
+                        f_conf = f["confirmed_count"]
+
+                        if ftype == "closed" and f_conf >= 3:
+                            # Confirmed closure acts as a hard block
+                            waived = user_has_ridden_edge(user_id, feid) if user_id else False
+                            hard_blocks.append({
+                                "name": f"Trail Closure (Edge {feid})",
+                                "type": "community_flag_closure",
+                                "edge_osm_id": feid,
+                                "waived": waived,
+                                "reason": f"Community confirmed closure ({f_conf} reports)"
+                            })
+                        elif ftype == "gone":
+                            flag_warnings.append(f"Community Flag: Trail reported overgrown/lost on edge {feid} ({f_conf} confirmations).")
+                        elif ftype == "blocked":
+                            flag_warnings.append(f"Community Flag: Trail reported blocked (trees/slide) on edge {feid} ({f_conf} confirmations).")
+                        elif ftype == "closed":
+                            flag_warnings.append(f"Community Flag: Trail closure reported on edge {feid} ({f_conf} report).")
+                        elif ftype == "seasonal":
+                            flag_warnings.append(f"Community Flag: Seasonal trail condition alert on edge {feid}.")
+
+                # D. Check User's Personal DNR List
+                if user_id:
+                    if has_geom and edge_osm_ids:
+                        cur.execute(
+                            """
+                            SELECT id, name, dnr_type, edge_osm_id, is_soft, reason
+                            FROM user_dnr
+                            WHERE user_id = %s
+                              AND (edge_osm_id = ANY(%s) OR (geom IS NOT NULL AND ST_Intersects(geom, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))));
+                            """,
+                            (user_id, edge_osm_ids, Json(geojson_linestring))
+                        )
+                    elif has_geom:
+                        cur.execute(
+                            """
+                            SELECT id, name, dnr_type, edge_osm_id, is_soft, reason
+                            FROM user_dnr
+                            WHERE user_id = %s
+                              AND geom IS NOT NULL AND ST_Intersects(geom, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326));
+                            """,
+                            (user_id, Json(geojson_linestring))
+                        )
+                    elif edge_osm_ids:
+                        cur.execute(
+                            """
+                            SELECT id, name, dnr_type, edge_osm_id, is_soft, reason
+                            FROM user_dnr
+                            WHERE user_id = %s AND edge_osm_id = ANY(%s);
+                            """,
+                            (user_id, edge_osm_ids)
+                        )
+                    else:
+                        cur.execute("SELECT 1 WHERE 1=0;")
+
+                    for d in cur.fetchall():
+                        d_name = d["name"]
+                        d_reason = d.get("reason") or "User DNR"
+                        if d.get("is_soft", True):
+                            soft_dnrs.append({
+                                "id": d["id"],
+                                "name": d_name,
+                                "reason": d_reason,
+                                "edge_osm_id": d.get("edge_osm_id")
+                            })
+                        else:
+                            # User set hard DNR
+                            waived = user_has_ridden_edge(user_id, d["edge_osm_id"]) if d.get("edge_osm_id") else False
+                            hard_blocks.append({
+                                "name": d_name,
+                                "type": "user_hard_dnr",
+                                "edge_osm_id": d.get("edge_osm_id"),
+                                "waived": waived,
+                                "reason": f"User hard DNR: {d_reason}"
+                            })
+
+    except Exception as e:
+        print(f"Error checking trust layer: {e}")
+
+    # Deduplicate snowmobile warnings
+    snowmobile_warnings = list(dict.fromkeys(snowmobile_warnings))
+
+    # Compile consolidated warnings list
+    all_warnings = []
+    for sd in soft_dnrs:
+        all_warnings.append(f"DNR Warning: Traverses '{sd['name']}' ({sd.get('reason', 'User DNR')})")
+    all_warnings.extend(snowmobile_warnings)
+    all_warnings.extend(flag_warnings)
+    for hb in hard_blocks:
+        if hb["waived"]:
+            all_warnings.append(f"Notice: Hard block for '{hb['name']}' waived because you have previously ridden this trail.")
+
+    has_unwaived = any(not b["waived"] for b in hard_blocks)
+    waived_count = sum(1 for b in hard_blocks if b["waived"])
+
+    return {
+        "hard_blocks": hard_blocks,
+        "has_unwaived_hard_blocks": has_unwaived,
+        "waived_hard_blocks_count": waived_count,
+        "soft_dnr": soft_dnrs,
+        "snowmobile_warnings": snowmobile_warnings,
+        "community_flag_warnings": flag_warnings,
+        "all_warnings": all_warnings
+    }
+
+def get_all_restrictions() -> List[Dict[str, Any]]:
+    """Returns all restrictions for admin management."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, name, restriction_type, source, is_hard, edge_osm_id,
+                       seasonal_start_month, seasonal_end_month, seasonal_tag,
+                       description, created_at, ST_AsGeoJSON(geom) as geom_json
+                FROM restrictions
+                ORDER BY created_at DESC;
+                """
+            )
+            rows = []
+            for r in cur.fetchall():
+                it = dict(r)
+                it["created_at"] = it["created_at"].isoformat() if it.get("created_at") else ""
+                it["geom"] = json.loads(it.pop("geom_json")) if it.get("geom_json") else None
+                rows.append(it)
+            return rows
+
+def create_restriction(
+    name: str,
+    restriction_type: str,
+    source: str = "Admin",
+    is_hard: bool = True,
+    edge_osm_id: Optional[int] = None,
+    geom: Optional[Dict[str, Any]] = None,
+    seasonal_start_month: Optional[int] = None,
+    seasonal_end_month: Optional[int] = None,
+    seasonal_tag: Optional[str] = None,
+    description: Optional[str] = None
+) -> Dict[str, Any]:
+    """Admin function: adds a land restriction or closure."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            if geom:
+                cur.execute(
+                    """
+                    INSERT INTO restrictions (
+                        name, restriction_type, source, is_hard, edge_osm_id, geom,
+                        seasonal_start_month, seasonal_end_month, seasonal_tag, description, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326), %s, %s, %s, %s, NOW())
+                    RETURNING id, name, restriction_type, source, is_hard, edge_osm_id,
+                              seasonal_start_month, seasonal_end_month, seasonal_tag, description, created_at,
+                              ST_AsGeoJSON(geom) as geom_json;
+                    """,
+                    (name, restriction_type, source, is_hard, edge_osm_id, Json(geom), seasonal_start_month, seasonal_end_month, seasonal_tag, description)
+                )
+            else:
+                cur.execute(
+                    """
+                    INSERT INTO restrictions (
+                        name, restriction_type, source, is_hard, edge_osm_id,
+                        seasonal_start_month, seasonal_end_month, seasonal_tag, description, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())
+                    RETURNING id, name, restriction_type, source, is_hard, edge_osm_id,
+                              seasonal_start_month, seasonal_end_month, seasonal_tag, description, created_at;
+                    """,
+                    (name, restriction_type, source, is_hard, edge_osm_id, seasonal_start_month, seasonal_end_month, seasonal_tag, description)
+                )
+            row = dict(cur.fetchone())
+            conn.commit()
+            row["created_at"] = row["created_at"].isoformat() if row.get("created_at") else ""
+            row["geom"] = json.loads(row.pop("geom_json")) if row.get("geom_json") else None
+            return row
+
+def update_restriction(
+    restriction_id: int,
+    name: Optional[str] = None,
+    restriction_type: Optional[str] = None,
+    source: Optional[str] = None,
+    is_hard: Optional[bool] = None,
+    edge_osm_id: Optional[int] = None,
+    geom: Optional[Dict[str, Any]] = None,
+    seasonal_start_month: Optional[int] = None,
+    seasonal_end_month: Optional[int] = None,
+    seasonal_tag: Optional[str] = None,
+    description: Optional[str] = None
+) -> Optional[Dict[str, Any]]:
+    """Admin function: edits an existing restriction."""
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            cur.execute(
+                """
+                UPDATE restrictions
+                SET name = COALESCE(%s, name),
+                    restriction_type = COALESCE(%s, restriction_type),
+                    source = COALESCE(%s, source),
+                    is_hard = COALESCE(%s, is_hard),
+                    edge_osm_id = COALESCE(%s, edge_osm_id),
+                    geom = CASE WHEN %s IS NOT NULL THEN ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326) ELSE geom END,
+                    seasonal_start_month = COALESCE(%s, seasonal_start_month),
+                    seasonal_end_month = COALESCE(%s, seasonal_end_month),
+                    seasonal_tag = COALESCE(%s, seasonal_tag),
+                    description = COALESCE(%s, description)
+                WHERE id = %s
+                RETURNING id, name, restriction_type, source, is_hard, edge_osm_id,
+                          seasonal_start_month, seasonal_end_month, seasonal_tag, description, created_at,
+                          ST_AsGeoJSON(geom) as geom_json;
+                """,
+                (
+                    name, restriction_type, source, is_hard, edge_osm_id,
+                    Json(geom) if geom else None, Json(geom) if geom else None,
+                    seasonal_start_month, seasonal_end_month, seasonal_tag, description,
+                    restriction_id
+                )
+            )
+            row = cur.fetchone()
+            if not row:
+                return None
+            conn.commit()
+            res = dict(row)
+            res["created_at"] = res["created_at"].isoformat() if res.get("created_at") else ""
+            res["geom"] = json.loads(res.pop("geom_json")) if res.get("geom_json") else None
+            return res
+
+def delete_restriction(restriction_id: int) -> bool:
+    """Admin function: removes a restriction."""
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM restrictions WHERE id = %s;", (restriction_id,))
+            conn.commit()
+            return cur.rowcount > 0
+
+def create_takedown(
+    name: str,
+    edge_osm_id: Optional[int] = None,
+    geom: Optional[Dict[str, Any]] = None,
+    reason: str = "Land manager takedown request",
+    requested_by: str = "Land Manager"
+) -> Dict[str, Any]:
+    """
+    Executes a land manager takedown request per Section 8 & 14.
+    Immediately creates a hard block with source='Land Manager Takedown'.
+    """
+    return create_restriction(
+        name=name,
+        restriction_type="takedown",
+        source=f"Land Manager Takedown ({requested_by})",
+        is_hard=True,
+        edge_osm_id=edge_osm_id,
+        geom=geom,
+        description=reason
+    )
+
+def export_user_data(user_id: str) -> Dict[str, Any]:
+    """
+    Exports all personal data for a user per Section 7 privacy compliance.
+    Includes profile, consent, privacy zones, activities, saved routes, check-ins, flags, and DNR items.
+    Strictly isolated: never exposes any other rider's data.
+    """
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as cur:
+            # 1. User profile
+            cur.execute("SELECT id, email, display_name, created_at FROM users WHERE id = %s;", (user_id,))
+            u_row = cur.fetchone()
+            profile = dict(u_row) if u_row else {"id": user_id}
+            if profile.get("created_at"):
+                profile["created_at"] = profile["created_at"].isoformat()
+
+            # 2. Consent
+            cur.execute("SELECT consent_given, consented_at FROM contribution_consent WHERE user_id = %s;", (user_id,))
+            c_row = cur.fetchone()
+            consent = {
+                "consent_given": bool(c_row["consent_given"]) if c_row else True,
+                "consented_at": c_row["consented_at"].isoformat() if c_row and c_row.get("consented_at") else None
+            }
+
+            # 3. Privacy zones
+            cur.execute("SELECT id, name, lat, lon, radius_m, created_at FROM user_privacy_zones WHERE user_id = %s;", (user_id,))
+            zones = [dict(z) for z in cur.fetchall()]
+            for z in zones:
+                z["created_at"] = z["created_at"].isoformat() if z.get("created_at") else ""
+
+            # 4. User DNR
+            cur.execute("SELECT id, name, dnr_type, edge_osm_id, is_soft, reason, created_at FROM user_dnr WHERE user_id = %s;", (user_id,))
+            dnr_items = [dict(d) for d in cur.fetchall()]
+            for d in dnr_items:
+                d["created_at"] = d["created_at"].isoformat() if d.get("created_at") else ""
+
+            # 5. Check-ins
+            cur.execute("SELECT id, edge_osm_id, status, note, checked_in_at FROM trail_checkins WHERE user_id = %s;", (user_id,))
+            checkins = [dict(ck) for ck in cur.fetchall()]
+            for ck in checkins:
+                ck["checked_in_at"] = ck["checked_in_at"].isoformat() if ck.get("checked_in_at") else ""
+
+            # 6. Flags
+            cur.execute("SELECT id, edge_osm_id, flag_type, confirmed_count, status, details, created_at FROM flags WHERE user_id = %s;", (user_id,))
+            flags = [dict(fl) for fl in cur.fetchall()]
+            for fl in flags:
+                fl["created_at"] = fl["created_at"].isoformat() if fl.get("created_at") else ""
+
+            # 7. Activities
+            cur.execute("SELECT id, sport, activity_date, distance_miles, duration_minutes, file_format, created_at FROM activities WHERE user_id = %s;", (user_id,))
+            activities = [dict(ac) for ac in cur.fetchall()]
+            for ac in activities:
+                ac["activity_date"] = ac["activity_date"].isoformat() if ac.get("activity_date") else ""
+                ac["created_at"] = ac["created_at"].isoformat() if ac.get("created_at") else ""
+
+            # 8. Saved Routes
+            cur.execute("SELECT id, name, sport, distance_miles, elevation_gain_ft, elevation_loss_ft, created_at FROM saved_routes WHERE user_id = %s;", (user_id,))
+            saved = [dict(sr) for sr in cur.fetchall()]
+            for sr in saved:
+                sr["created_at"] = sr["created_at"].isoformat() if sr.get("created_at") else ""
+
+            return {
+                "user_id": user_id,
+                "email": profile.get("email"),
+                "display_name": profile.get("display_name"),
+                "consent": consent,
+                "privacy_zones": zones,
+                "dnr_items": dnr_items,
+                "checkins": checkins,
+                "flags": flags,
+                "activities": activities,
+                "saved_routes": saved,
+                "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
+            }
+
+def delete_user_account(user_id: str) -> bool:
+    """
+    Purges all user account records and personal data across all tables.
+    Deletes privacy zones, DNR entries, override logs, check-ins, flag votes, flags,
+    saved routes, activity edge visits, activities, consent settings, and user entity.
+    Triggers heat recalculation.
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            # 1. Delete dependent tables
+            cur.execute("DELETE FROM user_privacy_zones WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM user_dnr WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM dnr_override_logs WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM trail_checkins WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM flag_votes WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM flags WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM saved_routes WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM activity_edge_visits WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM activities WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM contribution_consent WHERE user_id = %s;", (user_id,))
+            cur.execute("DELETE FROM users WHERE id = %s;", (user_id,))
+            conn.commit()
+
+    # Recalculate heat to remove user's visits
+    recalculate_all_edge_heat()
+    return True
+
 

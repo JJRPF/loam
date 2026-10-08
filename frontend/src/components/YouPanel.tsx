@@ -1,8 +1,11 @@
-import React, { useState } from 'react';
-import { uploadActivityFile } from '../services/api';
+import React, { useState, useEffect } from 'react';
+import { 
+  uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
+  exportMyData, deleteMyAccount 
+} from '../services/api';
+import type { UserDNR } from '../types';
 
 export const YouPanel: React.FC = () => {
-
   const [isSignedIn, setIsSignedIn] = useState(true);
   const [user, setUser] = useState({
     name: 'Justin Pfister',
@@ -10,6 +13,102 @@ export const YouPanel: React.FC = () => {
     device: 'Garmin fenix 7 Pro'
   });
   const [privacyZoneEnabled, setPrivacyZoneEnabled] = useState(true);
+  const [dnrList, setDnrList] = useState<UserDNR[]>([]);
+  const [showAddDnr, setShowAddDnr] = useState(false);
+  const [newDnrName, setNewDnrName] = useState('');
+  const [newDnrType, setNewDnrType] = useState<'trail' | 'area'>('trail');
+  const [newDnrEdgeId, setNewDnrEdgeId] = useState('');
+  const [newDnrReason, setNewDnrReason] = useState('');
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportMessage, setExportMessage] = useState<string | null>(null);
+
+  const loadDnr = async () => {
+    try {
+      const items = await listUserDNR('justin_default_user');
+      setDnrList(items);
+    } catch (e) {
+      console.error('Failed to load DNR', e);
+    }
+  };
+
+  useEffect(() => {
+    let ignore = false;
+    listUserDNR('justin_default_user')
+      .then((items) => {
+        if (!ignore) setDnrList(items);
+      })
+      .catch((e) => console.error('Failed to load DNR', e));
+    return () => {
+      ignore = true;
+    };
+  }, []);
+
+  const handleCreateDnr = async () => {
+    if (!newDnrName.trim()) return;
+    try {
+      await createUserDNR({
+        name: newDnrName.trim(),
+        dnr_type: newDnrType,
+        edge_osm_id: newDnrEdgeId ? parseInt(newDnrEdgeId) : undefined,
+        reason: newDnrReason.trim() || undefined,
+        is_soft: true
+      });
+      setNewDnrName('');
+      setNewDnrEdgeId('');
+      setNewDnrReason('');
+      setShowAddDnr(false);
+      await loadDnr();
+    } catch (e: any) {
+      alert(`Failed to add DNR: ${e.message}`);
+    }
+  };
+
+  const handleDeleteDnr = async (id: number) => {
+    try {
+      await deleteUserDNR(id);
+      await loadDnr();
+    } catch (e: any) {
+      alert(`Failed to remove DNR: ${e.message}`);
+    }
+  };
+
+  const handleExportData = async () => {
+    setIsExporting(true);
+    setExportMessage(null);
+    try {
+      const data = await exportMyData('justin_default_user');
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `loam_data_export_${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      setExportMessage('✓ Data export downloaded successfully!');
+      setTimeout(() => setExportMessage(null), 3000);
+    } catch (e: any) {
+      alert(`Export failed: ${e.message}`);
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    const confirmed = window.confirm(
+      'Are you sure you want to permanently delete your account and all associated rides, routes, and data? This action cannot be undone.'
+    );
+    if (!confirmed) return;
+
+    try {
+      await deleteMyAccount('justin_default_user');
+      setIsSignedIn(false);
+      alert('Account and all personal data permanently deleted.');
+    } catch (e: any) {
+      alert(`Deletion failed: ${e.message}`);
+    }
+  };
 
   const handleSignInGoogle = () => {
     // Firebase Google Sign-In skeleton
@@ -132,10 +231,166 @@ export const YouPanel: React.FC = () => {
         </div>
 
         <div style={{ borderTop: '1px solid #E7ECEC', paddingTop: 10, fontSize: 13 }}>
-          <strong>DNR (Do Not Ride) Trail List</strong>
-          <div style={{ fontSize: 12, color: '#42675E', marginTop: 2 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong>DNR (Do Not Ride) Trail List</strong>
+            <button
+              type="button"
+              onClick={() => setShowAddDnr(!showAddDnr)}
+              className="btn-outline"
+              style={{ fontSize: 12, padding: '2px 8px', minHeight: 28 }}
+            >
+              {showAddDnr ? 'Cancel' : '+ Add DNR'}
+            </button>
+          </div>
+          <div style={{ fontSize: 12, color: '#42675E', marginTop: 2, marginBottom: 8 }}>
             Manage private or overgrown trails you wish the router to strictly avoid.
           </div>
+
+          {showAddDnr && (
+            <div style={{ backgroundColor: '#F3F7F7', border: '1px solid #D1D8D8', borderRadius: 6, padding: 10, marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>Add Do-Not-Ride Rule</div>
+              <input
+                type="text"
+                placeholder="Name / Label (e.g. Overgrown Logging Rd)"
+                value={newDnrName}
+                onChange={(e) => setNewDnrName(e.target.value)}
+                style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #D1D8D8', fontSize: 13 }}
+              />
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12 }}>
+                <label>
+                  Type:{' '}
+                  <select
+                    value={newDnrType}
+                    onChange={(e) => setNewDnrType(e.target.value as any)}
+                    style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid #D1D8D8' }}
+                  >
+                    <option value="trail">Trail (OSM Way ID)</option>
+                    <option value="area">Area Boundary</option>
+                  </select>
+                </label>
+                {newDnrType === 'trail' && (
+                  <input
+                    type="number"
+                    placeholder="OSM Edge ID (e.g. 999101)"
+                    value={newDnrEdgeId}
+                    onChange={(e) => setNewDnrEdgeId(e.target.value)}
+                    style={{ flex: 1, padding: '4px 6px', borderRadius: 4, border: '1px solid #D1D8D8', fontSize: 12 }}
+                  />
+                )}
+              </div>
+              <input
+                type="text"
+                placeholder="Reason (e.g. Private signs, active logging, blowdowns)"
+                value={newDnrReason}
+                onChange={(e) => setNewDnrReason(e.target.value)}
+                style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid #D1D8D8', fontSize: 13 }}
+              />
+              <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowAddDnr(false)}
+                  className="btn-outline"
+                  style={{ fontSize: 12, minHeight: 28, padding: '2px 8px' }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={handleCreateDnr}
+                  className="btn-primary"
+                  style={{ fontSize: 12, minHeight: 28, padding: '2px 10px' }}
+                >
+                  Save DNR
+                </button>
+              </div>
+            </div>
+          )}
+
+          {dnrList.length === 0 ? (
+            <div style={{ fontSize: 12, color: '#6A7D78', fontStyle: 'italic', padding: '6px 0' }}>
+              No custom DNR rules configured.
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 6 }}>
+              {dnrList.map(item => (
+                <div
+                  key={item.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '6px 10px',
+                    backgroundColor: '#F8F9FA',
+                    borderRadius: 6,
+                    border: '1px solid #E0E0E0',
+                    fontSize: 12
+                  }}
+                >
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#1D3B34' }}>
+                      {item.name}
+                      <span style={{ fontSize: 10, marginLeft: 6, padding: '1px 5px', borderRadius: 3, backgroundColor: item.is_soft ? '#FFF3E0' : '#FFEBEE', color: item.is_soft ? '#E65100' : '#C62828', fontWeight: 700 }}>
+                        {item.is_soft ? 'Soft DNR' : 'Hard DNR'}
+                      </span>
+                    </div>
+                    {item.reason && <div style={{ fontSize: 11, color: '#42675E' }}>{item.reason}</div>}
+                    {item.edge_osm_id && <div style={{ fontSize: 10, color: '#888' }}>OSM ID: {item.edge_osm_id}</div>}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleDeleteDnr(item.id)}
+                    style={{
+                      border: 'none',
+                      backgroundColor: 'transparent',
+                      color: '#C62828',
+                      fontSize: 12,
+                      cursor: 'pointer',
+                      padding: '4px 6px'
+                    }}
+                    title="Remove DNR rule"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Privacy & Compliance (GDPR/CCPA/Full Export & Deletion) */}
+      <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+        <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34', margin: 0 }}>
+          Data Rights & Privacy Compliance
+        </h3>
+        <p style={{ fontSize: 12, color: '#42675E', margin: 0 }}>
+          You have complete ownership of your data under Loam's privacy guarantees. Raw GPS tracks are discarded after matching; personal rides are never exposed to other users.
+        </p>
+
+        {exportMessage && (
+          <div style={{ fontSize: 12, color: '#2E6F40', backgroundColor: '#E8F5E9', padding: '6px 10px', borderRadius: 4 }}>
+            {exportMessage}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', gap: 8, marginTop: 4 }}>
+          <button
+            type="button"
+            onClick={handleExportData}
+            disabled={isExporting}
+            className="btn-secondary"
+            style={{ flex: 1, fontSize: 12, minHeight: 34 }}
+          >
+            {isExporting ? 'Preparing Export...' : '⬇ Export My Data (JSON)'}
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteAccount}
+            className="btn-outline"
+            style={{ flex: 1, fontSize: 12, minHeight: 34, color: '#C62828', borderColor: '#FFCDD2' }}
+          >
+            Delete Account & Rides
+          </button>
         </div>
       </div>
 

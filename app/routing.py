@@ -10,7 +10,10 @@ from app.scoring import (
     generate_minimap,
     get_sector_info
 )
-from app.db import get_edges_heat, check_restrictions_along_line, is_region_covered
+from app.db import (
+    get_edges_heat, check_restrictions_along_line, is_region_covered,
+    check_route_trust_layer, log_dnr_override
+)
 
 METERS_TO_MILES = 0.000621371192
 METERS_TO_FEET = 3.280839895
@@ -175,7 +178,8 @@ def process_graphhopper_path(
     edge_heat_cache: Optional[Dict[int, Dict[str, Any]]] = None,
     additional_warnings: Optional[List[str]] = None,
     user_id: Optional[str] = None,
-    is_covered_region: bool = False
+    is_covered_region: bool = False,
+    trust_result: Optional[Dict[str, Any]] = None
 ) -> RouteResponse:
     distance_m = path.get("distance", 0.0)
     ascend_m = path.get("ascend", 0.0)
@@ -317,6 +321,11 @@ def process_graphhopper_path(
     else:
         base_name = req.name or f"Loam {req.profile.value.replace('_', ' ').title()} Route"
 
+    dnr_warns = [f"DNR Warning: Traverses '{d['name']}' ({d.get('reason', 'User DNR')})" for d in trust_result.get("soft_dnr", [])] if trust_result else []
+    snow_warns = trust_result.get("snowmobile_warnings", []) if trust_result else []
+    flag_warns = trust_result.get("community_flag_warnings", []) if trust_result else []
+    waived = bool(trust_result and trust_result.get("waived_hard_blocks_count", 0) > 0)
+
     return RouteResponse(
         id=cand_id,
         name=base_name,
@@ -333,6 +342,10 @@ def process_graphhopper_path(
         minimap_bounds=mini_bbox,
         minimap_svg=mini_svg,
         warnings=warnings,
+        dnr_warnings=dnr_warns,
+        snowmobile_warnings=snow_warns,
+        community_flag_warnings=flag_warns,
+        hard_block_waived=waived,
         heat_score=score_breakdown.get("heat"),
         match_score=composite_score,
         score_breakdown=score_breakdown,
@@ -390,6 +403,21 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
 
     path = data["paths"][0]
     osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
+    points = decode_points(path.get("points", {}))
+    geojson_line = {"type": "LineString", "coordinates": points}
+
+    # Verify trust layer (hard blocks, soft DNR, access, snowmobile, community flags)
+    trust_result = check_route_trust_layer(geojson_line, osm_ways, user_id=user_id, sport=req.profile.value)
+    if trust_result["has_unwaived_hard_blocks"] and req.avoid_closed:
+        first_block = next((b for b in trust_result["hard_blocks"] if not b["waived"]), None)
+        block_desc = f"{first_block['name']} ({first_block['reason']})" if first_block else "Restricted area/trail"
+        raise ValueError(f"Route violates hard block: {block_desc}. Hard blocks cannot be overridden unless you have previously ridden this trail.")
+
+    # Log soft DNR override if requested
+    if req.override_dnr and trust_result.get("soft_dnr"):
+        for sd in trust_result["soft_dnr"]:
+            log_dnr_override(user_id=user_id, route_id="route_primary", dnr_id=sd.get("id"), edge_osm_id=sd.get("edge_osm_id"), reason="Route requested with soft DNR override")
+
     covered = is_region_covered(req.start.lat, req.start.lon)
     heat_cache = get_edges_heat(list(set(osm_ways)), req.profile.value, user_id=user_id)
 
@@ -398,8 +426,10 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
         req=req,
         cand_id="route_primary",
         edge_heat_cache=heat_cache,
+        additional_warnings=trust_result["all_warnings"],
         user_id=user_id,
-        is_covered_region=covered
+        is_covered_region=covered,
+        trust_result=trust_result
     )
 
 async def generate_route_options(
@@ -531,24 +561,23 @@ async def generate_route_options(
             if len(points) < 2:
                 continue
 
-            # Restriction check against PostGIS
+            # Trust layer check (hard blocks, soft DNR, access, snowmobile, community flags)
             geojson_line = {"type": "LineString", "coordinates": points}
-            restrictions = check_restrictions_along_line(geojson_line)
-            if any(r.get("is_hard") for r in restrictions):
-                # Violates hard block (closure or bike restriction), reject
+            osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
+
+            trust_result = check_route_trust_layer(geojson_line, osm_ways, user_id=user_id, sport=req.profile.value)
+            if trust_result["has_unwaived_hard_blocks"] and req.avoid_closed:
+                # Violates hard block (closure, private land, bike-prohibited wilderness, etc.) - REJECT
                 continue
 
-            warns = [f"Caution: {r['name']} ({r['restriction_type']})" for r in restrictions if not r.get("is_hard")]
-
             meta = task_metadata[idx]
-            osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
             all_traversed_ways.update(osm_ways)
 
             valid_candidates.append({
                 "path": path,
                 "meta": meta,
                 "ways": set(osm_ways),
-                "warnings": warns
+                "trust_result": trust_result
             })
         except Exception:
             continue
@@ -561,16 +590,24 @@ async def generate_route_options(
     scored_candidates: List[Tuple[RouteResponse, Set[int]]] = []
     for idx, item in enumerate(valid_candidates):
         meta = item["meta"]
+        t_res = item["trust_result"]
+        cand_id = f"opt_{idx + 1}"
+
+        if req.override_dnr and t_res.get("soft_dnr"):
+            for sd in t_res["soft_dnr"]:
+                log_dnr_override(user_id=user_id, route_id=cand_id, dnr_id=sd.get("id"), edge_osm_id=sd.get("edge_osm_id"), reason="Candidate selected with soft DNR override")
+
         route_resp = process_graphhopper_path(
             path=item["path"],
             req=req,
-            cand_id=f"opt_{idx + 1}",
+            cand_id=cand_id,
             sector_name=meta["sector_name"],
             sector_code=meta["sector_code"],
             edge_heat_cache=heat_cache,
-            additional_warnings=item["warnings"],
+            additional_warnings=t_res["all_warnings"],
             user_id=user_id,
-            is_covered_region=covered
+            is_covered_region=covered,
+            trust_result=t_res
         )
         # Trailhead name prefix if available
         if req.start.name and req.start.name != "Bear Brook Trailhead":

@@ -37,6 +37,7 @@ export const App: React.FC = () => {
   const [routeMode, setRouteMode] = useState<'loop' | 'point_to_point' | 'out_and_back'>('loop');
   const [targetMiles, setTargetMiles] = useState<number>(10.0);
   const [terrainPref, setTerrainPref] = useState<TerrainPreference>(TERRAIN_PRESETS[0].weights);
+  const [overrideDnr, setOverrideDnr] = useState<boolean>(false);
 
   // Route calculation and results
   const [route, setRoute] = useState<RouteResponse | null>(null);
@@ -86,7 +87,8 @@ export const App: React.FC = () => {
         routeMode,
         targetDistanceMiles: targetMiles,
         name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`,
-        candidateCount: 10
+        candidateCount: 10,
+        overrideDnr
       },
       {
         onCandidate: (cand) => {
@@ -114,7 +116,8 @@ export const App: React.FC = () => {
             isLoop: routeMode === 'loop',
             routeMode,
             targetDistanceMiles: targetMiles,
-            name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`
+            name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`,
+            overrideDnr
           }).then(res => {
             setRoute(res);
             setOptions([res]);
@@ -255,6 +258,8 @@ export const App: React.FC = () => {
                 isLoading={isLoading}
                 onPickOnMap={(target) => setPickingTarget(target)}
                 pickingTarget={pickingTarget}
+                overrideDnr={overrideDnr}
+                onOverrideDnrChange={setOverrideDnr}
               />
             )}
 
@@ -426,6 +431,8 @@ export const App: React.FC = () => {
                     setSheetSnap('peek');
                   }}
                   pickingTarget={pickingTarget}
+                  overrideDnr={overrideDnr}
+                  onOverrideDnrChange={setOverrideDnr}
                 />
               )}
 

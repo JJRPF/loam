@@ -4,7 +4,11 @@ import type {
   SavedRoute, 
   TerrainPreference, 
   SportProfile, 
-  LatLon 
+  LatLon,
+  CommunityFlag,
+  TrailCheckin,
+  UserDNR,
+  UserDataExport
 } from '../types';
 
 const API_BASE = ''; // proxied via vite in dev, relative in production
@@ -19,6 +23,7 @@ export async function calculateRoute(params: {
   routeMode?: string;
   targetDistanceMiles?: number;
   name?: string;
+  overrideDnr?: boolean;
 }): Promise<RouteResponse> {
   const payload = {
     start: { lat: params.start.lat, lon: params.start.lon, name: params.start.name },
@@ -29,7 +34,8 @@ export async function calculateRoute(params: {
     is_loop: params.isLoop ?? (params.routeMode === 'loop'),
     route_mode: params.routeMode ?? 'point_to_point',
     target_distance_miles: params.targetDistanceMiles,
-    name: params.name
+    name: params.name,
+    override_dnr: params.overrideDnr ?? false
   };
 
   const res = await fetch(`${API_BASE}/api/route`, {
@@ -57,6 +63,7 @@ export async function calculateRouteOptions(params: {
   targetDistanceMiles?: number;
   name?: string;
   candidateCount?: number;
+  overrideDnr?: boolean;
 }): Promise<RouteOptionsResponse> {
   const payload = {
     start: { lat: params.start.lat, lon: params.start.lon, name: params.start.name },
@@ -68,7 +75,8 @@ export async function calculateRouteOptions(params: {
     route_mode: params.routeMode ?? 'point_to_point',
     target_distance_miles: params.targetDistanceMiles,
     name: params.name,
-    candidate_count: params.candidateCount ?? 10
+    candidate_count: params.candidateCount ?? 10,
+    override_dnr: params.overrideDnr ?? false
   };
 
   const res = await fetch(`${API_BASE}/api/route/options`, {
@@ -97,6 +105,7 @@ export function streamRouteOptions(
     targetDistanceMiles?: number;
     name?: string;
     candidateCount?: number;
+    overrideDnr?: boolean;
   },
   callbacks: {
     onCandidate: (candidate: RouteResponse) => void;
@@ -116,7 +125,8 @@ export function streamRouteOptions(
     route_mode: params.routeMode ?? 'point_to_point',
     target_distance_miles: params.targetDistanceMiles,
     name: params.name,
-    candidate_count: params.candidateCount ?? 10
+    candidate_count: params.candidateCount ?? 10,
+    override_dnr: params.overrideDnr ?? false
   };
 
   (async () => {
@@ -454,4 +464,181 @@ export async function uploadActivityFile(
 
   return await res.json();
 }
+
+// =========================================================================
+// Stage 5: Trust Layer API Operations (Flags, Check-ins, DNR, Export, Delete)
+// =========================================================================
+
+export async function createFlag(
+  edgeOsmId: number,
+  flagType: 'gone' | 'blocked' | 'closed' | 'seasonal',
+  details?: string,
+  userId: string = 'justin_default_user'
+): Promise<CommunityFlag> {
+  const res = await fetch(`${API_BASE}/api/flags`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({
+      edge_osm_id: edgeOsmId,
+      flag_type: flagType,
+      details
+    })
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to submit flag (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function listFlags(
+  edgeOsmId?: number,
+  status: string = 'active'
+): Promise<CommunityFlag[]> {
+  const params = new URLSearchParams();
+  if (edgeOsmId !== undefined) params.append('edge_osm_id', String(edgeOsmId));
+  if (status) params.append('status', status);
+
+  const res = await fetch(`${API_BASE}/api/flags?${params.toString()}`);
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+export async function voteFlag(
+  flagId: number,
+  voteType: 'confirm' | 'dispute',
+  userId: string = 'justin_default_user'
+): Promise<{ confirmed_count: number; disputed_count: number; status: string }> {
+  const res = await fetch(`${API_BASE}/api/flags/${flagId}/vote`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({ vote_type: voteType })
+  });
+  if (!res.ok) {
+    throw new Error(`Vote failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function submitTrailCheckin(
+  edgeOsmId: number,
+  status: string = 'still_open',
+  note?: string,
+  userId: string = 'justin_default_user'
+): Promise<TrailCheckin> {
+  const res = await fetch(`${API_BASE}/api/trails/${edgeOsmId}/checkin`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({ status, note })
+  });
+  if (!res.ok) {
+    throw new Error(`Check-in failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function getTrailStatus(
+  edgeOsmId: number
+): Promise<{
+  edge_osm_id: number;
+  status: string;
+  confidence_score: number;
+  check_date?: string;
+  snowmobile: boolean;
+  recent_checkins_count: number;
+  active_flags: CommunityFlag[];
+}> {
+  const res = await fetch(`${API_BASE}/api/trails/${edgeOsmId}/status`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch trail status: ${res.status}`);
+  }
+  return await res.json();
+}
+
+export async function listUserDNR(
+  userId: string = 'justin_default_user'
+): Promise<UserDNR[]> {
+  const res = await fetch(`${API_BASE}/api/user/dnr`, {
+    headers: { 'X-User-Id': userId }
+  });
+  if (!res.ok) return [];
+  return await res.json();
+}
+
+export async function createUserDNR(
+  data: {
+    name: string;
+    dnr_type: 'trail' | 'area';
+    edge_osm_id?: number;
+    geom?: any;
+    is_soft?: boolean;
+    reason?: string;
+  },
+  userId: string = 'justin_default_user'
+): Promise<UserDNR> {
+  const res = await fetch(`${API_BASE}/api/user/dnr`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({
+      name: data.name,
+      dnr_type: data.dnr_type,
+      edge_osm_id: data.edge_osm_id,
+      geom: data.geom,
+      is_soft: data.is_soft ?? true,
+      reason: data.reason
+    })
+  });
+  if (!res.ok) {
+    throw new Error(`Failed to create DNR (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function deleteUserDNR(
+  dnrId: number,
+  userId: string = 'justin_default_user'
+): Promise<boolean> {
+  const res = await fetch(`${API_BASE}/api/user/dnr/${dnrId}`, {
+    method: 'DELETE',
+    headers: { 'X-User-Id': userId }
+  });
+  return res.ok;
+}
+
+export async function exportMyData(
+  userId: string = 'justin_default_user'
+): Promise<UserDataExport> {
+  const res = await fetch(`${API_BASE}/api/privacy/export`, {
+    headers: { 'X-User-Id': userId }
+  });
+  if (!res.ok) {
+    throw new Error(`Export failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function deleteMyAccount(
+  userId: string = 'justin_default_user'
+): Promise<{ status: string; user_id: string }> {
+  const res = await fetch(`${API_BASE}/api/privacy/account`, {
+    method: 'DELETE',
+    headers: { 'X-User-Id': userId }
+  });
+  if (!res.ok) {
+    throw new Error(`Account deletion failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
 

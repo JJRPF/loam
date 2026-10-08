@@ -132,6 +132,30 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
               </span>
             )}
           </div>
+
+          {/* Trust Layer Warning Chips */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
+            {route.hard_block_waived && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#E8F5E9', color: '#2E6F40' }}>
+                ✓ Waived
+              </span>
+            )}
+            {route.dnr_warnings && route.dnr_warnings.length > 0 && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#FFF3E0', color: '#C73E00' }}>
+                ⚠️ DNR ({route.dnr_warnings.length})
+              </span>
+            )}
+            {route.snowmobile_warnings && route.snowmobile_warnings.length > 0 && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#E0F7FA', color: '#006064' }}>
+                ❄️ Snowmobile
+              </span>
+            )}
+            {route.community_flag_warnings && route.community_flag_warnings.length > 0 && (
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#FFFDE7', color: '#F57F17' }}>
+                🚩 Flagged
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Lightweight SVG Minimap */}

@@ -14,7 +14,12 @@ from app.models import (
     ExportRequest, RouteOptionsRequest, RouteOptionsResponse,
     LatLon, SportProfile, ActivityUploadResponse,
     PrivacyZoneCreate, PrivacyZoneResponse, RegionalCoverageResponse,
-    RecalculateHeatResponse, EdgeHeatDetailResponse
+    RecalculateHeatResponse, EdgeHeatDetailResponse,
+    FlagCreate, FlagResponse, FlagVoteCreate, FlagVoteResponse,
+    TrailCheckinCreate, TrailCheckinResponse, TrailStatusResponse,
+    UserDNRCreate, UserDNRResponse, DNROverrideLogItem,
+    RestrictionCreate, RestrictionUpdate, RestrictionResponse, TakedownRequest,
+    UserDataExportResponse
 )
 from app.routing import fetch_route, generate_route_options, generate_route_options_stream
 from app.db import (
@@ -24,7 +29,12 @@ from app.db import (
     ensure_user_exists, record_activity, record_activity_edge_visits,
     get_privacy_zones, create_privacy_zone, delete_privacy_zone,
     get_user_consent, set_user_consent, get_regional_coverage_cell,
-    is_region_covered
+    is_region_covered,
+    create_community_flag, vote_community_flag, get_community_flags,
+    record_trail_checkin, get_trail_checkins, get_trail_status,
+    create_user_dnr, get_user_dnr_list, delete_user_dnr, get_dnr_override_logs,
+    get_all_restrictions, create_restriction, update_restriction, delete_restriction,
+    create_takedown, export_user_data, delete_user_account
 )
 from app.gpx_export import build_gpx_track
 from app.fit_export import build_fit_course
@@ -588,6 +598,269 @@ async def trigger_heat_recalculation():
         ghost_trails_detected=result.get("ghost_trails_detected", 0),
         duration_seconds=result.get("duration_seconds", 0.0)
     )
+
+# =========================================================================
+# Stage 5: Trust Layer Endpoints (Flags, Check-ins, DNR, Restrictions, Export)
+# =========================================================================
+
+# --- Community Trail Flags ---
+
+@app.post("/api/flags", response_model=FlagResponse)
+async def report_trail_flag(
+    flag: FlagCreate,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Submits a community flag for a trail edge (gone, blocked, closed, seasonal)."""
+    uid = resolve_user_id(authorization, x_user_id)
+    created = create_community_flag(
+        edge_osm_id=flag.edge_osm_id,
+        flag_type=flag.flag_type.value,
+        user_id=uid,
+        details=flag.details
+    )
+    return FlagResponse(**created)
+
+@app.get("/api/flags", response_model=List[FlagResponse])
+async def list_flags(
+    edge_osm_id: Optional[int] = None,
+    status: Optional[str] = "active",
+    limit: int = 100
+):
+    """Lists community trail flags with optional edge_osm_id and status filters."""
+    flags = get_community_flags(edge_osm_id=edge_osm_id, status=status, limit=limit)
+    return [FlagResponse(**f) for f in flags]
+
+@app.post("/api/flags/{flag_id}/vote", response_model=FlagVoteResponse)
+async def vote_flag(
+    flag_id: int,
+    vote: FlagVoteCreate,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Registers an abuse-resistant vote (confirm or dispute) on a community flag."""
+    uid = resolve_user_id(authorization, x_user_id)
+    try:
+        updated = vote_community_flag(flag_id=flag_id, user_id=uid, vote_type=vote.vote_type)
+        return FlagVoteResponse(
+            flag_id=flag_id,
+            user_id=uid,
+            vote_type=vote.vote_type,
+            confirmed_count=updated["confirmed_count"],
+            disputed_count=updated["disputed_count"],
+            status=updated["status"]
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
+# --- Rider Trail Check-ins ("still open") ---
+
+@app.post("/api/trails/{edge_osm_id}/checkin", response_model=TrailCheckinResponse)
+async def submit_trail_checkin(
+    edge_osm_id: int,
+    checkin: TrailCheckinCreate,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    One-tap rider check-in ("still open") verifying active trail status.
+    Refreshes trail confidence and recency date.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    res = record_trail_checkin(
+        edge_osm_id=edge_osm_id,
+        user_id=uid,
+        status=checkin.status,
+        note=checkin.note
+    )
+    return TrailCheckinResponse(
+        id=res["id"],
+        edge_osm_id=res["edge_osm_id"],
+        user_id=res["user_id"],
+        status=res["status"],
+        note=res.get("note"),
+        checked_in_at=res["checked_in_at"],
+        confidence_score=res.get("confidence_score", 1.0)
+    )
+
+@app.get("/api/trails/{edge_osm_id}/checkins", response_model=List[TrailCheckinResponse])
+async def list_trail_checkins(edge_osm_id: int, limit: int = 20):
+    """Returns recent check-in history for an edge."""
+    checkins = get_trail_checkins(edge_osm_id=edge_osm_id, limit=limit)
+    return [TrailCheckinResponse(confidence_score=1.0, **c) for c in checkins]
+
+@app.get("/api/trails/{edge_osm_id}/status", response_model=TrailStatusResponse)
+async def check_trail_status(edge_osm_id: int):
+    """Aggregated status of a trail edge including confidence, check-ins, flags, access, and snowmobile info."""
+    st = get_trail_status(edge_osm_id)
+    return TrailStatusResponse(
+        edge_osm_id=st["edge_osm_id"],
+        status=st["status"],
+        confidence_score=st["confidence_score"],
+        check_date=st["check_date"],
+        snowmobile=st["snowmobile"],
+        access=st.get("access"),
+        bicycle=st.get("bicycle"),
+        recent_checkins_count=st["recent_checkins_count"],
+        active_flags=[FlagResponse(**f) for f in st["active_flags"]]
+    )
+
+# --- User DNR (Do Not Ride) System ---
+
+@app.get("/api/user/dnr", response_model=List[UserDNRResponse])
+async def list_user_dnr(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Lists user's configured DNR trails and areas."""
+    uid = resolve_user_id(authorization, x_user_id)
+    dnrs = get_user_dnr_list(uid)
+    return [UserDNRResponse(**d) for d in dnrs]
+
+@app.post("/api/user/dnr", response_model=UserDNRResponse)
+async def add_user_dnr(
+    dnr: UserDNRCreate,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Adds a trail or area to the user's personal DNR list."""
+    uid = resolve_user_id(authorization, x_user_id)
+    created = create_user_dnr(
+        user_id=uid,
+        name=dnr.name,
+        dnr_type=dnr.dnr_type,
+        edge_osm_id=dnr.edge_osm_id,
+        geom=dnr.geom,
+        is_soft=dnr.is_soft,
+        reason=dnr.reason
+    )
+    return UserDNRResponse(**created)
+
+@app.delete("/api/user/dnr/{dnr_id}")
+async def remove_user_dnr(
+    dnr_id: int,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Removes an item from the user's DNR list."""
+    uid = resolve_user_id(authorization, x_user_id)
+    deleted = delete_user_dnr(dnr_id=dnr_id, user_id=uid)
+    if not deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DNR item not found")
+    return {"status": "deleted", "id": dnr_id}
+
+@app.get("/api/user/dnr/overrides", response_model=List[DNROverrideLogItem])
+async def list_dnr_override_logs(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None),
+    limit: int = 50
+):
+    """Fetches logged audit records for soft DNR overrides."""
+    uid = resolve_user_id(authorization, x_user_id)
+    logs = get_dnr_override_logs(user_id=uid, limit=limit)
+    return [DNROverrideLogItem(**l) for l in logs]
+
+# --- Admin Restrictions & Land Manager Takedowns ---
+
+@app.get("/api/admin/restrictions", response_model=List[RestrictionResponse])
+async def list_admin_restrictions():
+    """Lists all active land restrictions and closures."""
+    restrs = get_all_restrictions()
+    return [RestrictionResponse(**r) for r in restrs]
+
+@app.post("/api/admin/restrictions", response_model=RestrictionResponse)
+async def add_admin_restriction(
+    restr: RestrictionCreate,
+    authorization: Optional[str] = Header(None),
+    x_admin_token: Optional[str] = Header(None)
+):
+    """Creates a land restriction (closure, wildlife, private, wilderness, dnr)."""
+    created = create_restriction(
+        name=restr.name,
+        restriction_type=restr.restriction_type,
+        source=restr.source or "Admin",
+        is_hard=restr.is_hard,
+        edge_osm_id=restr.edge_osm_id,
+        geom=restr.geom,
+        seasonal_start_month=restr.seasonal_start_month,
+        seasonal_end_month=restr.seasonal_end_month,
+        seasonal_tag=restr.seasonal_tag,
+        description=restr.description
+    )
+    return RestrictionResponse(**created)
+
+@app.put("/api/admin/restrictions/{restriction_id}", response_model=RestrictionResponse)
+async def modify_admin_restriction(
+    restriction_id: int,
+    restr: RestrictionUpdate
+):
+    """Updates an existing restriction."""
+    updated = update_restriction(
+        restriction_id=restriction_id,
+        name=restr.name,
+        restriction_type=restr.restriction_type,
+        source=restr.source,
+        is_hard=restr.is_hard,
+        edge_osm_id=restr.edge_osm_id,
+        geom=restr.geom,
+        seasonal_start_month=restr.seasonal_start_month,
+        seasonal_end_month=restr.seasonal_end_month,
+        seasonal_tag=restr.seasonal_tag,
+        description=restr.description
+    )
+    if not updated:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restriction not found")
+    return RestrictionResponse(**updated)
+
+@app.delete("/api/admin/restrictions/{restriction_id}")
+async def remove_admin_restriction(restriction_id: int):
+    """Deletes a restriction."""
+    ok = delete_restriction(restriction_id)
+    if not ok:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Restriction not found")
+    return {"status": "deleted", "id": restriction_id}
+
+@app.post("/api/admin/takedowns", response_model=RestrictionResponse)
+async def execute_land_manager_takedown(takedown: TakedownRequest):
+    """Fulfills an immediate land manager takedown request per Section 8 & 14."""
+    created = create_takedown(
+        name=takedown.name,
+        edge_osm_id=takedown.edge_osm_id,
+        geom=takedown.geom,
+        reason=takedown.reason,
+        requested_by=takedown.requested_by
+    )
+    return RestrictionResponse(**created)
+
+# --- Privacy Compliance: Data Export & Account Deletion ---
+
+@app.get("/api/privacy/export", response_model=UserDataExportResponse)
+async def export_my_data(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Exports all personal data stored for the user in a JSON bundle.
+    Guarantees strict privacy: never exposes any other rider's data.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    data = export_user_data(uid)
+    return UserDataExportResponse(**data)
+
+@app.delete("/api/privacy/account")
+async def delete_my_account(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Permanently purges all user account records and personal data.
+    Deletes privacy zones, DNR entries, override logs, check-ins, flags,
+    activities, saved routes, and contribution consent.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    ok = delete_user_account(uid)
+    return {"status": "account_deleted", "user_id": uid}
+
 
 
 # --- Static Files / Frontend PWA ---
