@@ -14,10 +14,13 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   onSelect,
   onHover
 }) => {
-  const hours = Math.floor(route.duration_minutes / 60);
-  const mins = Math.round(route.duration_minutes % 60);
+  const durationMins = route.duration_minutes ?? 0;
+  const hours = Math.floor(durationMins / 60);
+  const mins = Math.round(durationMins % 60);
   const durationText = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 
+  const distMi = route.distance_miles ?? 0;
+  const eleGain = route.elevation_gain_ft ?? 0;
   const stPct = Math.round(route.surface_breakdown?.singletrack || 0);
   const repPct = route.repetition_ratio !== undefined ? Math.round(route.repetition_ratio * 100) : null;
 
@@ -27,10 +30,10 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
       onMouseEnter={() => onHover?.(route)}
       onMouseLeave={() => onHover?.(null)}
       style={{
-        backgroundColor: '#FFFFFF',
+        backgroundColor: 'var(--color-card-bg, #FFFFFF)',
         borderRadius: 8,
         padding: '12px 14px',
-        border: isSelected ? '2px solid #FF5B14' : '1px solid #D1D8D8',
+        border: isSelected ? '2px solid var(--color-blaze, #FF5B14)' : '1px solid var(--color-divider, #D1D8D8)',
         boxShadow: isSelected ? '0 3px 10px rgba(255, 91, 20, 0.16)' : '0 1px 3px rgba(0,0,0,0.04)',
         cursor: 'pointer',
         transition: 'all 0.18s ease-in-out',
@@ -48,8 +51,8 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
               style={{
                 fontSize: 11,
                 fontWeight: 700,
-                backgroundColor: isSelected ? '#1D3B34' : '#E2ECF3',
-                color: isSelected ? '#FFFFFF' : '#1D3B34',
+                backgroundColor: isSelected ? 'var(--color-header-bg, #1D3B34)' : 'var(--color-slate-light, #E2ECF3)',
+                color: isSelected ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
                 padding: '2px 6px',
                 borderRadius: 4,
                 flexShrink: 0
@@ -62,7 +65,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             style={{
               fontSize: 14,
               fontWeight: 700,
-              color: '#1D3B34',
+              color: 'var(--color-text-primary, #1D3B34)',
               whiteSpace: 'nowrap',
               overflow: 'hidden',
               textOverflow: 'ellipsis'
@@ -81,8 +84,8 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             gap: 4,
             padding: '3px 8px',
             borderRadius: 6,
-            backgroundColor: isSelected ? '#FF5B14' : '#F3F7F7',
-            color: isSelected ? '#FFFFFF' : '#1D3B34',
+            backgroundColor: isSelected ? 'var(--color-blaze, #FF5B14)' : 'var(--color-bg-subtle, #F3F7F7)',
+            color: isSelected ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
             flexShrink: 0
           }}
         >
@@ -102,20 +105,20 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
               style={{
                 fontSize: 24,
                 fontWeight: 700,
-                color: isSelected ? '#FF5B14' : '#1D3B34',
+                color: isSelected ? 'var(--color-blaze, #FF5B14)' : 'var(--color-text-primary, #1D3B34)',
                 lineHeight: 1
               }}
             >
-              {route.distance_miles.toFixed(1)}
+              {distMi.toFixed(1)}
             </span>
-            <span style={{ fontSize: 13, fontWeight: 600, color: '#42675E' }}>mi</span>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--color-text-secondary, #42675E)' }}>mi</span>
           </div>
 
-          <div className="num-tabular" style={{ fontSize: 12, color: '#42675E' }}>
-            +{Math.round(route.elevation_gain_ft)} ft • {durationText}
+          <div className="num-tabular" style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
+            +{Math.round(eleGain)} ft • {durationText}
           </div>
 
-          <div style={{ fontSize: 11, color: '#1D3B34', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+          <div style={{ fontSize: 11, color: 'var(--color-text-primary, #1D3B34)', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{stPct}% Singletrack</span>
             {repPct !== null && (
               <span
@@ -123,7 +126,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                   fontSize: 10,
                   padding: '1px 5px',
                   borderRadius: 3,
-                  backgroundColor: repPct < 25 ? '#E8F5E9' : '#FFF3E0',
+                  backgroundColor: repPct < 25 ? 'rgba(46, 111, 64, 0.2)' : 'rgba(255, 91, 20, 0.2)',
                   color: repPct < 25 ? '#2E6F40' : '#C73E00',
                   fontWeight: 600
                 }}
@@ -138,9 +141,9 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                   fontWeight: 700,
                   padding: '1px 6px',
                   borderRadius: 3,
-                  backgroundColor: '#E0F2FE',
-                  color: '#0369A1',
-                  border: '1px solid #BAE6FD'
+                  backgroundColor: 'rgba(3, 105, 161, 0.15)',
+                  color: 'var(--color-slate, #0369A1)',
+                  border: '1px solid rgba(186, 230, 253, 0.4)'
                 }}
                 title={`${route.unridden_miles?.toFixed(1) || '0.0'} miles of trails you haven't ridden yet`}
               >
@@ -152,22 +155,22 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           {/* Trust Layer Warning Chips */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
             {route.hard_block_waived && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#E8F5E9', color: '#2E6F40' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(46, 111, 64, 0.15)', color: '#2E6F40' }}>
                 ✓ Waived
               </span>
             )}
             {route.dnr_warnings && route.dnr_warnings.length > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#FFF3E0', color: '#C73E00' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(230, 81, 0, 0.15)', color: '#C73E00' }}>
                 ⚠️ DNR ({route.dnr_warnings.length})
               </span>
             )}
             {route.snowmobile_warnings && route.snowmobile_warnings.length > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#E0F7FA', color: '#006064' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(0, 96, 100, 0.15)', color: '#006064' }}>
                 ❄️ Snowmobile
               </span>
             )}
             {route.community_flag_warnings && route.community_flag_warnings.length > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: '#FFFDE7', color: '#F57F17' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(245, 127, 23, 0.15)', color: '#F57F17' }}>
                 🚩 Flagged
               </span>
             )}
@@ -180,9 +183,9 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             style={{
               width: 84,
               height: 56,
-              backgroundColor: '#F3F7F7',
+              backgroundColor: 'var(--color-bg-subtle, #F3F7F7)',
               borderRadius: 6,
-              border: '1px solid #D1D8D8',
+              border: '1px solid var(--color-divider, #D1D8D8)',
               overflow: 'hidden',
               display: 'flex',
               alignItems: 'center',
@@ -198,7 +201,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
               <path
                 d={route.minimap_svg}
                 fill="none"
-                stroke={isSelected ? '#FF5B14' : '#3F6C8F'}
+                stroke={isSelected ? 'var(--color-blaze, #FF5B14)' : 'var(--color-slate, #3F6C8F)'}
                 strokeWidth={isSelected ? '3.0' : '2.2'}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -206,7 +209,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             </svg>
           </div>
         ) : (
-          <div style={{ width: 84, height: 56, backgroundColor: '#F3F7F7', borderRadius: 6 }} />
+          <div style={{ width: 84, height: 56, backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', borderRadius: 6 }} />
         )}
       </div>
 
@@ -229,3 +232,5 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
     </article>
   );
 };
+
+export default CandidateCard;

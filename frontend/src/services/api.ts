@@ -11,7 +11,9 @@ import type {
   UserDataExport,
   TrailSubmission,
   UnriddenTrailItem,
-  ConnectorStatus
+  ConnectorStatus,
+  AuthUser,
+  GeocodeResult
 } from '../types';
 
 
@@ -324,7 +326,63 @@ export async function shareRouteGarmin(route: RouteResponse): Promise<{ shared: 
   };
 }
 
-export async function saveRouteApi(route: RouteResponse, userId = 'justin_user'): Promise<string> {
+export async function geocodeLocations(query: string): Promise<GeocodeResult[]> {
+  if (!query || !query.trim()) return [];
+  try {
+    const res = await fetch(`${API_BASE}/api/geocode?q=${encodeURIComponent(query.trim())}`);
+    if (res.ok) {
+      const data = await res.json();
+      return data.results || [];
+    }
+  } catch (err) {
+    console.warn('Geocoding request failed:', err);
+  }
+  return [];
+}
+
+export async function verifyAuthToken(params: {
+  token?: string;
+  idToken?: string;
+  uid?: string;
+  email?: string;
+  displayName?: string;
+}): Promise<AuthUser> {
+  const payload = {
+    token: params.token || params.idToken,
+    id_token: params.idToken || params.token,
+    uid: params.uid,
+    email: params.email,
+    display_name: params.displayName
+  };
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (params.token || params.idToken) {
+    headers['Authorization'] = `Bearer ${params.token || params.idToken}`;
+  }
+
+  const res = await fetch(`${API_BASE}/api/auth/verify`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload)
+  });
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Auth verification failed (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const user = data.user;
+  return {
+    id: user.id,
+    email: user.email,
+    displayName: user.display_name,
+    photoURL: user.photo_url,
+    idToken: params.token || params.idToken
+  };
+}
+
+export async function saveRouteApi(route: RouteResponse, userId = 'justin_user', token?: string): Promise<string> {
   const payload = {
     name: route.name || 'Loam Route',
     sport: route.sport || 'mtb',
@@ -338,17 +396,21 @@ export async function saveRouteApi(route: RouteResponse, userId = 'justin_user')
   };
 
   try {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch(`${API_BASE}/api/saved-routes`, {
       method: 'POST',
-      headers: { 
-        'Content-Type': 'application/json',
-        'X-User-Id': userId
-      },
+      headers,
       body: JSON.stringify(payload)
     });
     if (res.ok) {
       const data = await res.json();
-      // Also cache in localStorage
       saveRouteLocally({ ...payload, id: data.id, created_at: new Date().toISOString(), user_id: userId });
       return data.id;
     }
@@ -362,11 +424,14 @@ export async function saveRouteApi(route: RouteResponse, userId = 'justin_user')
   return localId;
 }
 
-export async function fetchSavedRoutes(userId = 'justin_user'): Promise<SavedRoute[]> {
+export async function fetchSavedRoutes(userId = 'justin_user', token?: string): Promise<SavedRoute[]> {
   try {
-    const res = await fetch(`${API_BASE}/api/saved-routes`, {
-      headers: { 'X-User-Id': userId }
-    });
+    const headers: Record<string, string> = { 'X-User-Id': userId };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    const res = await fetch(`${API_BASE}/api/saved-routes`, { headers });
     if (res.ok) {
       const data = await res.json();
       if (data.routes && data.routes.length > 0) {
@@ -380,11 +445,16 @@ export async function fetchSavedRoutes(userId = 'justin_user'): Promise<SavedRou
   return getLocalSavedRoutes();
 }
 
-export async function deleteSavedRoute(id: string, userId = 'justin_user'): Promise<boolean> {
+export async function deleteSavedRoute(id: string, userId = 'justin_user', token?: string): Promise<boolean> {
   try {
+    const headers: Record<string, string> = { 'X-User-Id': userId };
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
     const res = await fetch(`${API_BASE}/api/saved-routes/${id}`, {
       method: 'DELETE',
-      headers: { 'X-User-Id': userId }
+      headers
     });
     if (res.ok) {
       removeLocalSavedRoute(id);

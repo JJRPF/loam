@@ -17,18 +17,30 @@ interface MapViewProps {
   waypoints?: LatLon[];
   scrubCoord?: [number, number] | null;
   onMapClick?: (lat: number, lon: number) => void;
+  isDarkMode?: boolean;
 }
 
-// Clean, outdoor topographic basemap style using Carto Voyager with terrain labels
-const MAP_STYLE: StyleSpecification = {
+const CARTO_KEY = 'cb1_4dqd_1_e9976fbebd5d928d8538e995';
+
+const buildMapStyle = (isDark: boolean): StyleSpecification => ({
   version: 8,
   sources: {
     'carto-voyager': {
       type: 'raster',
       tiles: [
-        'https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png',
-        'https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png'
+        `https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`,
+        `https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`,
+        `https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
+      ],
+      tileSize: 256,
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
+    },
+    'carto-dark': {
+      type: 'raster',
+      tiles: [
+        `https://a.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`,
+        `https://b.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`,
+        `https://c.basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
       ],
       tileSize: 256,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
@@ -40,10 +52,23 @@ const MAP_STYLE: StyleSpecification = {
       type: 'raster',
       source: 'carto-voyager',
       minzoom: 0,
-      maxzoom: 20
+      maxzoom: 20,
+      layout: {
+        visibility: isDark ? 'none' : 'visible'
+      }
+    },
+    {
+      id: 'carto-dark-layer',
+      type: 'raster',
+      source: 'carto-dark',
+      minzoom: 0,
+      maxzoom: 20,
+      layout: {
+        visibility: isDark ? 'visible' : 'none'
+      }
     }
   ]
-};
+});
 
 export const MapView: React.FC<MapViewProps> = ({
   route,
@@ -51,7 +76,8 @@ export const MapView: React.FC<MapViewProps> = ({
   start,
   end,
   scrubCoord,
-  onMapClick
+  onMapClick,
+  isDarkMode = false
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);
@@ -59,6 +85,7 @@ export const MapView: React.FC<MapViewProps> = ({
   const endMarkerRef = useRef<Marker | null>(null);
   const scrubMarkerRef = useRef<Marker | null>(null);
   const onMapClickRef = useRef(onMapClick);
+
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
@@ -69,10 +96,11 @@ export const MapView: React.FC<MapViewProps> = ({
 
     const map = new Map({
       container: mapContainer.current,
-      style: MAP_STYLE,
-      center: [-71.3524, 43.1305], // Bear Brook State Park, NH
+      style: buildMapStyle(isDarkMode),
+      center: [start.lon || -71.3524, start.lat || 43.1305], // Bear Brook State Park, NH
       zoom: 12.5,
-      pitch: 0
+      pitch: 0,
+      attributionControl: false // Using custom permanently visible attribution badge
     });
 
     map.addControl(new NavigationControl({ showCompass: true }), 'top-right');
@@ -98,7 +126,7 @@ export const MapView: React.FC<MapViewProps> = ({
           'line-join': 'round'
         },
         paint: {
-          'line-color': '#1D3B34',
+          'line-color': isDarkMode ? '#0E1D19' : '#1D3B34',
           'line-width': 7,
           'line-opacity': 0.8
         }
@@ -150,6 +178,7 @@ export const MapView: React.FC<MapViewProps> = ({
       onMapClickRef.current?.(e.lngLat.lat, e.lngLat.lng);
     });
 
+    (window as any).__loamMap = map;
     mapRef.current = map;
 
     return () => {
@@ -157,6 +186,34 @@ export const MapView: React.FC<MapViewProps> = ({
       mapRef.current = null;
     };
   }, []);
+
+  // Sync Dark Mode theme with MapLibre layers
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const applyTheme = () => {
+      try {
+        if (map.getLayer('carto-voyager-layer')) {
+          map.setLayoutProperty('carto-voyager-layer', 'visibility', isDarkMode ? 'none' : 'visible');
+        }
+        if (map.getLayer('carto-dark-layer')) {
+          map.setLayoutProperty('carto-dark-layer', 'visibility', isDarkMode ? 'visible' : 'none');
+        }
+        if (map.getLayer('route-casing')) {
+          map.setPaintProperty('route-casing', 'line-color', isDarkMode ? '#0E1D19' : '#1D3B34');
+        }
+      } catch (err) {
+        console.warn('Error applying map theme:', err);
+      }
+    };
+
+    if (map.getLayer('carto-voyager-layer')) {
+      applyTheme();
+    } else {
+      map.once('styledata', applyTheme);
+    }
+  }, [isDarkMode]);
 
   // Update Route GeoJSON
   useEffect(() => {
@@ -288,22 +345,31 @@ export const MapView: React.FC<MapViewProps> = ({
   return (
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainer} className="maplibre-container" />
-      {/* Attribution Overlay */}
+      
+      {/* Permanently Visible Map Attribution per Item 3 */}
       <div
+        className="map-attribution-badge"
         style={{
           position: 'absolute',
-          bottom: 4,
-          right: 4,
-          fontSize: 10,
-          color: '#1D3B34',
-          backgroundColor: 'rgba(231, 236, 236, 0.85)',
-          padding: '2px 6px',
+          bottom: 8,
+          right: 8,
+          fontSize: 11,
+          lineHeight: '14px',
+          color: isDarkMode ? '#E7ECEC' : '#1D3B34',
+          backgroundColor: isDarkMode ? 'rgba(18, 36, 32, 0.90)' : 'rgba(231, 236, 236, 0.90)',
+          border: isDarkMode ? '1px solid rgba(169, 191, 122, 0.3)' : '1px solid rgba(209, 216, 216, 0.8)',
+          padding: '4px 8px',
           borderRadius: 4,
-          pointerEvents: 'none'
+          zIndex: 10,
+          pointerEvents: 'auto',
+          boxShadow: '0 1px 4px rgba(0,0,0,0.15)',
+          backdropFilter: 'blur(4px)'
         }}
       >
-        &copy; OpenStreetMap contributors • Loam NH
+        &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>CARTO</a>
       </div>
     </div>
   );
 };
+
+export default MapView;

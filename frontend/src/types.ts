@@ -237,6 +237,21 @@ export const NH_TRAILHEAD_PRESETS: TrailheadPreset[] = [
   }
 ];
 
+export interface AuthUser {
+  id: string;
+  email: string;
+  displayName: string;
+  photoURL?: string;
+  idToken?: string;
+}
+
+export interface GeocodeResult {
+  name: string;
+  display_name: string;
+  lat: number;
+  lon: number;
+}
+
 export interface TerrainPreset {
   name: string;
   description: string;
@@ -265,3 +280,5 @@ export const TERRAIN_PRESETS: TerrainPreset[] = [
     weights: { singletrack: 0.00, doubletrack: 0.10, gravel: 0.20, paved: 0.70 }
   }
 ];
+
+

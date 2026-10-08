@@ -244,7 +244,7 @@ def get_saved_routes_from_db(user_id: str) -> List[Dict[str, Any]]:
                     """
                     SELECT id, user_id, name, sport, distance_miles,
                            elevation_gain_ft, elevation_loss_ft, created_at,
-                           surface_summary, waypoints
+                           surface_summary, waypoints, ST_AsGeoJSON(geom) as geojson
                     FROM saved_routes
                     WHERE user_id = %s
                     ORDER BY created_at DESC;
@@ -258,11 +258,21 @@ def get_saved_routes_from_db(user_id: str) -> List[Dict[str, Any]]:
                     item["created_at"] = item["created_at"].isoformat() if item.get("created_at") else ""
                     summary = item.get("surface_summary") or {}
                     item["surface_breakdown"] = summary.get("breakdown", {})
+                    item["surface_strip"] = summary.get("strip", [])
                     item["verbal_summary"] = summary.get("verbal_summary")
+                    if item.get("geojson"):
+                        try:
+                            geo = json.loads(item["geojson"])
+                            item["coordinates"] = geo.get("coordinates", [])
+                        except Exception:
+                            item["coordinates"] = []
+                    else:
+                        item["coordinates"] = []
                     results.append(item)
                 return results
     except Exception as e:
         print(f"Failed to get saved routes: {e}")
+        return []
         return []
 
 def get_saved_route_by_id(route_id: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:

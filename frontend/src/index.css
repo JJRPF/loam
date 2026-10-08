@@ -13,6 +13,14 @@
   --color-divider: #D1D8D8;
   --color-card-bg: #FFFFFF;
   --color-bg-subtle: #F3F7F7;
+  --color-panel-bg: #E7ECEC;
+  --color-header-bg: #1D3B34;
+  --color-header-text: #FFFFFF;
+  --color-text-primary: #1D3B34;
+  --color-text-secondary: #42675E;
+  --color-input-bg: #FFFFFF;
+  --color-input-border: #D1D8D8;
+  --color-nav-bg: #FFFFFF;
 
   /* Surfaces */
   --surface-singletrack: #2E6F40;
@@ -28,6 +36,29 @@
   --font-family: 'Atkinson Hyperlegible', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+[data-theme="dark"] {
+  --color-fog: #122420;
+  --color-spruce: #E7ECEC;
+  --color-spruce-light: #A9BF7A;
+  --color-spruce-muted: #A0B5AE;
+  --color-blaze: #FF5B14;
+  --color-blaze-dark: #FF5B14;
+  --color-slate: #5E94BD;
+  --color-slate-light: #1A384A;
+  --color-lichen: #A9BF7A;
+  --color-divider: #264A42;
+  --color-card-bg: #1B3630;
+  --color-bg-subtle: #162C27;
+  --color-panel-bg: #122420;
+  --color-header-bg: #0E1D19;
+  --color-header-text: #E7ECEC;
+  --color-text-primary: #E7ECEC;
+  --color-text-secondary: #A0B5AE;
+  --color-input-bg: #162C27;
+  --color-input-border: #2E5249;
+  --color-nav-bg: #162C27;
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -40,8 +71,8 @@ html, body, #root {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background-color: var(--color-fog);
-  color: var(--color-spruce);
+  background-color: var(--color-panel-bg);
+  color: var(--color-text-primary);
   font-size: 16px;
   line-height: 20px;
 }
@@ -59,6 +90,7 @@ button, label, h1, h2, h3, h4, span, p {
 /* Button & interactive touch targets */
 button, input, select {
   font-family: inherit;
+  color: inherit;
 }
 
 button {
@@ -72,7 +104,7 @@ button {
   align-items: center;
   justify-content: center;
   gap: 8px;
-  transition: background-color 0.15s ease, opacity 0.15s ease;
+  transition: background-color 0.15s ease, opacity 0.15s ease, border-color 0.15s ease;
 }
 
 /* Primary High-Contrast Action */
@@ -97,8 +129,8 @@ button {
 
 /* Secondary Button */
 .btn-secondary {
-  background-color: #FFFFFF;
-  color: var(--color-spruce);
+  background-color: var(--color-card-bg);
+  color: var(--color-text-primary);
   border: 1px solid var(--color-divider);
   padding: 10px 16px;
   min-height: 44px;
@@ -111,13 +143,30 @@ button {
 /* Outlined Action */
 .btn-outline {
   background-color: transparent;
-  color: var(--color-spruce);
+  color: var(--color-text-primary);
   border: 1px solid var(--color-divider);
   padding: 8px 14px;
+}
+
+.btn-outline:hover {
+  background-color: var(--color-bg-subtle);
 }
 
 /* MapLibre Canvas */
 .maplibre-container {
   width: 100%;
   height: 100%;
+}
+
+/* Form controls */
+input[type="text"], input[type="number"], select {
+  background-color: var(--color-input-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-md);
+}
+
+input[type="text"]:focus, input[type="number"]:focus, select:focus {
+  outline: none;
+  border-color: var(--color-blaze);
 }
