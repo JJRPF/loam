@@ -39,6 +39,12 @@ export const App: React.FC = () => {
   const [terrainPref, setTerrainPref] = useState<TerrainPreference>(TERRAIN_PRESETS[0].weights);
   const [overrideDnr, setOverrideDnr] = useState<boolean>(false);
 
+  // Stage 6: Differentiators state
+  const [findNewTrailsMode, setFindNewTrailsMode] = useState<boolean>(false);
+  const [minNewTrailPercent, setMinNewTrailPercent] = useState<number>(30);
+  const [trailRunSteeperGrades, setTrailRunSteeperGrades] = useState<boolean>(true);
+  const [trailRunAvoidMtbFlow, setTrailRunAvoidMtbFlow] = useState<boolean>(true);
+
   // Route calculation and results
   const [route, setRoute] = useState<RouteResponse | null>(null);
   const [options, setOptions] = useState<RouteResponse[]>([]);
@@ -88,7 +94,11 @@ export const App: React.FC = () => {
         targetDistanceMiles: targetMiles,
         name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`,
         candidateCount: 10,
-        overrideDnr
+        overrideDnr,
+        findNewTrailsMode,
+        minNewTrailPercent,
+        trailRunSteeperGrades,
+        trailRunAvoidMtbFlow
       },
       {
         onCandidate: (cand) => {
@@ -117,7 +127,11 @@ export const App: React.FC = () => {
             routeMode,
             targetDistanceMiles: targetMiles,
             name: `${start.name || 'Loam'} ${sport.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} ${routeMode === 'loop' ? 'Loop' : 'Route'}`,
-            overrideDnr
+            overrideDnr,
+            findNewTrailsMode,
+            minNewTrailPercent,
+            trailRunSteeperGrades,
+            trailRunAvoidMtbFlow
           }).then(res => {
             setRoute(res);
             setOptions([res]);
@@ -126,6 +140,7 @@ export const App: React.FC = () => {
       }
     );
   };
+
 
   const handleLoadSavedRoute = (savedRoute: RouteResponse) => {
     setRoute(savedRoute);
@@ -260,7 +275,16 @@ export const App: React.FC = () => {
                 pickingTarget={pickingTarget}
                 overrideDnr={overrideDnr}
                 onOverrideDnrChange={setOverrideDnr}
+                findNewTrailsMode={findNewTrailsMode}
+                onFindNewTrailsModeChange={setFindNewTrailsMode}
+                minNewTrailPercent={minNewTrailPercent}
+                onMinNewTrailPercentChange={setMinNewTrailPercent}
+                trailRunSteeperGrades={trailRunSteeperGrades}
+                onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
+                trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
+                onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
               />
+
             )}
 
             {activeTab === 'results' && (route || options.length > 0 || isLoading) && (
@@ -433,7 +457,16 @@ export const App: React.FC = () => {
                   pickingTarget={pickingTarget}
                   overrideDnr={overrideDnr}
                   onOverrideDnrChange={setOverrideDnr}
+                  findNewTrailsMode={findNewTrailsMode}
+                  onFindNewTrailsModeChange={setFindNewTrailsMode}
+                  minNewTrailPercent={minNewTrailPercent}
+                  onMinNewTrailPercentChange={setMinNewTrailPercent}
+                  trailRunSteeperGrades={trailRunSteeperGrades}
+                  onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
+                  trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
+                  onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
                 />
+
               )}
 
               {activeTab === 'results' && (route || options.length > 0 || isLoading) && (

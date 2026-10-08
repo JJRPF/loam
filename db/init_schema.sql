@@ -239,9 +239,40 @@ CREATE TABLE IF NOT EXISTS trail_submissions (
     sport TEXT NOT NULL,
     difficulty TEXT,
     geom GEOMETRY(LineString, 4326),
-    status TEXT DEFAULT 'pending', -- 'pending', 'verified', 'rejected'
+    status TEXT DEFAULT 'pending', -- 'pending', 'verified', 'rejected', 'taken_down'
     verifier_count INT DEFAULT 0,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    description TEXT,
+    rejection_reason TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    verified_at TIMESTAMP WITH TIME ZONE
 );
 
 CREATE INDEX IF NOT EXISTS idx_trail_submissions_geom ON trail_submissions USING GIST (geom);
+
+-- Trail Submission Evidence (GPS-backed abuse resistance)
+CREATE TABLE IF NOT EXISTS trail_submission_evidence (
+    id SERIAL PRIMARY KEY,
+    submission_id INT REFERENCES trail_submissions(id) ON DELETE CASCADE,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    activity_id TEXT REFERENCES activities(id) ON DELETE SET NULL,
+    verified_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(submission_id, user_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_submission_evidence_sub ON trail_submission_evidence (submission_id);
+
+-- User Connected Services (Strava, Garmin, Trailforks)
+CREATE TABLE IF NOT EXISTS user_connected_services (
+    id SERIAL PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    provider TEXT NOT NULL, -- 'strava', 'garmin', 'trailforks'
+    encrypted_session_token TEXT,
+    token_expires_at TIMESTAMP WITH TIME ZONE,
+    last_synced_at TIMESTAMP WITH TIME ZONE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    UNIQUE(user_id, provider)
+);
+
+CREATE INDEX IF NOT EXISTS idx_connected_services_user ON user_connected_services (user_id);
+

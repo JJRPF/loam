@@ -12,3 +12,4 @@ pytest-asyncio>=0.24.0
 fitparse>=1.2.0
 defusedxml>=0.7.1
 python-multipart>=0.0.9
+cryptography>=42.0.0

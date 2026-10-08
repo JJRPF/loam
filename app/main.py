@@ -19,7 +19,12 @@ from app.models import (
     TrailCheckinCreate, TrailCheckinResponse, TrailStatusResponse,
     UserDNRCreate, UserDNRResponse, DNROverrideLogItem,
     RestrictionCreate, RestrictionUpdate, RestrictionResponse, TakedownRequest,
-    UserDataExportResponse
+    UserDataExportResponse,
+    # Stage 6: Differentiators models
+    TrailSubmissionCreate, TrailSubmissionResponse,
+    TrailSubmissionEvidenceCreate, TrailSubmissionEvidenceResponse,
+    TrailSubmissionReviewRequest, UnriddenTrailItem,
+    ConnectorStatus, GarminLoginRequest, StravaAuthRequest, ConnectorSyncResponse
 )
 from app.routing import fetch_route, generate_route_options, generate_route_options_stream
 from app.db import (
@@ -34,14 +39,21 @@ from app.db import (
     record_trail_checkin, get_trail_checkins, get_trail_status,
     create_user_dnr, get_user_dnr_list, delete_user_dnr, get_dnr_override_logs,
     get_all_restrictions, create_restriction, update_restriction, delete_restriction,
-    create_takedown, export_user_data, delete_user_account
+    create_takedown, export_user_data, delete_user_account,
+    # Stage 6: Differentiators db methods
+    get_unridden_high_heat_trails, create_trail_submission,
+    get_trail_submission_by_id, get_trail_submissions,
+    record_submission_evidence, evaluate_and_verify_submission,
+    admin_update_submission_status, list_user_connected_services
 )
+from app.connectors import connector_manager
 from app.gpx_export import build_gpx_track
 from app.fit_export import build_fit_course
 from app.activity_parser import parse_activity_file, MAX_FILE_SIZE
 from app.privacy import apply_privacy_filters, haversine_m
 from app.map_matching import map_match_activity
 from app.worker import run_nightly_job
+
 
 app = FastAPI(
     title=settings.app_name,
@@ -860,6 +872,249 @@ async def delete_my_account(
     uid = resolve_user_id(authorization, x_user_id)
     ok = delete_user_account(uid)
     return {"status": "account_deleted", "user_id": uid}
+
+
+# =========================================================================
+# Stage 6: Differentiators (Find New Trails, Submissions, Connectors)
+# =========================================================================
+
+# --- 1. Find New Trails Mode & Exploration ---
+
+@app.get("/api/trails/new-to-me", response_model=List[UnriddenTrailItem])
+async def get_unridden_trails(
+    lat: float = 43.1305,
+    lon: float = -71.3524,
+    radius_miles: float = 15.0,
+    sport: str = "mtb",
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Highlights trails with strong recent heat that the user has not yet ridden or run
+    (tracked via user's activity history / visits in activity_edge_visits).
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    items = get_unridden_high_heat_trails(
+        user_id=uid,
+        lat=lat,
+        lon=lon,
+        radius_miles=radius_miles,
+        sport=sport
+    )
+    return [UnriddenTrailItem(**item) for item in items]
+
+
+# --- 2. Trail Submissions & Auto-Verification ---
+
+@app.post("/api/submissions", response_model=TrailSubmissionResponse)
+async def submit_trail(
+    submission: TrailSubmissionCreate,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Trail submission workflow: users trace or upload trail geometry with name,
+    sport, and difficulty rating. Automatically verified if >= 3 unique riders'
+    activities overlap the geometry within 12 months and no restricted areas are intersected.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    record = create_trail_submission(
+        user_id=uid,
+        name=submission.name,
+        sport=submission.sport,
+        difficulty=submission.difficulty,
+        coordinates=submission.coordinates,
+        description=submission.description
+    )
+    if not record:
+        raise HTTPException(status_code=500, detail="Failed to create trail submission.")
+    return TrailSubmissionResponse(**record)
+
+@app.get("/api/submissions", response_model=List[TrailSubmissionResponse])
+async def list_submissions(
+    status: Optional[str] = None
+):
+    """Lists trail submissions (filtered by status: pending, verified, rejected, taken_down, or all)."""
+    records = get_trail_submissions(status_filter=status)
+    return [TrailSubmissionResponse(**r) for r in records]
+
+@app.get("/api/submissions/{submission_id}", response_model=TrailSubmissionResponse)
+async def get_submission(submission_id: int):
+    """Retrieves a single trail submission by ID."""
+    record = get_trail_submission_by_id(submission_id)
+    if not record:
+        raise HTTPException(status_code=404, detail="Trail submission not found.")
+    return TrailSubmissionResponse(**record)
+
+@app.post("/api/submissions/{submission_id}/evidence", response_model=TrailSubmissionEvidenceResponse)
+async def submit_trail_evidence(
+    submission_id: int,
+    evidence: TrailSubmissionEvidenceCreate,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Submits GPS-backed evidence (overlapping ride activity) confirming a trail submission.
+    Provides GPS-backed abuse resistance (requiring overlapping ride evidence, not raw votes).
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    sub = get_trail_submission_by_id(submission_id)
+    if not sub:
+        raise HTTPException(status_code=404, detail="Trail submission not found.")
+
+    res = record_submission_evidence(
+        submission_id=submission_id,
+        user_id=uid,
+        activity_id=evidence.activity_id,
+        coordinates=evidence.coordinates
+    )
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+
+    updated = get_trail_submission_by_id(submission_id)
+    return TrailSubmissionEvidenceResponse(
+        id=submission_id,
+        submission_id=submission_id,
+        user_id=uid,
+        activity_id=evidence.activity_id,
+        verified_at=datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        is_overlapping=True,
+        new_status=updated.get("status", "pending")
+    )
+
+@app.post("/api/submissions/{submission_id}/verify-check")
+async def verify_submission_check(submission_id: int):
+    """Runs auto-verification check on a submission."""
+    res = evaluate_and_verify_submission(submission_id)
+    if "error" in res:
+        raise HTTPException(status_code=400, detail=res["error"])
+    return res
+
+# Admin moderation interface
+@app.post("/api/submissions/{submission_id}/approve", response_model=TrailSubmissionResponse)
+async def admin_approve_submission(
+    submission_id: int,
+    body: Optional[TrailSubmissionReviewRequest] = None
+):
+    """Admin moderation endpoint: manually approve a trail submission."""
+    ok = admin_update_submission_status(submission_id, "verified")
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to approve submission.")
+    sub = get_trail_submission_by_id(submission_id)
+    return TrailSubmissionResponse(**sub)
+
+@app.post("/api/submissions/{submission_id}/reject", response_model=TrailSubmissionResponse)
+async def admin_reject_submission(
+    submission_id: int,
+    body: Optional[TrailSubmissionReviewRequest] = None
+):
+    """Admin moderation endpoint: reject a trail submission."""
+    reason = body.reason if body else "Rejected by admin"
+    ok = admin_update_submission_status(submission_id, "rejected", reason=reason)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to reject submission.")
+    sub = get_trail_submission_by_id(submission_id)
+    return TrailSubmissionResponse(**sub)
+
+@app.post("/api/submissions/{submission_id}/reverse", response_model=TrailSubmissionResponse)
+async def admin_reverse_submission(
+    submission_id: int,
+    body: Optional[TrailSubmissionReviewRequest] = None
+):
+    """Admin moderation endpoint: reverse a submission back to pending status."""
+    ok = admin_update_submission_status(submission_id, "pending")
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to reverse submission.")
+    sub = get_trail_submission_by_id(submission_id)
+    return TrailSubmissionResponse(**sub)
+
+@app.post("/api/submissions/{submission_id}/takedown", response_model=TrailSubmissionResponse)
+async def admin_takedown_submission(
+    submission_id: int,
+    body: Optional[TrailSubmissionReviewRequest] = None
+):
+    """Admin moderation endpoint: take down a trail submission."""
+    reason = body.reason if body else "Taken down by admin / land manager request"
+    ok = admin_update_submission_status(submission_id, "taken_down", reason=reason)
+    if not ok:
+        raise HTTPException(status_code=400, detail="Failed to take down submission.")
+    sub = get_trail_submission_by_id(submission_id)
+    return TrailSubmissionResponse(**sub)
+
+
+# --- 3. Optional Connectors (Interfaces & Feature Flags) ---
+
+@app.get("/api/connectors", response_model=List[ConnectorStatus])
+async def get_connectors(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Returns available connectors (Strava, Garmin, Trailforks) and connection status.
+    All third-party connectors are decoupled, swappable, and off by default.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    statuses = connector_manager.list_connectors(uid)
+    return [ConnectorStatus(**s) for s in statuses]
+
+@app.post("/api/connectors/garmin/login")
+async def connect_garmin(
+    req: GarminLoginRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Garmin login connector: exchanges credentials for session tokens.
+    INVARIANTS:
+    - Never stores passwords anywhere.
+    - Password is discarded immediately.
+    - Tokens encrypted at rest with AES Fernet.
+    - Feature-flagged: off by default.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    res = await connector_manager.authenticate("garmin", uid, username=req.username, password=req.password)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Garmin login failed"))
+    return res
+
+@app.post("/api/connectors/strava/auth")
+async def connect_strava(
+    req: StravaAuthRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """
+    Strava connector: exchanges authorization code for encrypted tokens.
+    Feature-flagged: off by default.
+    """
+    uid = resolve_user_id(authorization, x_user_id)
+    res = await connector_manager.authenticate("strava", uid, code=req.code, scope=req.scope)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "Strava authentication failed"))
+    return res
+
+@app.post("/api/connectors/{provider}/sync", response_model=ConnectorSyncResponse)
+async def sync_connector_activities(
+    provider: str,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Syncs activities from a connected third-party provider."""
+    uid = resolve_user_id(authorization, x_user_id)
+    res = await connector_manager.sync(provider, uid)
+    return ConnectorSyncResponse(**res)
+
+@app.delete("/api/connectors/{provider}")
+async def disconnect_connector(
+    provider: str,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Disconnects a service and purges stored encrypted tokens."""
+    uid = resolve_user_id(authorization, x_user_id)
+    ok = await connector_manager.disconnect(provider, uid)
+    return {"success": ok, "provider": provider, "status": "disconnected"}
+
 
 
 

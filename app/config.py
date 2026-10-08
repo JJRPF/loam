@@ -18,4 +18,11 @@ class Settings(BaseModel):
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8080"))
 
+    # Feature Flags & Connector Configuration (Decoupled, Off by Default)
+    enable_strava_connector: bool = os.getenv("ENABLE_STRAVA_CONNECTOR", "false").lower() in ("true", "1")
+    enable_garmin_connector: bool = os.getenv("ENABLE_GARMIN_LOGIN_CONNECTOR", "false").lower() in ("true", "1")
+    enable_trailforks_connector: bool = os.getenv("ENABLE_TRAILFORKS_CONNECTOR", "false").lower() in ("true", "1")
+    connector_secret_key: str = os.getenv("CONNECTOR_SECRET_KEY", "loam_dev_secret_key_32bytes_min_len!")
+
 settings = Settings()
+

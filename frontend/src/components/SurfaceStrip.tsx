@@ -38,6 +38,10 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
   }
 
   const totalPoints = strip[strip.length - 1].end_index || 1;
+  const unriddenPoints = strip
+    .filter((s) => s.is_unridden)
+    .reduce((acc, s) => acc + Math.max(s.end_index - s.start_index, 1), 0);
+  const unriddenPct = Math.round((unriddenPoints / totalPoints) * 100);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 8, width: '100%' }}>
@@ -63,6 +67,7 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
           const pct = (segPoints / totalPoints) * 100;
           const conf = SURFACE_COLORS[seg.surface_type] || SURFACE_COLORS.unknown;
           const segMiles = totalMiles ? ((segPoints / totalPoints) * totalMiles).toFixed(1) : null;
+          const unriddenSuffix = seg.is_unridden ? ' • ✨ New to you' : '';
 
           return (
             <div
@@ -72,13 +77,15 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
                 height: '100%',
                 backgroundColor: conf.bg,
                 transition: 'opacity 0.1s ease',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                borderTop: seg.is_unridden ? '3px solid #38BDF8' : 'none',
+                boxSizing: 'border-box'
               }}
               onMouseEnter={(e) => {
                 const rect = e.currentTarget.parentElement?.getBoundingClientRect();
                 const xPos = rect ? e.clientX - rect.left : 0;
                 setActiveTooltip({
-                  text: `${conf.label}${segMiles ? ` (${segMiles} mi)` : ''}`,
+                  text: `${conf.label}${segMiles ? ` (${segMiles} mi)` : ''}${unriddenSuffix}`,
                   pct: `${pct.toFixed(0)}%`,
                   x: xPos
                 });
@@ -143,6 +150,21 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
               </div>
             );
           })}
+          {unriddenPct > 0 && (
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 10,
+                  height: 10,
+                  borderRadius: 2,
+                  backgroundColor: '#38BDF8'
+                }}
+              />
+              <span style={{ fontWeight: 600, color: '#0369A1' }}>✨ New to you:</span>
+              <span className="num-tabular" style={{ color: '#0369A1', fontWeight: 700 }}>{unriddenPct}%</span>
+            </div>
+          )}
         </div>
       )}
     </div>

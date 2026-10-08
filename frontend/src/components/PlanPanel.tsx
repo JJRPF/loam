@@ -29,6 +29,15 @@ interface PlanPanelProps {
   pickingTarget: 'start' | 'end' | null;
   overrideDnr?: boolean;
   onOverrideDnrChange?: (override: boolean) => void;
+  // Stage 6: Differentiators
+  findNewTrailsMode?: boolean;
+  onFindNewTrailsModeChange?: (val: boolean) => void;
+  minNewTrailPercent?: number;
+  onMinNewTrailPercentChange?: (pct: number) => void;
+  trailRunSteeperGrades?: boolean;
+  onTrailRunSteeperGradesChange?: (val: boolean) => void;
+  trailRunAvoidMtbFlow?: boolean;
+  onTrailRunAvoidMtbFlowChange?: (val: boolean) => void;
 }
 
 export const PlanPanel: React.FC<PlanPanelProps> = ({
@@ -49,8 +58,17 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   onPickOnMap,
   pickingTarget,
   overrideDnr = false,
-  onOverrideDnrChange
+  onOverrideDnrChange,
+  findNewTrailsMode = false,
+  onFindNewTrailsModeChange,
+  minNewTrailPercent = 30,
+  onMinNewTrailPercentChange,
+  trailRunSteeperGrades = true,
+  onTrailRunSteeperGradesChange,
+  trailRunAvoidMtbFlow = true,
+  onTrailRunAvoidMtbFlowChange
 }) => {
+
   const [selectedPresetName, setSelectedPresetName] = useState<string>("Mostly Trail");
 
   const handleApplyTerrainPreset = (presetName: string) => {
@@ -156,10 +174,38 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
             ))}
           </div>
         )}
+
+        {/* Trail Running Profile Polish */}
+        {!isBike && (
+          <div style={{ backgroundColor: '#F3F7F7', padding: '10px 12px', borderRadius: 8, border: '1px solid #D1D8D8', marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34' }}>
+              🏃 Trail Running Routing Polish
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#1D3B34' }}>
+              <input
+                type="checkbox"
+                checked={trailRunSteeperGrades}
+                onChange={(e) => onTrailRunSteeperGradesChange?.(e.target.checked)}
+                style={{ accentColor: '#2E6F40' }}
+              />
+              <span>Allow steeper grades & foot-only stairs (Hiking tolerance)</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 12, color: '#1D3B34' }}>
+              <input
+                type="checkbox"
+                checked={trailRunAvoidMtbFlow}
+                onChange={(e) => onTrailRunAvoidMtbFlowChange?.(e.target.checked)}
+                style={{ accentColor: '#2E6F40' }}
+              />
+              <span>Avoid high-speed downhill mountain bike flow trails</span>
+            </label>
+          </div>
+        )}
       </section>
 
       {/* 2. Route Mode: Loop / Round Trip vs Point to Point */}
       <section>
+
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
           <label style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>
             Route Type
@@ -422,7 +468,55 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         </div>
       </section>
 
+      {/* 5c. Find New Trails Mode (Stage 6 Differentiator) */}
+      <section style={{
+        backgroundColor: findNewTrailsMode ? '#E8F5E9' : '#F3F7F7',
+        padding: '12px 14px',
+        borderRadius: 8,
+        border: `1px solid ${findNewTrailsMode ? '#81C784' : '#D1D8D8'}`,
+        transition: 'all 0.2s ease'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: findNewTrailsMode ? 10 : 0 }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: findNewTrailsMode ? '#1B5E20' : '#1D3B34' }}>
+            <input
+              type="checkbox"
+              checked={findNewTrailsMode}
+              onChange={(e) => onFindNewTrailsModeChange?.(e.target.checked)}
+              style={{ width: 16, height: 16, accentColor: '#2E6F40' }}
+            />
+            <span>✨ Find New Trails Mode</span>
+          </label>
+          {findNewTrailsMode && (
+            <span style={{ fontSize: 12, fontWeight: 700, color: '#2E6F40' }}>
+              {minNewTrailPercent}% unridden
+            </span>
+          )}
+        </div>
+        
+        {findNewTrailsMode && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#42675E' }}>
+              <span>Minimum Unridden Trails Target:</span>
+              <span className="num-tabular" style={{ fontWeight: 600 }}>{minNewTrailPercent}%</span>
+            </div>
+            <input
+              type="range"
+              min={10}
+              max={80}
+              step={5}
+              value={minNewTrailPercent}
+              onChange={(e) => onMinNewTrailPercentChange?.(Number(e.target.value))}
+              style={{ width: '100%', accentColor: '#2E6F40' }}
+            />
+            <div style={{ fontSize: 11, color: '#388E3C', marginTop: 2 }}>
+              Highlights trails with strong recent heat that you have not yet ridden or run based on your activity history.
+            </div>
+          </div>
+        )}
+      </section>
+
       {/* 6. Primary Action: Build Routes */}
+
       <button
         type="button"
         onClick={onBuildRoutes}

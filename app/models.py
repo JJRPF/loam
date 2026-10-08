@@ -38,6 +38,11 @@ class RouteRequest(BaseModel):
     avoid_closed: bool = True
     elevation_enriched: bool = True
     override_dnr: bool = False
+    find_new_trails_mode: bool = False
+    min_new_trail_percent: Optional[float] = Field(default=None, ge=0.0, le=100.0)
+    min_new_trail_miles: Optional[float] = Field(default=None, ge=0.0)
+    trail_run_steeper_grades: bool = False
+    trail_run_avoid_mtb_flow: bool = True
 
 class SurfaceSegment(BaseModel):
     start_index: int
@@ -45,6 +50,7 @@ class SurfaceSegment(BaseModel):
     surface_type: str # 'singletrack', 'doubletrack', 'gravel', 'paved', 'unpaved', 'unknown'
     raw_surface: Optional[str] = None
     raw_road_class: Optional[str] = None
+    is_unridden: bool = False
 
 class RouteResponse(BaseModel):
     id: Optional[str] = None
@@ -57,7 +63,7 @@ class RouteResponse(BaseModel):
     elevation_loss_ft: float
     surface_breakdown: Dict[str, float] # percentage per category e.g. {"singletrack": 65.2, "gravel": 25.0, ...}
     surface_strip: List[SurfaceSegment]
-    coordinates: List[List[float]] # [[lon, lat], [lon, lat], ...] GeoJSON style or [[lon, lat, ele]]
+    coordinates: List[List[float]] # [[lon, lat], ...] GeoJSON style or [[lon, lat, ele]]
     bbox: List[float] # [min_lon, min_lat, max_lon, max_lat]
     minimap_bounds: Optional[List[float]] = None
     minimap_svg: Optional[str] = None
@@ -71,6 +77,12 @@ class RouteResponse(BaseModel):
     score_breakdown: Optional[Dict[str, float]] = None
     repetition_ratio: Optional[float] = None
     verbal_summary: Optional[str] = None
+    # Stage 6: Find New Trails stats
+    is_find_new_trails: bool = False
+    unridden_miles: float = 0.0
+    unridden_percent: float = 0.0
+    unridden_segments_count: int = 0
+
 
 class RouteOptionsRequest(RouteRequest):
     candidate_count: int = Field(default=10, ge=1, le=25)
@@ -336,6 +348,82 @@ class UserDataExportResponse(BaseModel):
     activities: List[Dict[str, Any]]
     saved_routes: List[Dict[str, Any]]
     exported_at: str
+
+# =========================================================================
+# Stage 6: Differentiators (Find New Trails, Submissions, Connectors)
+# =========================================================================
+
+class TrailSubmissionCreate(BaseModel):
+    name: str = Field(..., min_length=2, max_length=120)
+    sport: str = Field(default="mtb", description="mtb, trail_run, gravel, foot")
+    difficulty: str = Field(default="intermediate", description="beginner, intermediate, advanced, expert")
+    coordinates: List[List[float]] = Field(..., min_length=2, description="List of [lon, lat] coordinates")
+    description: Optional[str] = None
+
+class TrailSubmissionResponse(BaseModel):
+    id: int
+    user_id: Optional[str] = None
+    name: str
+    sport: str
+    difficulty: str
+    status: str # 'pending', 'verified', 'rejected', 'taken_down'
+    verifier_count: int = 0
+    coordinates: List[List[float]]
+    length_miles: float = 0.0
+    description: Optional[str] = None
+    rejection_reason: Optional[str] = None
+    created_at: str
+    verified_at: Optional[str] = None
+
+class TrailSubmissionEvidenceCreate(BaseModel):
+    activity_id: Optional[str] = None
+    coordinates: Optional[List[List[float]]] = None
+
+class TrailSubmissionEvidenceResponse(BaseModel):
+    id: int
+    submission_id: int
+    user_id: str
+    activity_id: Optional[str] = None
+    verified_at: str
+    is_overlapping: bool = True
+    new_status: str
+
+class TrailSubmissionReviewRequest(BaseModel):
+    action: str = Field(..., pattern="^(approve|reject|reverse|takedown)$")
+    reason: Optional[str] = None
+
+class UnriddenTrailItem(BaseModel):
+    edge_osm_id: int
+    name: Optional[str] = None
+    sport: str
+    distance_miles: float
+    heat_score: float
+    coordinates: List[List[float]]
+    surface: Optional[str] = None
+
+class ConnectorStatus(BaseModel):
+    name: str # 'strava', 'garmin', 'trailforks'
+    display_name: str
+    enabled: bool
+    connected: bool
+    last_synced_at: Optional[str] = None
+    activity_count: int = 0
+    description: str
+
+class GarminLoginRequest(BaseModel):
+    username: str
+    password: str
+
+class StravaAuthRequest(BaseModel):
+    code: str
+    scope: Optional[str] = None
+
+class ConnectorSyncResponse(BaseModel):
+    connector: str
+    status: str # 'success', 'disabled', 'failed'
+    activities_imported: int = 0
+    message: Optional[str] = None
+
 
 
 
