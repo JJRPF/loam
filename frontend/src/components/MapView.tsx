@@ -6,11 +6,15 @@ import {
   NavigationControl, 
   ScaleControl, 
   GeolocateControl,
+  setWorkerUrl,
   type StyleSpecification, 
   type GeoJSONSource 
 } from 'maplibre-gl';
 import type { RouteResponse, LatLon } from '../types';
-import { fetchHeatTrails } from '../services/api';
+import { fetchHeatTrails, fetchOtmTrails } from '../services/api';
+
+// Explicitly register worker URL to guarantee local worker loading in dev & prod
+setWorkerUrl('/assets/maplibre-gl-worker.mjs');
 
 interface MapViewProps {
   route: RouteResponse | null;
@@ -102,6 +106,11 @@ export const MapView: React.FC<MapViewProps> = ({
   const [heatTrailCount, setHeatTrailCount] = useState<number>(0);
   const heatDataRef = useRef<any>(null);
 
+  // OpenTrailMap (OTM) trails state & cached GeoJSON
+  const [showOtmTrails, setShowOtmTrails] = useState<boolean>(false);
+  const [otmTrailCount, setOtmTrailCount] = useState<number>(0);
+  const otmDataRef = useRef<any>(null);
+
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
@@ -190,6 +199,26 @@ export const MapView: React.FC<MapViewProps> = ({
       })
       .catch((err) => {
         console.warn('Failed to load heat trails:', err);
+      });
+  }, []);
+
+  // Fetch OpenTrailMap (OTM) trails
+  useEffect(() => {
+    fetchOtmTrails()
+      .then((geojson) => {
+        if (!geojson || !geojson.features) return;
+        setOtmTrailCount(geojson.features.length);
+        otmDataRef.current = geojson;
+        const map = mapRef.current;
+        if (map) {
+          const src = map.getSource('otm-trails-source') as GeoJSONSource;
+          if (src) {
+            src.setData(geojson);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load OpenTrailMap trails:', err);
       });
   }, []);
 
@@ -298,6 +327,62 @@ export const MapView: React.FC<MapViewProps> = ({
         map.getCanvas().style.cursor = 'pointer';
       });
       map.on('mouseleave', 'heat-trails-line', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      // 1.5 OpenTrailMap (OTM) trails source & layer
+      map.addSource('otm-trails-source', {
+        type: 'geojson',
+        data: otmDataRef.current || {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: 'otm-trails-line',
+        type: 'line',
+        source: 'otm-trails-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+          visibility: showOtmTrails ? 'visible' : 'none'
+        },
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'difficulty'],
+            'expert', '#1A1A1A',
+            'advanced', '#1565C0',
+            'beginner', '#2E7D32',
+            '#0288D1'
+          ],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 13, 3, 16, 5],
+          'line-opacity': 0.85,
+          'line-dasharray': [3, 1]
+        }
+      });
+
+      map.on('click', 'otm-trails-line', (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feat = e.features[0];
+        const name = feat.properties?.name || 'OpenTrailMap Trail';
+        const diff = feat.properties?.difficulty || 'Standard';
+        const surf = feat.properties?.surface || 'natural';
+        new Popup({ offset: 10 })
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="font-family: -apple-system, sans-serif; font-size: 13px; color: #1D3B34; padding: 2px;">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 2px;">🌲 ${name}</div>
+            <div style="color: #0288D1; font-weight: 600; text-transform: capitalize;">Difficulty: ${diff}</div>
+            <div style="font-size: 11px; color: #64748B;">Surface: ${surf} | OpenTrailMap</div>
+          </div>`)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'otm-trails-line', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'otm-trails-line', () => {
         map.getCanvas().style.cursor = '';
       });
 
@@ -452,6 +537,21 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   }, [showHeatmap]);
 
+  // Sync OpenTrailMap layer visibility
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    try {
+      const vis = showOtmTrails ? 'visible' : 'none';
+      if (map.getLayer('otm-trails-line')) {
+        map.setLayoutProperty('otm-trails-line', 'visibility', vis);
+      }
+    } catch (err) {
+      console.warn('Error toggling OTM trail layer visibility:', err);
+    }
+  }, [showOtmTrails]);
+
   // Update Route GeoJSON when route changes
   useEffect(() => {
     applyRoute(route);
@@ -596,6 +696,45 @@ export const MapView: React.FC<MapViewProps> = ({
               }}
             >
               {heatTrailCount}
+            </span>
+          )}
+        </button>
+
+        {/* OpenTrailMap Layer Toggle Badge */}
+        <button
+          type="button"
+          onClick={() => setShowOtmTrails(!showOtmTrails)}
+          style={{
+            backgroundColor: showOtmTrails ? 'var(--color-header-bg, #1D3B34)' : 'rgba(255, 255, 255, 0.92)',
+            color: showOtmTrails ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
+            border: showOtmTrails ? '1px solid #0288D1' : '1px solid var(--color-divider, #D1D8D8)',
+            borderRadius: 20,
+            padding: '6px 14px',
+            fontSize: 12,
+            fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+          title={showOtmTrails ? 'Hide OpenTrailMap trails' : 'Show OpenTrailMap trails'}
+        >
+          <span>🌲</span>
+          <span>{showOtmTrails ? 'OTM Trails ON' : 'OTM Trails OFF'}</span>
+          {otmTrailCount > 0 && (
+            <span
+              style={{
+                backgroundColor: showOtmTrails ? '#0288D1' : '#E2E8F0',
+                color: showOtmTrails ? '#FFFFFF' : '#475569',
+                padding: '1px 6px',
+                borderRadius: 10,
+                fontSize: 10,
+                fontWeight: 700
+              }}
+            >
+              {otmTrailCount}
             </span>
           )}
         </button>

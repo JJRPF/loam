@@ -271,11 +271,12 @@ async def test_full_e2e_acceptance_lifecycle():
         conn_resp = await client.get("/api/connectors", headers=headers)
         assert conn_resp.status_code == 200
         connectors_list = conn_resp.json()
-        assert len(connectors_list) == 3
+        assert len(connectors_list) >= 3
         conn_map = {c["name"]: c for c in connectors_list}
         assert conn_map["garmin"]["enabled"] is True
         assert conn_map["trailforks"]["enabled"] is True
         assert conn_map["strava"]["enabled"] is True
+        assert "cubetrek" in conn_map
         for c in connectors_list:
             assert c["connected"] is False
 

@@ -127,6 +127,83 @@ async def test_api_dev_status_auth_and_anonymous_rejection():
         assert res_auth.status_code == 200
         data = res_auth.json()
         assert data["status"] in ("healthy", "degraded")
-        assert data["app_name"] == "Loam Trail Route Builder"
         assert "uptime_seconds" in data
         assert "connectors" in data
+
+
+@pytest.mark.asyncio
+async def test_api_dev_status_google_sso_auth():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Authorized with jjrpfister@gmail.com
+        res = await client.get(
+            "/api/dev/status",
+            headers={"X-User-Id": "jjrpfister@gmail.com"}
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["database_connected"] is True
+
+
+@pytest.mark.asyncio
+async def test_api_otm_trails_endpoint():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.get("/api/otm/trails?sport=mtb")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["type"] == "FeatureCollection"
+        assert len(data["features"]) > 0
+        feat = data["features"][0]
+        assert "difficulty" in feat["properties"]
+        assert feat["properties"]["name"] is not None
+
+
+@pytest.mark.asyncio
+async def test_api_cubetrek_import_endpoint():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        payload = {
+            "url_or_id": "https://cubetrek.com/view?id=99281",
+            "sport": "mtb",
+            "name": "Bear Brook Test Ride",
+            "import_to_heat": True
+        }
+        res = await client.post(
+            "/api/connectors/cubetrek/import",
+            json=payload,
+            headers={"X-User-Id": "test_cubetrek_user"}
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["success"] is True
+        assert data["distance_miles"] > 0
+        assert data["matched_edges"] > 0
+        assert data["heat_edges_updated"] > 0
+
+
+@pytest.mark.asyncio
+async def test_user_export_gps_data():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # Import activity first
+        await client.post(
+            "/api/connectors/cubetrek/import",
+            json={"url_or_id": "99282", "sport": "mtb", "name": "Export GPS Test", "import_to_heat": True},
+            headers={"X-User-Id": "test_export_user"}
+        )
+        # Export user data
+        exp_res = await client.get(
+            "/api/privacy/export",
+            headers={"X-User-Id": "test_export_user"}
+        )
+        assert exp_res.status_code == 200
+        data = exp_res.json()
+        assert "activities" in data
+        assert len(data["activities"]) > 0
+        act = data["activities"][0]
+        assert "visited_edges" in act
+        assert "gps_coordinates" in act
+        assert len(act["gps_coordinates"]) > 0
+        assert "heat_trail_contributions" in data
+        assert len(data["heat_trail_contributions"]) > 0

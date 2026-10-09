@@ -420,14 +420,26 @@ class GarminConnector(BaseConnector):
                         except Exception:
                             act_dt = now
 
-                        pts = self._generate_realistic_trackpoints(
-                            base_lon=float(start_lon),
-                            base_lat=float(start_lat),
-                            end_lon=float(end_lon) if end_lon is not None else None,
-                            end_lat=float(end_lat) if end_lat is not None else None,
-                            count=40,
-                            start_time=act_dt
-                        )
+                        pts = []
+                        try:
+                            gpx_bytes = g.download_activity(act_id, dl_fmt=g.ActivityDownloadFormat.GPX)
+                            if gpx_bytes:
+                                from app.activity_parser import parse_gpx_content
+                                parsed_pts, _, _ = parse_gpx_content(gpx_bytes)
+                                if parsed_pts and len(parsed_pts) >= 2:
+                                    pts = parsed_pts
+                        except Exception as dl_err:
+                            logger.debug(f"GPX download for Garmin activity {act_id} failed: {dl_err}")
+
+                        if not pts:
+                            pts = self._generate_realistic_trackpoints(
+                                base_lon=float(start_lon),
+                                base_lat=float(start_lat),
+                                end_lon=float(end_lon) if end_lon is not None else None,
+                                end_lat=float(end_lat) if end_lat is not None else None,
+                                count=40,
+                                start_time=act_dt
+                            )
 
                         parsed.append({
                             "external_id": f"garmin_act_{act_id}",

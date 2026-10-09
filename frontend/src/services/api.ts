@@ -1081,5 +1081,59 @@ export async function fetchHeatTrails(sport?: string): Promise<{ type: string; f
   return await res.json();
 }
 
+export async function fetchOtmTrails(params?: {
+  minLat?: number;
+  minLon?: number;
+  maxLat?: number;
+  maxLon?: number;
+  sport?: string;
+}): Promise<{ type: string; features: any[] }> {
+  const minLat = params?.minLat ?? 43.05;
+  const minLon = params?.minLon ?? -71.45;
+  const maxLat = params?.maxLat ?? 43.20;
+  const maxLon = params?.maxLon ?? -71.25;
+  const sport = params?.sport ?? 'mtb';
+  const url = `${API_BASE}/api/otm/trails?min_lat=${minLat}&min_lon=${minLon}&max_lat=${maxLat}&max_lon=${maxLon}&sport=${encodeURIComponent(sport)}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to load OpenTrailMap trails (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function fetchOtmTrailDetails(osmWayId: number): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/otm/trail/${osmWayId}`);
+  if (!res.ok) {
+    throw new Error(`Failed to load trail details (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function importCubeTrekActivity(
+  urlOrId: string,
+  sport: string = 'mtb',
+  name?: string,
+  importToHeat: boolean = true,
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/cubetrek/import`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({
+      url_or_id: urlOrId,
+      sport,
+      name,
+      import_to_heat: importToHeat
+    })
+  });
+  if (!res.ok) {
+    throw new Error(`CubeTrek import failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
 
 

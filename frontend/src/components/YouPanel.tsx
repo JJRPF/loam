@@ -3,7 +3,7 @@ import {
   uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
   exportMyData, deleteMyAccount,
   getConnectors, connectGarmin, verifyGarminMfa, connectStrava, connectTrailforks, bulkImportGarmin,
-  syncConnector, disconnectConnector
+  syncConnector, disconnectConnector, importCubeTrekActivity
 } from '../services/api';
 import { 
   getStoredUser, 
@@ -724,8 +724,45 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const [stravaSubmitting, setStravaSubmitting] = useState(false);
   const [stravaError, setStravaError] = useState<string | null>(null);
 
+  // CubeTrek import modal state
+  const [showCubeTrekModal, setShowCubeTrekModal] = useState(false);
+  const [cubetrekUrl, setCubetrekUrl] = useState('');
+  const [cubetrekSport, setCubetrekSport] = useState('mtb');
+  const [cubetrekName, setCubetrekName] = useState('');
+  const [cubetrekImportHeat, setCubetrekImportHeat] = useState(true);
+  const [cubetrekSubmitting, setCubetrekSubmitting] = useState(false);
+  const [cubetrekResult, setCubetrekResult] = useState<any>(null);
+  const [cubetrekError, setCubetrekError] = useState<string | null>(null);
+
   const currentUser = getStoredUser();
   const currentUserId = currentUser?.id || 'justin_default_user';
+
+  const handleImportCubeTrek = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!cubetrekUrl.trim()) return;
+
+    setCubetrekSubmitting(true);
+    setCubetrekError(null);
+    setCubetrekResult(null);
+
+    try {
+      const res = await importCubeTrekActivity(
+        cubetrekUrl.trim(),
+        cubetrekSport,
+        cubetrekName.trim() || undefined,
+        cubetrekImportHeat,
+        currentUserId
+      );
+      setCubetrekResult(res);
+      setStatusMsg(res.message || 'CubeTrek track successfully imported.');
+      setTimeout(() => setStatusMsg(null), 4000);
+      await loadConnectors();
+    } catch (err: any) {
+      setCubetrekError(err.message || 'CubeTrek track import failed');
+    } finally {
+      setCubetrekSubmitting(false);
+    }
+  };
 
   const loadConnectors = async () => {
     setLoading(true);
@@ -962,6 +999,17 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
                           Bulk Import Heat
                         </button>
                       )}
+                      {c.name === 'cubetrek' && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCubeTrekModal(true)}
+                          className="btn-primary"
+                          style={{ fontSize: 11, padding: '2px 8px', minHeight: 26 }}
+                          title="Import 3D track from CubeTrek URL"
+                        >
+                          Import Track
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => handleSync(c.name)}
@@ -987,12 +1035,13 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
                         if (c.name === 'garmin') setShowGarminModal(true);
                         else if (c.name === 'trailforks') setShowTrailforksModal(true);
                         else if (c.name === 'strava') setShowStravaModal(true);
+                        else if (c.name === 'cubetrek') setShowCubeTrekModal(true);
                         else alert(`${c.display_name} connector interface ready.`);
                       }}
                       className="btn-secondary"
                       style={{ fontSize: 11, padding: '2px 10px', minHeight: 26 }}
                     >
-                      Connect
+                      {c.name === 'cubetrek' ? 'Import / Connect' : 'Connect'}
                     </button>
                   )}
                 </div>
@@ -1395,6 +1444,163 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
                   style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
                 >
                   {stravaSubmitting ? 'Verifying Token...' : 'Connect Personal Token'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* CubeTrek Modal */}
+      {showCubeTrekModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.65)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => {
+            setShowCubeTrekModal(false);
+            setCubetrekError(null);
+            setCubetrekResult(null);
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              color: 'var(--color-text-primary, #1D3B34)',
+              borderRadius: 10,
+              maxWidth: 450,
+              width: '100%',
+              padding: 20,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 12,
+              border: '1px solid var(--color-divider, #D1D8D8)'
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: 15, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
+                Import CubeTrek GPS Track
+              </h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowCubeTrekModal(false);
+                  setCubetrekError(null);
+                  setCubetrekResult(null);
+                }}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0FDF4)', border: '1px solid var(--color-divider, #BBF7D0)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-text-secondary, #166534)', lineHeight: 1.4 }}>
+              <strong>CubeTrek 3D Track Visualizer:</strong> Paste any public CubeTrek share URL or activity ID (e.g. <code>https://cubetrek.com/view?id=83724</code>). Loam will extract the GPS trackpoints, apply your privacy zones, map-match to OSM trail edges, and enrich community heat.
+            </div>
+
+            {cubetrekResult && (
+              <div style={{ backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #86EFAC', padding: '10px 12px', borderRadius: 6, fontSize: 12 }}>
+                <strong>✓ Import Successful:</strong> {cubetrekResult.message}
+                <div style={{ marginTop: 4, fontSize: 11 }}>
+                  Distance: {cubetrekResult.distance_miles} mi • Matched {cubetrekResult.matched_edges} edges
+                </div>
+              </div>
+            )}
+
+            {cubetrekError && (
+              <div style={{ backgroundColor: '#FEE2E2', color: '#B91C1C', border: '1px solid #FCA5A5', padding: '8px 10px', borderRadius: 6, fontSize: 12 }}>
+                <strong>Error:</strong> {cubetrekError}
+              </div>
+            )}
+
+            <form onSubmit={handleImportCubeTrek} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 4 }}>
+                  CubeTrek Share URL or Track ID *
+                </label>
+                <input
+                  type="text"
+                  value={cubetrekUrl}
+                  onChange={(e) => setCubetrekUrl(e.target.value)}
+                  placeholder="https://cubetrek.com/view?id=83724 or 83724"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
+                  required
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 4 }}>
+                  Activity Name (Optional)
+                </label>
+                <input
+                  type="text"
+                  value={cubetrekName}
+                  onChange={(e) => setCubetrekName(e.target.value)}
+                  placeholder="e.g. Bear Brook Ridge Loop"
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 4 }}>
+                  Sport Profile
+                </label>
+                <select
+                  value={cubetrekSport}
+                  onChange={(e) => setCubetrekSport(e.target.value)}
+                  style={{ width: '100%', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
+                >
+                  <option value="mtb">Mountain Biking (MTB)</option>
+                  <option value="trail_run">Trail Running</option>
+                  <option value="gravel">Gravel Cycling</option>
+                  <option value="foot">Hiking / Foot</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                <input
+                  type="checkbox"
+                  id="cubetrek-heat-check"
+                  checked={cubetrekImportHeat}
+                  onChange={(e) => setCubetrekImportHeat(e.target.checked)}
+                />
+                <label htmlFor="cubetrek-heat-check" style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', cursor: 'pointer' }}>
+                  Contribute ridden trail edges to community heat layer (with privacy zones applied)
+                </label>
+              </div>
+
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCubeTrekModal(false);
+                    setCubetrekError(null);
+                    setCubetrekResult(null);
+                  }}
+                  className="btn-outline"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 10px' }}
+                >
+                  Close
+                </button>
+                <button
+                  type="submit"
+                  disabled={cubetrekSubmitting}
+                  className="btn-primary"
+                  style={{ fontSize: 12, minHeight: 32, padding: '4px 14px' }}
+                >
+                  {cubetrekSubmitting ? 'Importing Track...' : 'Import Track'}
                 </button>
               </div>
             </form>

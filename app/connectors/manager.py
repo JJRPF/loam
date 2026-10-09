@@ -3,6 +3,7 @@ from app.connectors.base import BaseConnector
 from app.connectors.strava import StravaConnector
 from app.connectors.garmin import GarminConnector
 from app.connectors.trailforks import TrailforksConnector
+from app.connectors.cubetrek import CubeTrekConnector
 
 class ConnectorManager:
     """Registry and coordinator for external data connectors."""
@@ -12,6 +13,7 @@ class ConnectorManager:
             "strava": StravaConnector(),
             "garmin": GarminConnector(),
             "trailforks": TrailforksConnector(),
+            "cubetrek": CubeTrekConnector(),
         }
 
     def get_connector(self, name: str) -> Optional[BaseConnector]:
