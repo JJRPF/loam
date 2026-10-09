@@ -897,10 +897,13 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const [stravaSubmitting, setStravaSubmitting] = useState(false);
   const [stravaError, setStravaError] = useState<string | null>(null);
 
+  const currentUser = getStoredUser();
+  const currentUserId = currentUser?.id || 'justin_default_user';
+
   const loadConnectors = async () => {
     setLoading(true);
     try {
-      const data = await getConnectors();
+      const data = await getConnectors(currentUserId);
       setConnectors(data);
     } catch (err) {
       console.error('Failed to load connectors:', err);
@@ -924,7 +927,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
         username: garminUser.trim(),
         password: garminPass.trim(),
         import_to_heat: garminImportHeat
-      });
+      }, currentUserId);
       if (res.needs_mfa) {
         setGarminNeedsMfa(true);
         setGarminMfaSessionId(res.mfa_session_id || '');
@@ -954,7 +957,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     setGarminSubmitting(true);
     setGarminError(null);
     try {
-      const res = await verifyGarminMfa(garminMfaSessionId, garminMfaCode.trim(), garminImportHeat);
+      const res = await verifyGarminMfa(garminMfaSessionId, garminMfaCode.trim(), garminImportHeat, currentUserId);
       setShowGarminModal(false);
       setGarminNeedsMfa(false);
       setGarminMfaCode('');
@@ -974,7 +977,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const handleBulkImportGarmin = async () => {
     try {
       setStatusMsg('Bulk importing Garmin activities to heat...');
-      const res = await bulkImportGarmin(true);
+      const res = await bulkImportGarmin(true, currentUserId);
       setStatusMsg(res.message || `Bulk imported ${res.activities_imported} activities to heat.`);
       setTimeout(() => setStatusMsg(null), 5000);
       await loadConnectors();
@@ -990,7 +993,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       const res = await connectTrailforks({
         username: tfUsername.trim() || undefined,
         token: tfToken.trim() || undefined
-      });
+      }, currentUserId);
       setShowTrailforksModal(false);
       setTfUsername('');
       setTfToken('');
@@ -1011,7 +1014,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     setStravaSubmitting(true);
     setStravaError(null);
     try {
-      const res = await connectStrava({ personal_token: stravaToken.trim() });
+      const res = await connectStrava({ personal_token: stravaToken.trim() }, currentUserId);
       setShowStravaModal(false);
       setStravaToken('');
       setStatusMsg(res.message || 'Strava personal API token connected! Encrypted at rest.');
@@ -1026,7 +1029,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
 
   const handleSync = async (provider: string) => {
     try {
-      const res = await syncConnector(provider, 'justin_default_user', true);
+      const res = await syncConnector(provider, currentUserId, true);
       setStatusMsg(res.message || `Synced ${provider}: ${res.activities_imported || 0} activities imported.`);
       setTimeout(() => setStatusMsg(null), 4000);
       await loadConnectors();
@@ -1040,7 +1043,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     if (!confirm) return;
 
     try {
-      await disconnectConnector(provider);
+      await disconnectConnector(provider, currentUserId);
       setStatusMsg(`${provider} disconnected.`);
       setTimeout(() => setStatusMsg(null), 3000);
       await loadConnectors();
