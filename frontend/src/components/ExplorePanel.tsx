@@ -120,32 +120,33 @@ export const ExplorePanel: React.FC = () => {
         name: subName.trim(),
         sport: subSport,
         difficulty: subDifficulty,
-        coordinates: parsedCoords,
-        description: subDesc.trim() || undefined
+        description: subDesc.trim() || undefined,
+        coordinates: parsedCoords
       });
       setShowSubmitModal(false);
       setSubName('');
       setSubDesc('');
       await loadSubmissions();
-      setReportedMessage('Trail submitted! It is now pending crowd verification.');
-      setTimeout(() => setReportedMessage(null), 4000);
     } catch (err: any) {
-      setSubmissionError(err.message || 'Submission failed');
+      setSubmissionError(err.message || 'Failed to submit trail');
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleAddEvidence = async (submissionId: number) => {
-    const riderId = prompt('Simulate rider identifier (e.g. rider_2, rider_3):', `rider_${Date.now() % 1000}`);
-    if (!riderId) return;
-
+  const handleAddEvidence = async (id: number) => {
     try {
-      const res = await submitTrailEvidence(submissionId, {}, riderId);
-      alert(`Evidence recorded! Status: ${res.status}. Contributing riders: ${res.evidence_count}/3.`);
+      await submitTrailEvidence(id, {
+        activity_id: `act_ev_${Date.now()}`,
+        coordinates: [
+          [-71.215, 44.025],
+          [-71.218, 44.029],
+          [-71.221, 44.032]
+        ]
+      });
       await loadSubmissions();
     } catch (err: any) {
-      alert(`Failed to add evidence: ${err.message}`);
+      alert(`Evidence submission failed: ${err.message}`);
     }
   };
 
@@ -154,22 +155,22 @@ export const ExplorePanel: React.FC = () => {
       await adminApproveSubmission(id);
       await loadSubmissions();
     } catch (err: any) {
-      alert(`Approve failed: ${err.message}`);
+      alert(`Approval failed: ${err.message}`);
     }
   };
 
   const handleReject = async (id: number) => {
-    const reason = prompt('Rejection reason (optional):', 'Violates trail rules or land boundary') || undefined;
+    const reason = prompt('Rejection reason (e.g. intersects private conservation easement):') || 'Rejected by steward';
     try {
       await adminRejectSubmission(id, reason);
       await loadSubmissions();
     } catch (err: any) {
-      alert(`Reject failed: ${err.message}`);
+      alert(`Rejection failed: ${err.message}`);
     }
   };
 
   const handleTakedown = async (id: number) => {
-    const reason = prompt('Takedown reason:', 'Private landowner request') || undefined;
+    const reason = prompt('Takedown reason (e.g. land manager formal request):') || 'Steward takedown';
     try {
       await adminTakedownSubmission(id, reason);
       await loadSubmissions();
@@ -190,7 +191,9 @@ export const ExplorePanel: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 14, padding: '4px 0 24px 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34', margin: 0 }}>Explore Trails & Heat</h2>
+        <h2 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
+          Explore Trails & Heat
+        </h2>
         {activeTab === 'submissions' && (
           <button
             type="button"
@@ -207,7 +210,7 @@ export const ExplorePanel: React.FC = () => {
       <div
         style={{
           display: 'flex',
-          backgroundColor: '#E2ECF3',
+          backgroundColor: 'var(--color-slate-light, #E2ECF3)',
           padding: 2,
           borderRadius: 8,
           gap: 2
@@ -224,8 +227,8 @@ export const ExplorePanel: React.FC = () => {
             borderRadius: 6,
             border: 'none',
             cursor: 'pointer',
-            backgroundColor: activeTab === 'featured' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'featured' ? '#1D3B34' : '#42675E',
+            backgroundColor: activeTab === 'featured' ? 'var(--color-card-bg, #FFFFFF)' : 'transparent',
+            color: activeTab === 'featured' ? 'var(--color-text-primary, #1D3B34)' : 'var(--color-text-secondary, #42675E)',
             boxShadow: activeTab === 'featured' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
             transition: 'all 0.15s ease'
           }}
@@ -243,8 +246,8 @@ export const ExplorePanel: React.FC = () => {
             borderRadius: 6,
             border: 'none',
             cursor: 'pointer',
-            backgroundColor: activeTab === 'unridden' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'unridden' ? '#1D3B34' : '#42675E',
+            backgroundColor: activeTab === 'unridden' ? 'var(--color-card-bg, #FFFFFF)' : 'transparent',
+            color: activeTab === 'unridden' ? 'var(--color-text-primary, #1D3B34)' : 'var(--color-text-secondary, #42675E)',
             boxShadow: activeTab === 'unridden' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
             transition: 'all 0.15s ease'
           }}
@@ -262,8 +265,8 @@ export const ExplorePanel: React.FC = () => {
             borderRadius: 6,
             border: 'none',
             cursor: 'pointer',
-            backgroundColor: activeTab === 'submissions' ? '#FFFFFF' : 'transparent',
-            color: activeTab === 'submissions' ? '#1D3B34' : '#42675E',
+            backgroundColor: activeTab === 'submissions' ? 'var(--color-card-bg, #FFFFFF)' : 'transparent',
+            color: activeTab === 'submissions' ? 'var(--color-text-primary, #1D3B34)' : 'var(--color-text-secondary, #42675E)',
             boxShadow: activeTab === 'submissions' ? '0 1px 3px rgba(0,0,0,0.1)' : 'none',
             transition: 'all 0.15s ease'
           }}
@@ -273,7 +276,7 @@ export const ExplorePanel: React.FC = () => {
       </div>
 
       {reportedMessage && (
-        <div style={{ fontSize: 12, color: '#1D3B34', backgroundColor: '#E7ECEC', padding: '8px 10px', borderRadius: 6 }}>
+        <div style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', backgroundColor: 'var(--color-bg-subtle, #E7ECEC)', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-divider)' }}>
           {reportedMessage}
         </div>
       )}
@@ -283,7 +286,7 @@ export const ExplorePanel: React.FC = () => {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
           {/* Network Selector */}
           <div>
-            <label style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 4 }}>
+            <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 4 }}>
               Featured Trail Network
             </label>
             <select
@@ -296,9 +299,9 @@ export const ExplorePanel: React.FC = () => {
                 width: '100%',
                 padding: '10px 12px',
                 borderRadius: 8,
-                border: '1px solid #D1D8D8',
-                backgroundColor: '#FFFFFF',
-                color: '#1D3B34',
+                border: '1px solid var(--color-input-border, #D1D8D8)',
+                backgroundColor: 'var(--color-input-bg, #FFFFFF)',
+                color: 'var(--color-text-primary, #1D3B34)',
                 fontSize: 14,
                 fontWeight: 600
               }}
@@ -312,23 +315,23 @@ export const ExplorePanel: React.FC = () => {
           </div>
 
           {/* Trail Card & Conditions */}
-          <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14 }}>
+          <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
               <div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34' }}>{activeNetwork.name}</h3>
-                <div style={{ fontSize: 12, color: '#42675E' }}>{activeNetwork.region}</div>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{activeNetwork.name}</h3>
+                <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>{activeNetwork.region}</div>
               </div>
-              <span style={{ fontSize: 11, fontWeight: 700, backgroundColor: '#A9BF7A', color: '#1D3B34', padding: '3px 8px', borderRadius: 4 }}>
+              <span style={{ fontSize: 11, fontWeight: 700, backgroundColor: 'var(--color-lichen, #A9BF7A)', color: '#1D3B34', padding: '3px 8px', borderRadius: 4 }}>
                 Open
               </span>
             </div>
 
-            <p style={{ fontSize: 13, color: '#1D3B34', lineHeight: 1.4, margin: '8px 0' }}>
+            <p style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)', lineHeight: 1.4, margin: '8px 0' }}>
               {activeNetwork.description}
             </p>
 
             {/* Trail Trust Info */}
-            <div style={{ backgroundColor: '#F3F7F7', padding: 10, borderRadius: 6, fontSize: 12, color: '#1D3B34', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8 }}>
+            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: 10, borderRadius: 6, fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8, border: '1px solid var(--color-divider)' }}>
               <div>• <strong>Status:</strong> Confirmed open 2 days ago by 6 local riders.</div>
               <div>• <strong>Recency Heat:</strong> High usage in the last 12 months.</div>
               <div>• <strong>Access:</strong> Public multi-use state park. No active DNR restrictions.</div>
@@ -340,7 +343,7 @@ export const ExplorePanel: React.FC = () => {
                 type="button"
                 onClick={handleConfirmOpen}
                 className="btn-secondary"
-                style={{ flex: 1, fontSize: 13, borderColor: '#A9BF7A', color: '#1D3B34' }}
+                style={{ flex: 1, fontSize: 13, borderColor: 'var(--color-lichen, #A9BF7A)', color: 'var(--color-text-primary, #1D3B34)' }}
               >
                 Still Open
               </button>
@@ -348,7 +351,7 @@ export const ExplorePanel: React.FC = () => {
                 type="button"
                 onClick={handleReportProblem}
                 className="btn-outline"
-                style={{ flex: 1, fontSize: 13, color: '#C73E00' }}
+                style={{ flex: 1, fontSize: 13, color: 'var(--color-blaze, #C73E00)', borderColor: 'var(--color-divider)' }}
               >
                 Report Problem
               </button>
@@ -356,11 +359,11 @@ export const ExplorePanel: React.FC = () => {
           </div>
 
           {/* Heat Layer Guide */}
-          <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 14 }}>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34', marginBottom: 4 }}>
+          <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
+            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 4 }}>
               Community Heat Layer
             </h3>
-            <p style={{ fontSize: 13, color: '#42675E', lineHeight: 1.4 }}>
+            <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', lineHeight: 1.4 }}>
               Trails are weighted by verified activity over a 12-month window. Ghost trails and overgrown doubletracks are automatically deprioritized.
             </p>
           </div>
@@ -370,13 +373,13 @@ export const ExplorePanel: React.FC = () => {
       {/* TAB 2: Trails New To You */}
       {activeTab === 'unridden' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ backgroundColor: '#F0F9FF', border: '1px solid #BAE6FD', borderRadius: 8, padding: 12, fontSize: 13, color: '#0369A1' }}>
+          <div style={{ backgroundColor: 'var(--color-bg-subtle, #F0F9FF)', border: '1px solid var(--color-divider, #BAE6FD)', borderRadius: 8, padding: 12, fontSize: 13, color: 'var(--color-text-secondary, #0369A1)' }}>
             <div style={{ fontWeight: 700, marginBottom: 2 }}>High-Heat Trails You Haven't Ridden</div>
             <div>These trails have strong community ride activity in the last 12 months, but no visits recorded in your activity history.</div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: 13, fontWeight: 700, color: '#1D3B34' }}>
+            <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
               {isLoadingUnridden ? 'Loading unridden trails...' : `${unriddenTrails.length} Trails Available`}
             </span>
             <button
@@ -391,7 +394,7 @@ export const ExplorePanel: React.FC = () => {
           </div>
 
           {unriddenTrails.length === 0 && !isLoadingUnridden ? (
-            <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 16, textAlign: 'center', color: '#42675E', fontSize: 13 }}>
+            <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 16, textAlign: 'center', color: 'var(--color-text-secondary, #42675E)', fontSize: 13 }}>
               No unridden high-heat trails found in the active region, or you've explored them all!
             </div>
           ) : (
@@ -400,9 +403,9 @@ export const ExplorePanel: React.FC = () => {
                 <div
                   key={trail.edge_osm_id}
                   style={{
-                    backgroundColor: '#FFFFFF',
+                    backgroundColor: 'var(--color-card-bg, #FFFFFF)',
                     borderRadius: 8,
-                    border: '1px solid #D1D8D8',
+                    border: '1px solid var(--color-divider, #D1D8D8)',
                     padding: '10px 12px',
                     display: 'flex',
                     flexDirection: 'column',
@@ -410,7 +413,7 @@ export const ExplorePanel: React.FC = () => {
                   }}
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                    <div style={{ fontWeight: 700, fontSize: 14, color: '#1D3B34' }}>
+                    <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text-primary, #1D3B34)' }}>
                       {trail.name || `Trail #${trail.edge_osm_id}`}
                     </div>
                     <span
@@ -419,16 +422,16 @@ export const ExplorePanel: React.FC = () => {
                         fontWeight: 700,
                         padding: '1px 6px',
                         borderRadius: 3,
-                        backgroundColor: '#E0F2FE',
-                        color: '#0369A1',
-                        border: '1px solid #BAE6FD'
+                        backgroundColor: 'var(--color-slate-light, #E0F2FE)',
+                        color: 'var(--color-slate, #0369A1)',
+                        border: '1px solid var(--color-divider)'
                       }}
                     >
                       ✨ New to you
                     </span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 8, fontSize: 12, color: '#42675E' }}>
+                  <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
                     <span>{trail.distance_miles.toFixed(2)} mi</span>
                     <span>•</span>
                     <span style={{ textTransform: 'capitalize' }}>{trail.surface || 'Singletrack'}</span>
@@ -445,7 +448,7 @@ export const ExplorePanel: React.FC = () => {
       {/* TAB 3: Trail Submissions & Verification */}
       {activeTab === 'submissions' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-          <div style={{ backgroundColor: '#F3F7F7', border: '1px solid #D1D8D8', borderRadius: 8, padding: 12, fontSize: 12, color: '#1D3B34' }}>
+          <div style={{ backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', border: '1px solid var(--color-divider, #D1D8D8)', borderRadius: 8, padding: 12, fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
             <div style={{ fontWeight: 700, marginBottom: 2 }}>GPS-Backed Verification Policy</div>
             <div>
               New trails remain <em>pending</em> and hidden until confirmed by overlapping GPS evidence from at least <strong>3 unique riders</strong> within 12 months with no hard restrictions intersected.
@@ -453,8 +456,8 @@ export const ExplorePanel: React.FC = () => {
           </div>
 
           {/* Filter Bar */}
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#42675E' }}>Status:</span>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-secondary, #42675E)' }}>Status:</span>
             {['all', 'pending', 'verified', 'rejected', 'taken_down'].map((f) => (
               <button
                 key={f}
@@ -465,9 +468,9 @@ export const ExplorePanel: React.FC = () => {
                   fontWeight: 600,
                   padding: '3px 8px',
                   borderRadius: 4,
-                  border: submissionFilter === f ? '1px solid #1D3B34' : '1px solid #D1D8D8',
-                  backgroundColor: submissionFilter === f ? '#1D3B34' : '#FFFFFF',
-                  color: submissionFilter === f ? '#FFFFFF' : '#1D3B34',
+                  border: submissionFilter === f ? '1px solid var(--color-blaze, #FF5B14)' : '1px solid var(--color-divider, #D1D8D8)',
+                  backgroundColor: submissionFilter === f ? 'var(--color-blaze, #FF5B14)' : 'var(--color-card-bg, #FFFFFF)',
+                  color: submissionFilter === f ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
                   cursor: 'pointer',
                   textTransform: 'capitalize'
                 }}
@@ -479,9 +482,9 @@ export const ExplorePanel: React.FC = () => {
 
           {/* Submissions List */}
           {isLoadingSubmissions ? (
-            <div style={{ fontSize: 13, color: '#42675E', textAlign: 'center', padding: 16 }}>Loading submissions...</div>
+            <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', padding: 16 }}>Loading submissions...</div>
           ) : submissions.length === 0 ? (
-            <div style={{ backgroundColor: '#FFFFFF', borderRadius: 8, border: '1px solid #D1D8D8', padding: 16, textAlign: 'center', color: '#42675E', fontSize: 13 }}>
+            <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 16, textAlign: 'center', color: 'var(--color-text-secondary, #42675E)', fontSize: 13 }}>
               No submissions found for the "{submissionFilter}" filter.
             </div>
           ) : (
@@ -499,9 +502,9 @@ export const ExplorePanel: React.FC = () => {
                   <div
                     key={sub.id}
                     style={{
-                      backgroundColor: '#FFFFFF',
+                      backgroundColor: 'var(--color-card-bg, #FFFFFF)',
                       borderRadius: 8,
-                      border: '1px solid #D1D8D8',
+                      border: '1px solid var(--color-divider, #D1D8D8)',
                       padding: 12,
                       display: 'flex',
                       flexDirection: 'column',
@@ -510,8 +513,8 @@ export const ExplorePanel: React.FC = () => {
                   >
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                       <div>
-                        <div style={{ fontSize: 14, fontWeight: 700, color: '#1D3B34' }}>{sub.name}</div>
-                        <div style={{ fontSize: 12, color: '#42675E', marginTop: 1 }}>
+                        <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{sub.name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', marginTop: 1 }}>
                           Sport: <strong>{sub.sport}</strong> • Difficulty: <strong>{sub.difficulty}</strong>
                         </div>
                       </div>
@@ -531,12 +534,12 @@ export const ExplorePanel: React.FC = () => {
                     </div>
 
                     {sub.description && (
-                      <div style={{ fontSize: 12, color: '#1D3B34', backgroundColor: '#F8F9FA', padding: '6px 8px', borderRadius: 4 }}>
+                      <div style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', backgroundColor: 'var(--color-bg-subtle, #F8F9FA)', padding: '6px 8px', borderRadius: 4, border: '1px solid var(--color-divider)' }}>
                         {sub.description}
                       </div>
                     )}
 
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: '#42675E', marginTop: 2 }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 11, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
                       <div>
                         GPS Evidence: <strong>{sub.verifier_count} / 3 unique riders</strong>
                       </div>
@@ -544,19 +547,19 @@ export const ExplorePanel: React.FC = () => {
                     </div>
 
                     {sub.rejection_reason && (
-                      <div style={{ fontSize: 11, color: '#991B1B', fontStyle: 'italic' }}>
+                      <div style={{ fontSize: 11, color: '#FF6B6B', fontStyle: 'italic' }}>
                         Reason: {sub.rejection_reason}
                       </div>
                     )}
 
                     {/* Action & Moderation Controls */}
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingTop: 6, borderTop: '1px solid #F0F0F0' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--color-divider, #F0F0F0)' }}>
                       {sub.status === 'pending' && (
                         <button
                           type="button"
                           onClick={() => handleAddEvidence(sub.id)}
                           className="btn-outline"
-                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, borderColor: '#0369A1', color: '#0369A1' }}
+                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, borderColor: 'var(--color-slate, #0369A1)', color: 'var(--color-slate, #0369A1)' }}
                           title="Simulate overlapping ride track from a new rider to test auto-verification"
                         >
                           + Add GPS Evidence
@@ -567,7 +570,7 @@ export const ExplorePanel: React.FC = () => {
                           type="button"
                           onClick={() => handleApprove(sub.id)}
                           className="btn-outline"
-                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, color: '#065F46', borderColor: '#A7F3D0' }}
+                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, color: '#A9BF7A', borderColor: 'var(--color-divider)' }}
                         >
                           Approve
                         </button>
@@ -577,7 +580,7 @@ export const ExplorePanel: React.FC = () => {
                           type="button"
                           onClick={() => handleReject(sub.id)}
                           className="btn-outline"
-                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, color: '#991B1B', borderColor: '#FECACA' }}
+                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, color: '#FF6B6B', borderColor: 'var(--color-divider)' }}
                         >
                           Reject
                         </button>
@@ -587,7 +590,7 @@ export const ExplorePanel: React.FC = () => {
                           type="button"
                           onClick={() => handleTakedown(sub.id)}
                           className="btn-outline"
-                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, color: '#6B21A8', borderColor: '#E9D5FF' }}
+                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, color: '#C084FC', borderColor: 'var(--color-divider)' }}
                         >
                           Takedown
                         </button>
@@ -597,7 +600,7 @@ export const ExplorePanel: React.FC = () => {
                           type="button"
                           onClick={() => handleReverse(sub.id)}
                           className="btn-outline"
-                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26 }}
+                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, borderColor: 'var(--color-divider)' }}
                         >
                           Reverse
                         </button>
@@ -620,7 +623,7 @@ export const ExplorePanel: React.FC = () => {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.45)',
+            backgroundColor: 'rgba(0,0,0,0.65)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -631,24 +634,28 @@ export const ExplorePanel: React.FC = () => {
         >
           <div
             style={{
-              backgroundColor: '#FFFFFF',
+              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
+              color: 'var(--color-text-primary, #1D3B34)',
               borderRadius: 10,
               maxWidth: 440,
               width: '100%',
               padding: 18,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.2)',
+              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
               display: 'flex',
               flexDirection: 'column',
-              gap: 12
+              gap: 12,
+              border: '1px solid var(--color-divider, #D1D8D8)'
             }}
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, color: '#1D3B34', margin: 0 }}>Submit New Trail</h3>
+              <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
+                Submit New Trail
+              </h3>
               <button
                 type="button"
                 onClick={() => setShowSubmitModal(false)}
-                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: '#888' }}
+                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
               >
                 ✕
               </button>
@@ -656,7 +663,7 @@ export const ExplorePanel: React.FC = () => {
 
             <form onSubmit={handleCreateSubmission} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                   Trail Name
                 </label>
                 <input
@@ -664,20 +671,20 @@ export const ExplorePanel: React.FC = () => {
                   placeholder="e.g. Whiteface Ridge Connector"
                   value={subName}
                   onChange={(e) => setSubName(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
                   required
                 />
               </div>
 
               <div style={{ display: 'flex', gap: 8 }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                     Sport
                   </label>
                   <select
                     value={subSport}
                     onChange={(e) => setSubSport(e.target.value)}
-                    style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13 }}
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
                   >
                     <option value="mtb">MTB</option>
                     <option value="trail_run">Trail Run</option>
@@ -685,13 +692,13 @@ export const ExplorePanel: React.FC = () => {
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                  <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                     Difficulty
                   </label>
                   <select
                     value={subDifficulty}
                     onChange={(e) => setSubDifficulty(e.target.value)}
-                    style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13 }}
+                    style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
                   >
                     <option value="green">Green (Easy)</option>
                     <option value="blue">Blue (Moderate)</option>
@@ -702,7 +709,7 @@ export const ExplorePanel: React.FC = () => {
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                   Description (Optional)
                 </label>
                 <input
@@ -710,27 +717,27 @@ export const ExplorePanel: React.FC = () => {
                   placeholder="e.g. Hand-built singletrack along ravine"
                   value={subDesc}
                   onChange={(e) => setSubDesc(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 13, boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13, boxSizing: 'border-box' }}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 12, fontWeight: 700, color: '#1D3B34', display: 'block', marginBottom: 3 }}>
+                <label style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 3 }}>
                   Coordinates (lon, lat per line)
                 </label>
                 <textarea
                   rows={4}
                   value={subCoords}
                   onChange={(e) => setSubCoords(e.target.value)}
-                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid #D1D8D8', fontSize: 12, fontFamily: 'monospace', boxSizing: 'border-box' }}
+                  style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 12, fontFamily: 'monospace', boxSizing: 'border-box' }}
                 />
-                <div style={{ fontSize: 11, color: '#42675E', marginTop: 2 }}>
+                <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
                   GPS trail vertices. At least 2 points required.
                 </div>
               </div>
 
               {submissionError && (
-                <div style={{ fontSize: 12, color: '#D32F2F', backgroundColor: '#FFF0F0', padding: '6px 8px', borderRadius: 4 }}>
+                <div style={{ fontSize: 12, color: '#FF6B6B', backgroundColor: 'rgba(255, 107, 107, 0.1)', padding: '6px 8px', borderRadius: 4, border: '1px solid var(--color-divider)' }}>
                   {submissionError}
                 </div>
               )}
@@ -760,3 +767,5 @@ export const ExplorePanel: React.FC = () => {
     </div>
   );
 };
+
+export default ExplorePanel;

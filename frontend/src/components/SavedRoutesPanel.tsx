@@ -179,7 +179,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
               <button
                 type="button"
                 onClick={(e) => handleDelete(r.id, e)}
-                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'transparent', color: '#A00', border: 'none' }}
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'transparent', color: 'var(--color-blaze, #FF5B14)', border: 'none' }}
               >
                 Delete
               </button>

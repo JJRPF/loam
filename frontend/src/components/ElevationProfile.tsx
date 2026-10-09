@@ -158,14 +158,14 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
       {/* Elevation Stats Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, color: '#1D3B34' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}>
         <div>
-          <span style={{ fontWeight: 700, fontSize: 15, color: '#1D3B34' }}>Elevation Profile</span>
-          <span style={{ marginLeft: 8, color: '#42675E' }}>
+          <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text-primary, #1D3B34)' }}>Elevation Profile</span>
+          <span style={{ marginLeft: 8, color: 'var(--color-text-secondary, #42675E)' }}>
             +{Math.round(elevationGainFt)} ft / -{Math.round(elevationLossFt)} ft
           </span>
         </div>
-        <div className="num-tabular" style={{ color: '#42675E', fontSize: 12 }}>
+        <div className="num-tabular" style={{ color: 'var(--color-text-secondary, #42675E)', fontSize: 12 }}>
           {minEle} ft – {maxEle} ft
         </div>
       </div>
@@ -177,9 +177,9 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
           position: 'relative',
           width: '100%',
           height: 100,
-          backgroundColor: '#FFFFFF',
+          backgroundColor: 'var(--color-card-bg, #FFFFFF)',
           borderRadius: 8,
-          border: '1px solid #D1D8D8',
+          border: '1px solid var(--color-divider, #D1D8D8)',
           overflow: 'hidden',
           cursor: 'crosshair',
           touchAction: 'none'
@@ -207,7 +207,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
             <path
               d={pathD}
               fill="none"
-              stroke="#1D3B34"
+              stroke="var(--color-text-primary, #1D3B34)"
               strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
@@ -215,7 +215,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
           )}
 
           {/* Grid line at base */}
-          <line x1="0" y1={height - 2} x2={width} y2={height - 2} stroke="#D1D8D8" strokeWidth="1" />
+          <line x1="0" y1={height - 2} x2={width} y2={height - 2} stroke="var(--color-divider, #D1D8D8)" strokeWidth="1" />
         </svg>
 
         {/* Hover Crosshair & Tooltip */}
@@ -228,7 +228,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
                 bottom: 0,
                 left: hoverData.x,
                 width: 2,
-                backgroundColor: '#FF5B14',
+                backgroundColor: 'var(--color-blaze, #FF5B14)',
                 pointerEvents: 'none'
               }}
             />
@@ -237,9 +237,10 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
                 position: 'absolute',
                 top: 8,
                 left: hoverData.tooltipLeft,
-                backgroundColor: '#1D3B34',
-                color: '#FFFFFF',
+                backgroundColor: 'var(--color-header-bg, #1D3B34)',
+                color: 'var(--color-header-text, #FFFFFF)',
                 borderRadius: 6,
+                border: '1px solid var(--color-divider, rgba(255,255,255,0.2))',
                 padding: '4px 8px',
                 fontSize: 12,
                 pointerEvents: 'none',
@@ -251,7 +252,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
               <div style={{ fontWeight: 700 }}>
                 {hoverData.distMi} mi • {hoverData.eleFt} ft
               </div>
-              <div style={{ color: '#A9BF7A', fontSize: 11, textTransform: 'capitalize' }}>
+              <div style={{ color: 'var(--color-lichen, #A9BF7A)', fontSize: 11, textTransform: 'capitalize' }}>
                 {hoverData.surfaceType} {hoverData.gradePct !== 0 ? `(${hoverData.gradePct > 0 ? '+' : ''}${hoverData.gradePct}%)` : ''}
               </div>
             </div>

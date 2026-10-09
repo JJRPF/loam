@@ -33,7 +33,7 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
 
   if (!strip || strip.length === 0) {
     return (
-      <div style={{ height: compact ? 6 : 12, backgroundColor: '#E0E0E0', borderRadius: 4 }} />
+      <div style={{ height: compact ? 6 : 12, backgroundColor: 'var(--color-divider, #E0E0E0)', borderRadius: 4 }} />
     );
   }
 
@@ -53,7 +53,7 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
           height: compact ? 8 : 14,
           borderRadius: 6,
           overflow: 'hidden',
-          backgroundColor: '#CFD8DC',
+          backgroundColor: 'var(--color-divider, #CFD8DC)',
           position: 'relative',
           boxShadow: 'inset 0 1px 2px rgba(0,0,0,0.1)'
         }}
@@ -102,12 +102,13 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
               position: 'absolute',
               top: -30,
               left: Math.min(Math.max(activeTooltip.x - 45, 10), 280),
-              backgroundColor: '#1D3B34',
-              color: '#FFFFFF',
+              backgroundColor: 'var(--color-header-bg, #1D3B34)',
+              color: 'var(--color-header-text, #FFFFFF)',
               fontSize: 12,
               fontWeight: 600,
               padding: '2px 8px',
               borderRadius: 4,
+              border: '1px solid var(--color-divider, rgba(255,255,255,0.2))',
               pointerEvents: 'none',
               whiteSpace: 'nowrap',
               zIndex: 10,
@@ -128,7 +129,7 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
             alignItems: 'center',
             gap: '10px 14px',
             fontSize: 13,
-            color: '#1D3B34'
+            color: 'var(--color-text-primary, #1D3B34)'
           }}
         >
           {Object.entries(breakdown).map(([surfaceKey, pct]) => {
@@ -146,7 +147,7 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
                   }}
                 />
                 <span style={{ fontWeight: 600 }}>{conf.label}:</span>
-                <span className="num-tabular" style={{ color: '#42675E' }}>{pct}%</span>
+                <span className="num-tabular" style={{ color: 'var(--color-text-secondary, #42675E)' }}>{pct}%</span>
               </div>
             );
           })}
@@ -161,8 +162,8 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
                   backgroundColor: '#38BDF8'
                 }}
               />
-              <span style={{ fontWeight: 600, color: '#0369A1' }}>✨ New to you:</span>
-              <span className="num-tabular" style={{ color: '#0369A1', fontWeight: 700 }}>{unriddenPct}%</span>
+              <span style={{ fontWeight: 600, color: 'var(--color-slate, #0369A1)' }}>✨ New to you:</span>
+              <span className="num-tabular" style={{ color: 'var(--color-slate, #0369A1)', fontWeight: 700 }}>{unriddenPct}%</span>
             </div>
           )}
         </div>

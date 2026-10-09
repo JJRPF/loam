@@ -164,17 +164,13 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     setEndResults([]);
   };
 
-  // Functionally active sports mapping per Item 6
-  // Keep only: MTB, Gravel, Trail Run
-  const activeSport = sport === 'mtb_gravel' ? 'gravel' : (sport === 'trail_run' ? 'trail_run' : 'mtb');
+  // Functionally active sports: Mountain Bike and Trail Run
+  const activeSport = sport === 'trail_run' ? 'trail_run' : 'mtb';
 
-  const handleSportSelect = (targetSport: 'mtb' | 'gravel' | 'trail_run') => {
+  const handleSportSelect = (targetSport: 'mtb' | 'trail_run') => {
     if (targetSport === 'mtb') {
       onSportChange('mtb');
       handleApplyTerrainPreset("Mostly Trail");
-    } else if (targetSport === 'gravel') {
-      onSportChange('mtb_gravel');
-      handleApplyTerrainPreset("Gravel Grind");
     } else {
       onSportChange('trail_run');
       handleApplyTerrainPreset("Mostly Trail");
@@ -184,7 +180,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16, padding: '4px 0 24px 0' }}>
       
-      {/* 1. Sport Mode Selector: Functionally active choices only */}
+      {/* 1. Sport Mode Selector: Mountain Bike & Trail Run */}
       <section>
         <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
           Sport & Route Profile
@@ -192,7 +188,6 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         <div style={{ display: 'flex', gap: 8 }}>
           {[
             { id: 'mtb', label: '🚵 Mountain Bike' },
-            { id: 'gravel', label: '🚲 Gravel' },
             { id: 'trail_run', label: '🏃 Trail Run' }
           ].map(s => {
             const isSelected = activeSport === s.id;
@@ -587,7 +582,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         </div>
 
         {/* Segmented Terrain Visual Preview Bar */}
-        <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 12, backgroundColor: '#E0E0E0' }}>
+        <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 12, backgroundColor: 'var(--color-divider, #E0E0E0)' }}>
           <div style={{ width: `${terrainPref.singletrack * 100}%`, backgroundColor: '#2E6F40' }} title="Singletrack" />
           <div style={{ width: `${terrainPref.doubletrack * 100}%`, backgroundColor: '#8D6E63' }} title="Doubletrack" />
           <div style={{ width: `${terrainPref.gravel * 100}%`, backgroundColor: '#D4A373' }} title="Gravel" />
@@ -636,14 +631,14 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
 
       {/* 5c. Find New Trails Mode (Stage 6 Differentiator) */}
       <section style={{
-        backgroundColor: findNewTrailsMode ? 'rgba(46, 111, 64, 0.12)' : 'var(--color-bg-subtle, #F3F7F7)',
+        backgroundColor: findNewTrailsMode ? 'rgba(46, 111, 64, 0.15)' : 'var(--color-bg-subtle, #F3F7F7)',
         padding: '12px 14px',
         borderRadius: 8,
-        border: `1px solid ${findNewTrailsMode ? '#81C784' : 'var(--color-divider, #D1D8D8)'}`,
+        border: `1px solid ${findNewTrailsMode ? 'var(--color-lichen, #81C784)' : 'var(--color-divider, #D1D8D8)'}`,
         transition: 'all 0.2s ease'
       }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: findNewTrailsMode ? 10 : 0 }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: findNewTrailsMode ? '#2E6F40' : 'var(--color-text-primary, #1D3B34)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13, fontWeight: 700, color: findNewTrailsMode ? 'var(--color-lichen, #2E6F40)' : 'var(--color-text-primary, #1D3B34)' }}>
             <input
               type="checkbox"
               checked={findNewTrailsMode}
@@ -653,7 +648,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
             <span>✨ Find New Trails Mode</span>
           </label>
           {findNewTrailsMode && (
-            <span style={{ fontSize: 12, fontWeight: 700, color: '#2E6F40' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-lichen, #2E6F40)' }}>
               {minNewTrailPercent}% unridden
             </span>
           )}
@@ -674,7 +669,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
               onChange={(e) => onMinNewTrailPercentChange?.(Number(e.target.value))}
               style={{ width: '100%', accentColor: '#2E6F40' }}
             />
-            <div style={{ fontSize: 11, color: '#2E6F40', marginTop: 2 }}>
+            <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
               Highlights trails with strong recent heat that you have not yet ridden or run based on your activity history.
             </div>
           </div>

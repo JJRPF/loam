@@ -301,28 +301,48 @@ export async function downloadFit(route: RouteResponse): Promise<void> {
 export async function shareRouteGarmin(route: RouteResponse): Promise<{ shared: boolean; message: string }> {
   const filename = `${(route.name || 'loam_route').toLowerCase().replace(/\s+/g, '_')}.gpx`;
   const gpxContent = generateClientGpx(route);
-  const file = new File([gpxContent], filename, { type: 'application/gpx+xml' });
 
-  if (navigator.share && navigator.canShare && navigator.canShare({ files: [file] })) {
+  if (navigator.share) {
+    // Try file share with multiple MIME types compatible with iOS Safari & Android
+    const candidateMimes = ['application/gpx+xml', 'application/octet-stream', 'text/xml', 'text/plain'];
+    for (const mime of candidateMimes) {
+      try {
+        const file = new File([gpxContent], filename, { type: mime });
+        if (navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({
+            title: route.name || 'Loam Route',
+            text: `Open in Garmin Connect (Route Import): ${route.distance_miles.toFixed(1)} mi • +${Math.round(route.elevation_gain_ft)} ft`,
+            files: [file]
+          });
+          return { shared: true, message: 'Phone share modal opened! Select Garmin Connect to import course.' };
+        }
+      } catch (e: any) {
+        if (e.name === 'AbortError') {
+          return { shared: false, message: 'Share sheet dismissed.' };
+        }
+      }
+    }
+
+    // If file sharing is not supported by device, trigger native share modal with course text/url
     try {
       await navigator.share({
         title: `${route.name || 'Loam Route'} (Garmin Course)`,
-        text: `Open in Garmin Connect: ${route.distance_miles.toFixed(1)} mi with ${Math.round(route.elevation_gain_ft)} ft elevation gain.`,
-        files: [file]
+        text: `Open in Garmin Connect to import course: ${route.distance_miles.toFixed(1)} mi • +${Math.round(route.elevation_gain_ft)} ft`,
+        url: window.location.href
       });
-      return { shared: true, message: 'Shared to Garmin Connect sheet!' };
+      return { shared: true, message: 'Phone share modal opened! Select Garmin Connect to import course.' };
     } catch (e: any) {
-      if (e.name !== 'AbortError') {
-        console.error('Share failed', e);
+      if (e.name === 'AbortError') {
+        return { shared: false, message: 'Share sheet dismissed.' };
       }
     }
   }
 
-  // Fallback: download GPX and inform user
+  // Fallback for desktop or environments without Web Share API: download GPX
   await downloadGpx(route);
   return { 
     shared: false, 
-    message: 'GPX downloaded! Open the downloaded file in Garmin Connect on your phone or sync to your fenix 7 Pro.' 
+    message: 'Native phone share modal is available on mobile. GPX downloaded for Garmin route import.' 
   };
 }
 
@@ -879,7 +899,7 @@ export async function getConnectors(userId: string = 'justin_default_user'): Pro
 }
 
 export async function connectGarmin(
-  credentials: { username: string; password: string },
+  credentials: { username: string; password: string; import_to_heat?: boolean; mfa_code?: string; mfa_session_id?: string },
   userId: string = 'justin_default_user'
 ): Promise<any> {
   const res = await fetch(`${API_BASE}/api/connectors/garmin/login`, {
@@ -888,7 +908,13 @@ export async function connectGarmin(
       'Content-Type': 'application/json',
       'X-User-Id': userId
     },
-    body: JSON.stringify(credentials)
+    body: JSON.stringify({
+      username: credentials.username,
+      password: credentials.password,
+      import_to_heat: credentials.import_to_heat ?? true,
+      mfa_code: credentials.mfa_code,
+      mfa_session_id: credentials.mfa_session_id
+    })
   });
   if (!res.ok) {
     throw new Error(`Garmin login failed: ${await res.text()}`);
@@ -896,8 +922,68 @@ export async function connectGarmin(
   return await res.json();
 }
 
+export async function verifyGarminMfa(
+  mfaSessionId: string,
+  mfaCode: string,
+  importToHeat: boolean = true,
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/garmin/verify-mfa`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({
+      mfa_session_id: mfaSessionId,
+      mfa_code: mfaCode,
+      import_to_heat: importToHeat
+    })
+  });
+  if (!res.ok) {
+    throw new Error(`Garmin 2FA verification failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function bulkImportGarmin(
+  importToHeat: boolean = true,
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/garmin/bulk-import`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({ import_to_heat: importToHeat })
+  });
+  if (!res.ok) {
+    throw new Error(`Garmin bulk import failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function connectTrailforks(
+  credentials: { username?: string; token?: string },
+  userId: string = 'justin_default_user'
+): Promise<any> {
+  const res = await fetch(`${API_BASE}/api/connectors/trailforks/auth`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify(credentials)
+  });
+  if (!res.ok) {
+    throw new Error(`Trailforks connection failed: ${await res.text()}`);
+  }
+  return await res.json();
+}
+
 export async function connectStrava(
-  code: string,
+  params: { code?: string; personal_token?: string },
   userId: string = 'justin_default_user'
 ): Promise<any> {
   const res = await fetch(`${API_BASE}/api/connectors/strava/auth`, {
@@ -906,7 +992,7 @@ export async function connectStrava(
       'Content-Type': 'application/json',
       'X-User-Id': userId
     },
-    body: JSON.stringify({ code })
+    body: JSON.stringify(params)
   });
   if (!res.ok) {
     throw new Error(`Strava auth failed: ${await res.text()}`);
@@ -914,13 +1000,57 @@ export async function connectStrava(
   return await res.json();
 }
 
+export async function getDevStatus(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (devKey) headers['X-Dev-Key'] = devKey;
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  if (userEmail) headers['X-User-Id'] = userEmail;
+
+  const res = await fetch(`${API_BASE}/api/dev/status`, { headers });
+  if (!res.ok) {
+    throw new Error(`Dev status check failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function clearDevCache(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (devKey) headers['X-Dev-Key'] = devKey;
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  if (userEmail) headers['X-User-Id'] = userEmail;
+
+  const res = await fetch(`${API_BASE}/api/dev/cache/clear`, { method: 'POST', headers });
+  if (!res.ok) {
+    throw new Error(`Cache clear failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
+export async function recalculateDevHeat(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (devKey) headers['X-Dev-Key'] = devKey;
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  if (userEmail) headers['X-User-Id'] = userEmail;
+
+  const res = await fetch(`${API_BASE}/api/dev/heat/recalculate`, { method: 'POST', headers });
+  if (!res.ok) {
+    throw new Error(`Heat recalculation failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
 export async function syncConnector(
   provider: string,
-  userId: string = 'justin_default_user'
+  userId: string = 'justin_default_user',
+  importToHeat: boolean = true
 ): Promise<any> {
   const res = await fetch(`${API_BASE}/api/connectors/${provider}/sync`, {
     method: 'POST',
-    headers: { 'X-User-Id': userId }
+    headers: {
+      'Content-Type': 'application/json',
+      'X-User-Id': userId
+    },
+    body: JSON.stringify({ import_to_heat: importToHeat })
   });
   if (!res.ok) {
     throw new Error(`Sync failed: ${await res.text()}`);

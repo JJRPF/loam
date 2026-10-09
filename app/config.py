@@ -18,11 +18,15 @@ class Settings(BaseModel):
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8080"))
 
-    # Feature Flags & Connector Configuration (Decoupled, Off by Default)
-    enable_strava_connector: bool = os.getenv("ENABLE_STRAVA_CONNECTOR", "false").lower() in ("true", "1")
-    enable_garmin_connector: bool = os.getenv("ENABLE_GARMIN_LOGIN_CONNECTOR", "false").lower() in ("true", "1")
-    enable_trailforks_connector: bool = os.getenv("ENABLE_TRAILFORKS_CONNECTOR", "false").lower() in ("true", "1")
+    # Feature Flags & Connector Configuration
+    enable_strava_connector: bool = os.getenv("ENABLE_STRAVA_CONNECTOR", "true").lower() in ("true", "1")
+    enable_garmin_connector: bool = os.getenv("ENABLE_GARMIN_LOGIN_CONNECTOR", "true").lower() in ("true", "1")
+    enable_trailforks_connector: bool = os.getenv("ENABLE_TRAILFORKS_CONNECTOR", "true").lower() in ("true", "1")
     connector_secret_key: str = os.getenv("CONNECTOR_SECRET_KEY", "loam_dev_secret_key_32bytes_min_len!")
+
+    # Developer Console Authentication
+    developer_admin_email: str = os.getenv("DEVELOPER_ADMIN_EMAIL", "jjrpfister@gmail.com")
+    developer_admin_key: str = os.getenv("DEVELOPER_ADMIN_KEY", "loam_dev_admin_2026")
 
 settings = Settings()
 

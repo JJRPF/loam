@@ -127,7 +127,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
                   padding: '1px 5px',
                   borderRadius: 3,
                   backgroundColor: repPct < 25 ? 'rgba(46, 111, 64, 0.2)' : 'rgba(255, 91, 20, 0.2)',
-                  color: repPct < 25 ? '#2E6F40' : '#C73E00',
+                  color: repPct < 25 ? 'var(--color-lichen, #2E6F40)' : 'var(--color-blaze, #C73E00)',
                   fontWeight: 600
                 }}
               >
@@ -155,22 +155,22 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           {/* Trust Layer Warning Chips */}
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 3 }}>
             {route.hard_block_waived && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(46, 111, 64, 0.15)', color: '#2E6F40' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(46, 111, 64, 0.25)', color: 'var(--color-lichen, #2E6F40)' }}>
                 ✓ Waived
               </span>
             )}
             {route.dnr_warnings && route.dnr_warnings.length > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(230, 81, 0, 0.15)', color: '#C73E00' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(230, 81, 0, 0.25)', color: 'var(--color-blaze, #C73E00)' }}>
                 ⚠️ DNR ({route.dnr_warnings.length})
               </span>
             )}
             {route.snowmobile_warnings && route.snowmobile_warnings.length > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(0, 96, 100, 0.15)', color: '#006064' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(0, 96, 100, 0.25)', color: 'var(--color-slate, #00838F)' }}>
                 ❄️ Snowmobile
               </span>
             )}
             {route.community_flag_warnings && route.community_flag_warnings.length > 0 && (
-              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(245, 127, 23, 0.15)', color: '#F57F17' }}>
+              <span style={{ fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 3, backgroundColor: 'rgba(245, 127, 23, 0.25)', color: '#F59E0B' }}>
                 🚩 Flagged
               </span>
             )}
@@ -220,7 +220,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           height: 4,
           borderRadius: 2,
           overflow: 'hidden',
-          backgroundColor: '#E0E0E0',
+          backgroundColor: 'var(--color-divider, #E0E0E0)',
           marginTop: 2
         }}
       >
