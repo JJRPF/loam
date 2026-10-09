@@ -1,7 +1,7 @@
 import math
 import asyncio
 import httpx
-from typing import Dict, Any, List, Tuple, Optional, AsyncGenerator
+from typing import Dict, Any, List, Tuple, Optional, AsyncGenerator, Set
 from app.config import settings
 from app.models import RouteRequest, RouteResponse, SurfaceSegment, SportProfile
 from app.scoring import (
