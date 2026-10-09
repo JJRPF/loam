@@ -70,6 +70,8 @@ export interface RouteResponse {
   score_breakdown?: ScoreBreakdown;
   repetition_ratio?: number;
   verbal_summary?: string;
+  route_type?: string;
+  primary_trail_name?: string;
   is_find_new_trails?: boolean;
   unridden_miles?: number;
   unridden_percent?: number;

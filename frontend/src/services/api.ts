@@ -1072,5 +1072,14 @@ export async function disconnectConnector(
   return await res.json();
 }
 
+export async function fetchHeatTrails(sport?: string): Promise<{ type: string; features: any[] }> {
+  const url = sport ? `${API_BASE}/api/heat/trails?sport=${encodeURIComponent(sport)}` : `${API_BASE}/api/heat/trails`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Failed to load heat trails (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
 
 

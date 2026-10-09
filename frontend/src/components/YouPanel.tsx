@@ -5,7 +5,6 @@ import {
   getConnectors, connectGarmin, verifyGarminMfa, connectStrava, connectTrailforks, bulkImportGarmin,
   syncConnector, disconnectConnector
 } from '../services/api';
-import { DevConsolePanel } from './DevConsolePanel';
 import { 
   getStoredUser, 
   loginWithRealCredentials, 
@@ -36,14 +35,6 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
   const [newDnrReason, setNewDnrReason] = useState('');
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
-
-  // Developer Console State
-  const [showDevConsole, setShowDevConsole] = useState(false);
-  const [devKey, setDevKey] = useState<string>(() => localStorage.getItem('loam_dev_key') || '');
-  const [devKeyInput, setDevKeyInput] = useState('');
-  const [showDevKeyModal, setShowDevKeyModal] = useState(false);
-  const isJustinUser = currentUser?.email === 'jjrpfister@gmail.com';
-  const isDevAuthed = isJustinUser || (devKey.trim().length > 0);
 
   // Google SSO Modal State
   const [showGoogleModal, setShowGoogleModal] = useState(false);
@@ -597,186 +588,22 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
         </div>
       </div>
 
-      {/* Developer Console (Admin Justin) */}
-      <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
-              Developer Console
-            </h3>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
-              Telemetry, transient cache control, and heat recalculation.
-            </div>
-          </div>
-          {isDevAuthed && (
-            <span style={{ fontSize: 11, fontWeight: 700, padding: '2px 6px', borderRadius: 4, backgroundColor: '#DCFCE7', color: '#166534' }}>
-              ✓ Authorized
-            </span>
-          )}
-        </div>
-
-        {isDevAuthed ? (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <button
-              type="button"
-              onClick={() => setShowDevConsole(true)}
-              className="btn-primary"
-              style={{ flex: 1, fontSize: 12, minHeight: 34 }}
-            >
-              🛠️ Open Developer Console
-            </button>
-            {devKey && !isJustinUser && (
-              <button
-                type="button"
-                onClick={() => {
-                  localStorage.removeItem('loam_dev_key');
-                  setDevKey('');
-                }}
-                className="btn-outline"
-                style={{ fontSize: 11, minHeight: 34, padding: '0 10px' }}
-                title="Lock Console"
-              >
-                Lock
-              </button>
-            )}
-          </div>
-        ) : (
-          <div>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: '0 0 8px 0' }}>
-              Requires authentication as Justin Pfister (<code>jjrpfister@gmail.com</code>) or a valid Developer Access Key.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowDevKeyModal(true)}
-              className="btn-outline"
-              style={{ width: '100%', fontSize: 12, minHeight: 34 }}
-            >
-              🔑 Enter Developer Access Key
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Developer Access Key Modal */}
-      {showDevKeyModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 16
-          }}
-          onClick={() => setShowDevKeyModal(false)}
-        >
-          <div
+      {/* About & Stack & Dev Tools Link */}
+      <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.6, marginTop: 16 }}>
+        <div>loam Trail Route Builder • Stage 4 Heat v1</div>
+        <div>Built with MapLibre GL JS, GraphHopper & PostGIS</div>
+        <div style={{ marginTop: 8 }}>
+          <a
+            href="#/dev"
             style={{
-              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
-              color: 'var(--color-text-primary, #1D3B34)',
-              borderRadius: 10,
-              maxWidth: 400,
-              width: '100%',
-              padding: 20,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-              border: '1px solid var(--color-divider, #D1D8D8)'
+              fontSize: 11,
+              color: 'var(--color-text-secondary, #42675E)',
+              textDecoration: 'underline'
             }}
-            onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>Developer Authentication</h3>
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: 0 }}>
-              Enter your developer access key to manage app caches, heat layers, and telemetry.
-            </p>
-            <input
-              type="password"
-              placeholder="Developer Key"
-              value={devKeyInput}
-              onChange={(e) => setDevKeyInput(e.target.value)}
-              style={{ padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
-            />
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setShowDevKeyModal(false)}
-                className="btn-outline"
-                style={{ fontSize: 12, minHeight: 32 }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (devKeyInput.trim()) {
-                    localStorage.setItem('loam_dev_key', devKeyInput.trim());
-                    setDevKey(devKeyInput.trim());
-                    setShowDevKeyModal(false);
-                    setShowDevConsole(true);
-                  }
-                }}
-                className="btn-primary"
-                style={{ fontSize: 12, minHeight: 32 }}
-              >
-                Unlock Console
-              </button>
-            </div>
-          </div>
+            Developer Tools & Operations
+          </a>
         </div>
-      )}
-
-      {/* Developer Console Modal */}
-      {showDevConsole && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.7)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1100,
-            padding: 16
-          }}
-          onClick={() => setShowDevConsole(false)}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
-              borderRadius: 10,
-              maxWidth: 680,
-              width: '100%',
-              maxHeight: '90vh',
-              overflowY: 'auto',
-              boxShadow: '0 10px 30px rgba(0,0,0,0.4)',
-              border: '1px solid var(--color-divider, #D1D8D8)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <DevConsolePanel
-              userEmail={currentUser?.email}
-              idToken={currentUser?.idToken}
-              devKey={devKey}
-              onClose={() => setShowDevConsole(false)}
-              isDarkMode={isDarkMode}
-            />
-          </div>
-        </div>
-      )}
-
-      {/* About & Stack */}
-      <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.5 }}>
-        loam Trail Route Builder • Stage 4 Heat v1<br />
-        Built with MapLibre GL JS, GraphHopper & PostGIS
       </div>
     </div>
   );

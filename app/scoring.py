@@ -131,6 +131,101 @@ def calculate_repetition_ratio(
 
     return round(min(1.0, repeated_dist_geom / total_dist), 3)
 
+def classify_route_geometry(
+    coordinates: List[List[float]],
+    osm_way_details: Optional[List[List[Any]]] = None,
+    repetition_ratio: Optional[float] = None
+) -> Tuple[str, float]:
+    """
+    Classifies a route into one of:
+    - 'loop': Pure closed loop with minimal or no retracing.
+    - 'lollipop': Stem (approach) -> closed loop circuit -> stem return.
+    - 'out_and_back': Traverses out and returns along the same path with no significant loop circuit.
+    - 'point_to_point': Distant start and end points.
+
+    Returns: (geometry_type, loop_fraction)
+    """
+    if not coordinates or len(coordinates) < 2:
+        return "loop", 1.0
+
+    total_dist = 0.0
+    seg_lens = []
+    for i in range(len(coordinates) - 1):
+        d = haversine_m(coordinates[i], coordinates[i + 1])
+        seg_lens.append(d)
+        total_dist += d
+
+    if total_dist <= 1.0:
+        return "loop", 1.0
+
+    start_pt = coordinates[0]
+    end_pt = coordinates[-1]
+    endpoint_gap = haversine_m(start_pt, end_pt)
+
+    # Point to point check: start and end are distinctly separate
+    if endpoint_gap > 600.0 and (endpoint_gap / total_dist) > 0.20:
+        return "point_to_point", 0.0
+
+    if repetition_ratio is None:
+        repetition_ratio = calculate_repetition_ratio(coordinates, osm_way_details)
+
+    # If repetition is low, it's a pure loop
+    if repetition_ratio < 0.20:
+        return "loop", round(1.0 - repetition_ratio, 3)
+
+    # In a lollipop loop:
+    # There is an unrepeated segment that forms a closed loop circuit and has substantial length (>= 15% of total_dist or >= 400m).
+    num_pts = len(coordinates)
+    best_loop_len = 0.0
+    is_lollipop = False
+
+    # Check via OSM ways if details exist
+    if osm_way_details:
+        way_ids = [w[2] for w in osm_way_details if len(w) >= 3]
+        if way_ids:
+            half = len(way_ids) // 2
+            first_half = way_ids[:half]
+            second_half = way_ids[half:]
+            common_ways = set(first_half) & set(second_half)
+            unique_middle_ways = set(way_ids) - common_ways
+            
+            if unique_middle_ways:
+                unique_dist = 0.0
+                for item in osm_way_details:
+                    if len(item) >= 3 and item[2] in unique_middle_ways:
+                        s_idx, e_idx = item[0], item[1]
+                        unique_dist += sum(seg_lens[k] for k in range(s_idx, min(e_idx, len(seg_lens))))
+                
+                unique_frac = unique_dist / total_dist
+                if unique_frac >= 0.15 and unique_dist >= 350.0:
+                    is_lollipop = True
+                    best_loop_len = unique_dist
+
+    # Geometric check if OSM check didn't confirm or wasn't available
+    if not is_lollipop and num_pts >= 6:
+        max_separation = 0.0
+        mid_start = max(1, num_pts // 5)
+        mid_end = min(num_pts - 2, (4 * num_pts) // 5)
+        for i in range(mid_start, mid_end):
+            pt = coordinates[i]
+            dist_to_start_stem = min(haversine_m(pt, coordinates[j]) for j in range(0, mid_start))
+            if dist_to_start_stem > max_separation:
+                max_separation = dist_to_start_stem
+
+        unrepeated_ratio = max(0.0, 1.0 - (repetition_ratio * 2.0))
+        if max_separation >= 100.0 and (unrepeated_ratio >= 0.12 or repetition_ratio < 0.40):
+            is_lollipop = True
+            best_loop_len = max(unrepeated_ratio * total_dist, 400.0)
+
+    if is_lollipop:
+        return "lollipop", round(best_loop_len / total_dist, 3)
+
+    # If repetition ratio >= 0.32 and no distinct loop circuit exists, it's out-and-back
+    if repetition_ratio >= 0.32:
+        return "out_and_back", 0.0
+
+    return "loop", round(1.0 - repetition_ratio, 3)
+
 def score_input_match(
     distance_miles: float,
     target_distance_miles: Optional[float],
@@ -313,22 +408,33 @@ def score_quality(
 
 def score_penalties(
     repetition_ratio: float,
-    warnings: List[str]
+    warnings: List[str],
+    is_lollipop: bool = False
 ) -> float:
     """
     Computes Penalties score (0 - 100).
-    Rule: Out-and-back repetition penalty applies when repetition >= 0.25.
+    Rule: Out-and-back repetition penalty applies when repetition >= 0.25 on non-lollipop routes.
+    For lollipop loops (stem -> loop -> return stem), stem repetition is expected and permitted.
     Soft warnings (closures, DNR) deduct 15 points each.
     """
-    # Out-and-back repetition penalty threshold < 0.25
-    if repetition_ratio <= 0.10:
-        rep_score = 100.0
-    elif repetition_ratio < 0.25:
-        # Mild linear ramp between 0.10 and 0.25
-        rep_score = 100.0 - (repetition_ratio - 0.10) * 200.0
+    if is_lollipop:
+        # Lollipop loops: stem repetition is normal and expected
+        if repetition_ratio <= 0.35:
+            rep_score = 100.0
+        elif repetition_ratio <= 0.45:
+            rep_score = 100.0 - (repetition_ratio - 0.35) * 150.0
+        else:
+            rep_score = max(50.0, 85.0 - (repetition_ratio - 0.45) * 200.0)
     else:
-        # Heavy penalty for repetition >= 0.25
-        rep_score = max(0.0, 70.0 - (repetition_ratio - 0.25) * 250.0)
+        # Out-and-back repetition penalty threshold < 0.25
+        if repetition_ratio <= 0.10:
+            rep_score = 100.0
+        elif repetition_ratio < 0.25:
+            # Mild linear ramp between 0.10 and 0.25
+            rep_score = 100.0 - (repetition_ratio - 0.10) * 200.0
+        else:
+            # Heavy penalty for repetition >= 0.25
+            rep_score = max(0.0, 70.0 - (repetition_ratio - 0.25) * 250.0)
 
     # Warnings penalty
     warn_deduction = len(warnings) * 15.0
@@ -352,7 +458,8 @@ def calculate_composite_score(
     unridden_percent: float = 0.0,
     target_new_percent: Optional[float] = None,
     unridden_miles: float = 0.0,
-    target_new_miles: Optional[float] = None
+    target_new_miles: Optional[float] = None,
+    is_lollipop: bool = False
 ) -> Tuple[int, Dict[str, float], str]:
     """
     Calculates the 5-component composite score:
@@ -375,7 +482,7 @@ def calculate_composite_score(
         target_new_miles=target_new_miles
     )
     s_qual = score_quality(surface_strip, distance_miles)
-    s_pen = score_penalties(repetition_ratio, warnings)
+    s_pen = score_penalties(repetition_ratio, warnings, is_lollipop=is_lollipop)
 
     # Weighted composite sum: 60% + 15% + 10% + 10% + 5% = 100%
     composite = (
@@ -396,6 +503,7 @@ def calculate_composite_score(
         "quality": s_qual,
         "penalties": s_pen,
         "repetition_ratio": round(repetition_ratio, 3),
+        "is_lollipop": is_lollipop,
         "unridden_miles": round(unridden_miles, 2),
         "unridden_percent": round(unridden_percent, 1),
     }
@@ -417,7 +525,9 @@ def calculate_composite_score(
         parts.append(f"{st_pct:.0f}% singletrack ({status_word} {desired_st}% goal)")
 
     rep_pct = int(round(repetition_ratio * 100))
-    if rep_pct < 25:
+    if is_lollipop:
+        parts.append(f"{rep_pct}% stem retracing (lollipop loop)")
+    elif rep_pct < 25:
         parts.append(f"{rep_pct}% repetition (clean loop)")
     else:
         parts.append(f"{rep_pct}% repetition (out-and-back penalty applied)")

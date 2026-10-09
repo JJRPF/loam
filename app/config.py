@@ -25,7 +25,7 @@ class Settings(BaseModel):
     connector_secret_key: str = os.getenv("CONNECTOR_SECRET_KEY", "loam_dev_secret_key_32bytes_min_len!")
 
     # Developer Console Authentication
-    developer_admin_email: str = os.getenv("DEVELOPER_ADMIN_EMAIL", "jjrpfister@gmail.com")
+    developer_admin_email: str = os.getenv("DEVELOPER_ADMIN_EMAIL", "admin@loam.local")
     developer_admin_key: str = os.getenv("DEVELOPER_ADMIN_KEY", "loam_dev_admin_2026")
 
 settings = Settings()

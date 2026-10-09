@@ -77,6 +77,8 @@ class RouteResponse(BaseModel):
     score_breakdown: Optional[Dict[str, float]] = None
     repetition_ratio: Optional[float] = None
     verbal_summary: Optional[str] = None
+    route_type: Optional[str] = "loop" # 'loop', 'lollipop', 'out_and_back', 'point_to_point'
+    primary_trail_name: Optional[str] = None
     # Stage 6: Find New Trails stats
     is_find_new_trails: bool = False
     unridden_miles: float = 0.0

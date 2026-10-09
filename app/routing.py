@@ -7,12 +7,14 @@ from app.models import RouteRequest, RouteResponse, SurfaceSegment, SportProfile
 from app.scoring import (
     calculate_composite_score,
     calculate_repetition_ratio,
+    classify_route_geometry,
     generate_minimap,
     get_sector_info
 )
 from app.db import (
     get_edges_heat, check_restrictions_along_line, is_region_covered,
-    check_route_trust_layer, log_dnr_override, get_user_ridden_edge_ids
+    check_route_trust_layer, log_dnr_override, get_user_ridden_edge_ids,
+    resolve_osm_trail_name
 )
 
 METERS_TO_MILES = 0.000621371192
@@ -317,8 +319,33 @@ def process_graphhopper_path(
     # Collect unique traversed OSM way IDs
     unique_ways = [w[2] for w in osm_way_details if len(w) >= 3]
 
-    # Calculate out-and-back repetition ratio
+    # Calculate repetition ratio and classify route geometry (loop, lollipop, out_and_back)
     rep_ratio = calculate_repetition_ratio(points, osm_way_details)
+    route_geom_type, loop_frac = classify_route_geometry(points, osm_way_details, rep_ratio)
+    is_lollipop = (route_geom_type == "lollipop")
+
+    # Collect authentic trail names from GraphHopper street_name details or OSM way resolver
+    street_details = details.get("street_name", [])
+    named_trails_lengths: Dict[str, float] = {}
+    for item in street_details:
+        if len(item) >= 3 and item[2]:
+            s_name = str(item[2]).strip()
+            if s_name and not s_name.lower().startswith("trail #"):
+                s_idx, e_idx = item[0], item[1]
+                named_trails_lengths[s_name] = named_trails_lengths.get(s_name, 0.0) + max(1, e_idx - s_idx)
+
+    if not named_trails_lengths and osm_way_details:
+        for item in osm_way_details:
+            if len(item) >= 3 and item[2]:
+                wid = item[2]
+                real_name = resolve_osm_trail_name(wid)
+                if real_name and not real_name.startswith("Trail #"):
+                    s_idx, e_idx = item[0], item[1]
+                    named_trails_lengths[real_name] = named_trails_lengths.get(real_name, 0.0) + max(1, e_idx - s_idx)
+
+    primary_trail_name = None
+    if named_trails_lengths:
+        primary_trail_name = sorted(named_trails_lengths.items(), key=lambda x: x[1], reverse=True)[0][0]
 
     # Find New Trails: identify unridden point indices and calculate stats
     unridden_point_indices = set()
@@ -378,14 +405,29 @@ def process_graphhopper_path(
         unridden_percent=unridden_percent,
         target_new_percent=req.min_new_trail_percent,
         unridden_miles=unridden_miles,
-        target_new_miles=req.min_new_trail_miles
+        target_new_miles=req.min_new_trail_miles,
+        is_lollipop=is_lollipop
     )
 
     # Generate lightweight SVG minimap & bounds
     mini_bbox, mini_svg = generate_minimap(points)
 
-    # Descriptive route name
-    if sector_name:
+    # Descriptive route name with real trail names
+    if primary_trail_name:
+        if route_geom_type == "lollipop":
+            base_type = "Lollipop Loop"
+        elif route_geom_type == "loop":
+            base_type = "Loop"
+        elif route_geom_type == "out_and_back":
+            base_type = "Out-and-Back"
+        else:
+            base_type = "Route"
+
+        if sector_name:
+            base_name = f"{primary_trail_name} — {sector_name}"
+        else:
+            base_name = f"{primary_trail_name} {base_type}"
+    elif sector_name:
         base_name = req.name or f"Loam {sector_name}"
     else:
         base_name = req.name or f"Loam {req.profile.value.replace('_', ' ').title()} Route"
@@ -419,6 +461,8 @@ def process_graphhopper_path(
         match_score=composite_score,
         score_breakdown=score_breakdown,
         repetition_ratio=rep_ratio,
+        route_type=route_geom_type,
+        primary_trail_name=primary_trail_name,
         verbal_summary=verbal_summary,
         is_find_new_trails=req.find_new_trails_mode,
         unridden_miles=unridden_miles,
@@ -453,7 +497,7 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
         "point": points_param,
         "profile": gh_profile,
         "points_encoded": "false",
-        "details": ["surface", "road_class", "track_type", "osm_way_id"],
+        "details": ["surface", "road_class", "track_type", "osm_way_id", "street_name"],
     }
 
     custom_model = build_custom_model(req)
@@ -464,7 +508,7 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
                 "points": [[lon, lat] for lat, lon in points_coords],
                 "profile": gh_profile,
                 "points_encoded": False,
-                "details": ["surface", "road_class", "track_type", "osm_way_id"],
+                "details": ["surface", "road_class", "track_type", "osm_way_id", "street_name"],
                 "custom_model": custom_model
             }
             resp = await client.post(f"{settings.graphhopper_url}/route", json=post_body)
@@ -475,7 +519,43 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
             raise RuntimeError(f"GraphHopper routing failed ({resp.status_code}): {resp.text}")
         data = resp.json()
 
-    path = data["paths"][0]
+        path = data["paths"][0]
+        pts = decode_points(path.get("points", {}))
+        osm_d = path.get("details", {}).get("osm_way_id", [])
+        rep = calculate_repetition_ratio(pts, osm_d)
+        g_type, _ = classify_route_geometry(pts, osm_d, rep)
+
+        # If user explicitly requested a Loop and initial route produced an out-and-back,
+        # attempt lollipop loop geometries to return a true loop
+        if is_loop and g_type == "out_and_back" and req.target_distance_miles and (not req.waypoints or len(req.waypoints) == 0):
+            lat_deg_l = 111132.0
+            lon_deg_l = 111132.0 * math.cos(math.radians(req.start.lat))
+            base_r = (req.target_distance_miles * 1609.344) / 4.2
+            # Try rotating through sectors with lollipop geometry (stem -> loop -> stem)
+            for trial_deg in [45.0, 135.0, 225.0, 315.0, 90.0, 180.0]:
+                r_stem = base_r * 0.35
+                wp_stem = (req.start.lat + (r_stem * math.cos(math.radians(trial_deg))) / lat_deg_l, req.start.lon + (r_stem * math.sin(math.radians(trial_deg))) / lon_deg_l)
+                r_loop = base_r * 0.65
+                a1, a2 = math.radians(trial_deg - 28.0), math.radians(trial_deg + 28.0)
+                wp_l1 = (wp_stem[0] + (r_loop * math.cos(a1)) / lat_deg_l, wp_stem[1] + (r_loop * math.sin(a1)) / lon_deg_l)
+                wp_l2 = (wp_stem[0] + (r_loop * math.cos(a2)) / lat_deg_l, wp_stem[1] + (r_loop * math.sin(a2)) / lon_deg_l)
+                trial_coords = [(req.start.lat, req.start.lon), wp_stem, wp_l1, wp_l2, wp_stem, (req.start.lat, req.start.lon)]
+                try:
+                    trial_resp = await _query_gh(client, trial_coords, gh_profile, custom_model)
+                    if trial_resp and trial_resp.status_code == 200:
+                        t_data = trial_resp.json()
+                        if t_data.get("paths"):
+                            t_path = t_data["paths"][0]
+                            t_pts = decode_points(t_path.get("points", {}))
+                            t_osm = t_path.get("details", {}).get("osm_way_id", [])
+                            t_rep = calculate_repetition_ratio(t_pts, t_osm)
+                            t_gtype, _ = classify_route_geometry(t_pts, t_osm, t_rep)
+                            if t_gtype in ("loop", "lollipop"):
+                                path = t_path
+                                break
+                except Exception:
+                    continue
+
     osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
     points = decode_points(path.get("points", {}))
     geojson_line = {"type": "LineString", "coordinates": points}
@@ -580,6 +660,24 @@ async def generate_route_options(
                     _query_gh(client, [(start_lat, start_lon), wp_c1, wp_c2, (start_lat, start_lon)], gh_profile, custom_model)
                 )
                 task_metadata.append({"sector_name": f"{sec_name} Inner Loop", "sector_code": sec_code, "deg": deg, "var": "INNER"})
+
+                # Geometry 5: Lollipop Loop CW (stem -> loop circuit -> stem return)
+                r_stem = base_r * 0.35
+                wp_stem = (start_lat + (r_stem * math.cos(math.radians(deg))) / lat_deg_len, start_lon + (r_stem * math.sin(math.radians(deg))) / lon_deg_len)
+                r_loop = base_r * 0.65
+                a_l1, a_l2 = math.radians(deg - 28.0), math.radians(deg + 28.0)
+                wp_l1 = (wp_stem[0] + (r_loop * math.cos(a_l1)) / lat_deg_len, wp_stem[1] + (r_loop * math.sin(a_l1)) / lon_deg_len)
+                wp_l2 = (wp_stem[0] + (r_loop * math.cos(a_l2)) / lat_deg_len, wp_stem[1] + (r_loop * math.sin(a_l2)) / lon_deg_len)
+                candidate_tasks.append(
+                    _query_gh(client, [(start_lat, start_lon), wp_stem, wp_l1, wp_l2, wp_stem, (start_lat, start_lon)], gh_profile, custom_model)
+                )
+                task_metadata.append({"sector_name": f"{sec_name} Lollipop Loop", "sector_code": sec_code, "deg": deg, "var": "LOLLIPOP_CW"})
+
+                # Geometry 6: Lollipop Loop CCW
+                candidate_tasks.append(
+                    _query_gh(client, [(start_lat, start_lon), wp_stem, wp_l2, wp_l1, wp_stem, (start_lat, start_lon)], gh_profile, custom_model)
+                )
+                task_metadata.append({"sector_name": f"{sec_name} Reverse Lollipop", "sector_code": sec_code, "deg": deg, "var": "LOLLIPOP_CCW"})
 
         else:
             # Point to Point Mode
@@ -689,8 +787,18 @@ async def generate_route_options(
             user_ridden_ways=user_ridden
         )
 
-        # Trailhead name prefix if available
-        if req.start.name and req.start.name != "Bear Brook Trailhead":
+        # Trailhead name prefix with real trail names
+        if route_resp.primary_trail_name:
+            if route_resp.route_type == "lollipop":
+                type_label = "Lollipop Loop"
+            elif route_resp.route_type == "loop":
+                type_label = "Loop"
+            elif route_resp.route_type == "out_and_back":
+                type_label = "Out-and-Back"
+            else:
+                type_label = "Route"
+            route_resp.name = f"Bear Brook — {route_resp.primary_trail_name} {type_label}"
+        elif req.start.name and req.start.name != "Bear Brook Trailhead":
             route_resp.name = f"{req.start.name.split('(')[0].strip()} — {meta['sector_name']}"
         else:
             route_resp.name = f"Bear Brook — {meta['sector_name']}"
@@ -700,13 +808,42 @@ async def generate_route_options(
     # Sort descending by composite match score
     scored_candidates.sort(key=lambda pair: pair[0].match_score or 0, reverse=True)
 
+    # Filter candidate pool when Loop mode is selected:
+    # Strictly return loops (including lollipop loops). Do NOT return out-and-back routes
+    # unless all other candidate options deviate severely from user inputs.
+    if is_loop:
+        loop_pairs = [pair for pair in scored_candidates if pair[0].route_type in ("loop", "lollipop")]
+        oab_pairs = [pair for pair in scored_candidates if pair[0].route_type == "out_and_back"]
+
+        def is_severe(r: RouteResponse) -> bool:
+            if req.target_distance_miles and req.target_distance_miles > 0:
+                err = abs(r.distance_miles - req.target_distance_miles) / req.target_distance_miles
+                if err > 0.45:
+                    return True
+            if (r.match_score or 0) < 40:
+                return True
+            return False
+
+        viable_loops = [p for p in loop_pairs if not is_severe(p[0])]
+
+        if viable_loops:
+            candidate_pool = viable_loops + [p for p in loop_pairs if p not in viable_loops]
+        elif loop_pairs:
+            candidate_pool = loop_pairs
+        else:
+            for r, _ in oab_pairs:
+                r.warnings.append("Out-and-back fallback: No viable loop circuit found in this trail network.")
+            candidate_pool = oab_pairs
+    else:
+        candidate_pool = scored_candidates
+
     # Diversity selection and Deduplication:
     # Reject near-duplicates that share more than 70% of edges with already selected routes
     selected: List[RouteResponse] = []
     selected_way_sets: List[Set[int]] = []
 
     # Pass 1: Strict <= 70% edge overlap
-    for route_resp, ways in scored_candidates:
+    for route_resp, ways in candidate_pool:
         is_dup = False
         for s_ways in selected_way_sets:
             if ways and s_ways:
@@ -722,7 +859,7 @@ async def generate_route_options(
 
     # Pass 2: If we have fewer than count distinct options, relax threshold to 0.82 to fill remaining slots
     if len(selected) < count:
-        for route_resp, ways in scored_candidates:
+        for route_resp, ways in candidate_pool:
             if route_resp in selected:
                 continue
             is_dup = False
@@ -740,7 +877,7 @@ async def generate_route_options(
 
     # Final fallback if still under count (e.g. sparse single track system): take next highest score
     if len(selected) < count:
-        for route_resp, ways in scored_candidates:
+        for route_resp, ways in candidate_pool:
             if route_resp not in selected:
                 selected.append(route_resp)
                 if len(selected) == count:
@@ -775,7 +912,7 @@ async def _query_gh(
                 "points": [[lon, lat] for lat, lon in points_coords],
                 "profile": gh_profile,
                 "points_encoded": False,
-                "details": ["surface", "road_class", "track_type", "osm_way_id"],
+                "details": ["surface", "road_class", "track_type", "osm_way_id", "street_name"],
                 "custom_model": custom_model
             }
             return await client.post(f"{settings.graphhopper_url}/route", json=body)
@@ -784,7 +921,7 @@ async def _query_gh(
                 "point": [f"{lat:.5f},{lon:.5f}" for lat, lon in points_coords],
                 "profile": gh_profile,
                 "points_encoded": "false",
-                "details": ["surface", "road_class", "track_type", "osm_way_id"]
+                "details": ["surface", "road_class", "track_type", "osm_way_id", "street_name"]
             }
             return await client.get(f"{settings.graphhopper_url}/route", params=params)
     except Exception:

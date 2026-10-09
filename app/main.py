@@ -50,7 +50,7 @@ from app.db import (
     get_trail_submission_by_id, get_trail_submissions,
     record_submission_evidence, evaluate_and_verify_submission,
     admin_update_submission_status, list_user_connected_services,
-    recalculate_all_edge_heat
+    recalculate_all_edge_heat, get_heat_trail_geojson, resolve_osm_trail_name
 )
 from app.connectors import connector_manager
 from app.gpx_export import build_gpx_track
@@ -415,15 +415,15 @@ async def verify_auth_token(
         try:
             user_info = verify_google_id_token(token)
             uid = user_info["uid"]
-            email = payload.get("email") or user_info.get("email") or "justin@example.com"
-            display_name = payload.get("display_name") or user_info.get("display_name") or "Justin Pfister"
+            email = payload.get("email") or user_info.get("email") or "athlete@loam.local"
+            display_name = payload.get("display_name") or user_info.get("display_name") or "Loam Athlete"
             photo_url = user_info.get("photo_url")
         except ValueError as e:
             raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {str(e)}")
     else:
         uid = payload.get("uid") or resolve_user_id(authorization, None)
-        email = payload.get("email", "justin@example.com")
-        display_name = payload.get("display_name", "Justin Pfister")
+        email = payload.get("email", "athlete@loam.local")
+        display_name = payload.get("display_name", "Loam Athlete")
         photo_url = payload.get("photo_url")
 
     ensure_user_exists(uid, email=email, display_name=display_name)
@@ -445,8 +445,8 @@ async def get_current_user(
     uid = resolve_user_id(authorization, x_user_id)
     return {
         "id": uid,
-        "email": "justin@example.com",
-        "display_name": "Justin Pfister",
+        "email": "athlete@loam.local",
+        "display_name": "Loam Athlete",
         "role": "rider"
     }
 
@@ -674,6 +674,13 @@ async def record_heat(
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to record heat to database")
     return {"status": "recorded", "edge_osm_id": record.edge_osm_id, "sport": record.sport}
+
+@app.get("/api/heat/trails")
+async def get_heat_trails(sport: Optional[str] = None):
+    """
+    Returns GeoJSON FeatureCollection of traversed / heat trails for rendering on map heatmap layers.
+    """
+    return get_heat_trail_geojson(sport=sport)
 
 # --- Privacy Zones & Consent Management ---
 
@@ -1337,14 +1344,14 @@ async def disconnect_connector(
     ok = await connector_manager.disconnect(provider, uid)
     return {"success": ok, "provider": provider, "status": "disconnected"}
 
-# --- Developer Console Routes (Protected for Justin) ---
+# --- Developer Console Routes ---
 
 def verify_developer_auth(
     authorization: Optional[str] = None,
     x_user_id: Optional[str] = None,
     x_dev_key: Optional[str] = None
 ) -> bool:
-    """Verifies that the requester is Justin (via Google SSO token, email, or Developer Key)."""
+    """Verifies developer authorization via developer key or admin session."""
     if x_dev_key and x_dev_key.strip() == settings.developer_admin_key:
         return True
 
@@ -1357,7 +1364,7 @@ def verify_developer_auth(
         except Exception:
             pass
 
-    if x_user_id and x_user_id.strip() in (settings.developer_admin_email, "jjrpfister@gmail.com"):
+    if x_user_id and x_user_id.strip() == settings.developer_admin_email:
         return True
 
     return False
@@ -1368,9 +1375,9 @@ async def get_developer_status(
     x_user_id: Optional[str] = Header(None),
     x_dev_key: Optional[str] = Header(None)
 ):
-    """System health & developer metrics. Restricted to Justin."""
+    """System health & developer metrics."""
     if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Justin authentication required.")
+        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
 
     db_ok = check_db_health()
     uptime = (datetime.datetime.now(datetime.timezone.utc) - APP_START_TIME).total_seconds()
@@ -1414,7 +1421,7 @@ async def clear_dev_cache(
 ):
     """Developer action: Clears transient route and connector caches."""
     if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Justin authentication required.")
+        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
     return {"status": "success", "message": "All transient caches cleared."}
 
 @app.post("/api/dev/heat/recalculate")
@@ -1425,7 +1432,7 @@ async def recalculate_dev_heat(
 ):
     """Developer action: Triggers recalculation of the trail heat layer."""
     if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Justin authentication required.")
+        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
     res = recalculate_all_edge_heat()
     return {"status": "success", "updated_edges": res.get("updated_edges", 0), "message": "Heat layer recalculation complete."}
 
