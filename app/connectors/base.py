@@ -40,7 +40,7 @@ class BaseConnector(ABC):
         pass
 
     @abstractmethod
-    async def fetch_activities(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def fetch_activities(self, user_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         """Fetches raw activity payloads or GPS tracks from the third-party service."""
         pass
 

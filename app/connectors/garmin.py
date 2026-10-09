@@ -1,5 +1,7 @@
 import datetime
 import uuid
+import math
+import asyncio
 from typing import Dict, Any, List, Optional
 from app.config import settings
 from app.connectors.base import BaseConnector
@@ -18,6 +20,54 @@ from app.db import (
 
 # Active MFA sessions stored transiently in-memory with expiration
 mfa_sessions: Dict[str, Dict[str, Any]] = {}
+
+# Excluded activity types (breathwork, gym/fitness, stationary cardio, non-trail sports)
+EXCLUDED_ACTIVITY_TYPES = {
+    # Breathwork & mindfulness
+    "breathwork", "breathing",
+    # Gym & indoor fitness
+    "indoor_climbing", "strength_training", "cardio", "indoor_cardio",
+    "hiit", "pilates", "yoga", "fitness_equipment", "stair_stepper", "elliptical",
+    # Stationary & indoor cardio
+    "treadmill_running", "indoor_running", "indoor_cycling", "virtual_ride",
+    "spin", "indoor_rowing", "indoor_walking",
+    # System, safety & stopwatch
+    "stop_watch", "incident_detected", "assistance",
+    # Water sports & golf (non-trail)
+    "golf", "open_water_swimming", "swimming", "kayaking_v2",
+    "stand_up_paddleboarding_v2", "rowing_v2",
+    # Winter resort chairlift sports
+    "resort_skiing", "resort_skiing_snowboarding_ws", "snowmobiling_ws",
+    # Generic unclassified
+    "other", "uncategorized"
+}
+
+def classify_garmin_sport(type_key: str) -> Optional[str]:
+    """
+    Classifies a Garmin activity typeKey into Loam's supported sports ('mtb', 'trail_run', 'gravel').
+    Returns None if the activity is excluded (e.g. breathwork, gym, stationary, non-trail).
+    """
+    t = (type_key or "").lower().strip()
+    if t in EXCLUDED_ACTIVITY_TYPES:
+        return None
+
+    # Mountain biking / e-MTB / downhill
+    if any(k in t for k in ["mountain_biking", "e_bike_mountain", "mtb", "downhill"]):
+        return "mtb"
+
+    # Gravel / road / fitness e-bike / general cycling
+    if any(k in t for k in ["cycling", "biking", "bike", "cyclocross", "gravel", "road_biking", "e_bike"]):
+        return "mtb"
+
+    # Trail running / running / track
+    if any(k in t for k in ["trail_run", "running", "run", "track"]):
+        return "trail_run"
+
+    # Hiking / walking (trail foot activities)
+    if any(k in t for k in ["hike", "hiking", "walk", "walking"]):
+        return "trail_run"
+
+    return None
 
 class GarminConnector(BaseConnector):
     """
@@ -282,22 +332,30 @@ class GarminConnector(BaseConnector):
         self,
         base_lon: float,
         base_lat: float,
-        count: int = 50,
-        start_time: Optional[datetime.datetime] = None
+        end_lon: Optional[float] = None,
+        end_lat: Optional[float] = None,
+        count: int = 40,
+        start_time: Optional[datetime.datetime] = None,
+        elevation: float = 200.0
     ) -> List[TrackPoint]:
-        """Generates realistic GPS trackpoints for activity ingestion."""
+        """Generates realistic GPS trackpoints anchored to the activity's true geographic location."""
         now = start_time or datetime.datetime.now(datetime.timezone.utc)
         pts = []
+        target_lon = end_lon if (end_lon is not None and abs(end_lon - base_lon) > 0.0001) else (base_lon + 0.015)
+        target_lat = end_lat if (end_lat is not None and abs(end_lat - base_lat) > 0.0001) else (base_lat + 0.012)
+
         for i in range(count):
             t = now + datetime.timedelta(seconds=i * 20)
-            # Create smooth coordinates trace
-            lon = base_lon + (i * 0.00045)
-            lat = base_lat + (i * 0.00035)
-            ele = 200.0 + (i * 2.0)
+            frac = i / max(count - 1, 1)
+            # Smooth loop / route arc
+            arc = math.sin(frac * math.pi) * 0.002
+            lon = base_lon + frac * (target_lon - base_lon) + arc
+            lat = base_lat + frac * (target_lat - base_lat) + (arc * 0.5)
+            ele = elevation + (i * 1.5)
             pts.append(TrackPoint(lat=lat, lon=lon, ele=ele, time=t))
         return pts
 
-    async def fetch_activities(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def fetch_activities(self, user_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         if not self.is_enabled():
             return []
 
@@ -317,20 +375,59 @@ class GarminConnector(BaseConnector):
                 from garminconnect import Garmin
                 g = Garmin()
                 g.login(tokenstore=session_token)
-                raw_activities = g.get_activities(0, limit)
-                if raw_activities:
+
+                all_raw = []
+                start = 0
+                batch_size = 100
+                while True:
+                    fetch_n = min(batch_size, limit - len(all_raw)) if limit else batch_size
+                    chunk = g.get_activities(start, fetch_n)
+                    if not chunk:
+                        break
+                    all_raw.extend(chunk)
+                    if len(chunk) < fetch_n or (limit and len(all_raw) >= limit):
+                        break
+                    start += len(chunk)
+
+                if all_raw:
                     parsed = []
-                    for act in raw_activities:
+                    for act in all_raw:
+                        t_key = act.get("activityType", {}).get("typeKey", "").lower()
+                        sport = classify_garmin_sport(t_key)
+                        if not sport:
+                            continue
+
+                        # Require GPS polyline, valid coordinates, and non-zero distance
+                        has_poly = act.get("hasPolyline", False)
+                        start_lat = act.get("startLatitude")
+                        start_lon = act.get("startLongitude")
+                        dist_meters = float(act.get("distance", 0.0) or 0.0)
+                        if not has_poly or start_lat is None or start_lon is None or dist_meters <= 0:
+                            continue
+
                         act_id = str(act.get("activityId"))
                         act_name = act.get("activityName", "Garmin Activity")
-                        act_type = act.get("activityType", {}).get("typeKey", "cycling").lower()
-                        sport = "mtb" if any(w in act_type for w in ["mountain", "cycling", "bike"]) else ("trail_run" if "run" in act_type else "gravel")
-                        dist_meters = float(act.get("distance", 0.0) or 0.0)
                         dist_miles = round(dist_meters / 1609.34, 2)
                         dur_sec = float(act.get("duration", 0.0) or 0.0)
                         dur_min = round(dur_sec / 60.0, 1)
                         act_date = act.get("startTimeLocal") or act.get("startTimeGMT") or now.isoformat()
-                        pts = self._generate_realistic_trackpoints(-71.3524, 43.1305, 50, now)
+
+                        end_lat = act.get("endLatitude")
+                        end_lon = act.get("endLongitude")
+                        act_dt = None
+                        try:
+                            act_dt = datetime.datetime.fromisoformat(act_date)
+                        except Exception:
+                            act_dt = now
+
+                        pts = self._generate_realistic_trackpoints(
+                            base_lon=float(start_lon),
+                            base_lat=float(start_lat),
+                            end_lon=float(end_lon) if end_lon is not None else None,
+                            end_lat=float(end_lat) if end_lat is not None else None,
+                            count=40,
+                            start_time=act_dt
+                        )
 
                         parsed.append({
                             "external_id": f"garmin_act_{act_id}",
@@ -348,6 +445,7 @@ class GarminConnector(BaseConnector):
                 pass
 
         # Multi-sport Garmin activities (MTB rides and trail runs) for mock/demo
+        mock_limit = limit if limit is not None else 3
         activities = [
             {
                 "external_id": f"garmin_act_{user_id}_1",
@@ -356,7 +454,7 @@ class GarminConnector(BaseConnector):
                 "distance_miles": 8.5,
                 "duration_minutes": 52.0,
                 "date": (now - datetime.timedelta(days=2)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.3524, 43.1305, 55, now - datetime.timedelta(days=2))
+                "points": self._generate_realistic_trackpoints(-71.3524, 43.1305, count=40, start_time=now - datetime.timedelta(days=2))
             },
             {
                 "external_id": f"garmin_act_{user_id}_2",
@@ -365,7 +463,7 @@ class GarminConnector(BaseConnector):
                 "distance_miles": 5.2,
                 "duration_minutes": 42.0,
                 "date": (now - datetime.timedelta(days=5)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.3450, 43.1350, 45, now - datetime.timedelta(days=5))
+                "points": self._generate_realistic_trackpoints(-71.3450, 43.1350, count=40, start_time=now - datetime.timedelta(days=5))
             },
             {
                 "external_id": f"garmin_act_{user_id}_3",
@@ -374,10 +472,10 @@ class GarminConnector(BaseConnector):
                 "distance_miles": 11.4,
                 "duration_minutes": 68.0,
                 "date": (now - datetime.timedelta(days=9)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.3600, 43.1250, 60, now - datetime.timedelta(days=9))
+                "points": self._generate_realistic_trackpoints(-71.3600, 43.1250, count=40, start_time=now - datetime.timedelta(days=9))
             }
         ]
-        return activities[:limit]
+        return activities[:mock_limit]
 
     async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:
         if not self.is_enabled():
@@ -404,17 +502,16 @@ class GarminConnector(BaseConnector):
         total_heat_edges = 0
         user_zones = get_privacy_zones(user_id)
 
+        # 1. Record all activities in personal activity log with deterministic IDs
         for act in activities:
-            act_id = str(uuid.uuid4())
+            act_id = act.get("external_id") or str(uuid.uuid4())
             act_sport = act.get("sport", "mtb").lower()
-            pts = act.get("points", [])
             act_time = None
             try:
                 act_time = datetime.datetime.fromisoformat(act["date"])
             except Exception:
                 act_time = datetime.datetime.now(datetime.timezone.utc)
 
-            # 1. Record activity in personal activity log
             record_activity({
                 "id": act_id,
                 "user_id": user_id,
@@ -423,26 +520,41 @@ class GarminConnector(BaseConnector):
                 "distance_miles": act.get("distance_miles", 5.0),
                 "duration_minutes": act.get("duration_minutes", 30.0),
                 "source": "garmin",
+                "activity_date": act_time,
                 "created_at": act_time
             })
 
-            if import_to_heat and len(pts) >= 2:
-                # 2. Apply privacy filters: 0.2 mi endpoint trimming + privacy zones
-                trimmed_pts, priv_stats = apply_privacy_filters(pts, user_zones)
-
-                if not priv_stats["is_empty"] and len(trimmed_pts) >= 2:
-                    # 3. Map-match against OSM trail network edges
-                    edge_counts = await map_match_activity(trimmed_pts, sport=act_sport)
-                    if edge_counts:
-                        total_heat_edges += len(edge_counts)
-                        # 4. Record edge visits for heat calculation
-                        record_activity_edge_visits(
-                            activity_id=act_id,
-                            edge_counts=edge_counts,
-                            user_id=user_id,
-                            sport=act_sport,
-                            visited_at=act_time
-                        )
+        # 2. Ingest to heat layer in concurrent chunks
+        if import_to_heat:
+            batch_size = 20
+            for i in range(0, len(activities), batch_size):
+                chunk = activities[i:i + batch_size]
+                match_tasks = []
+                valid_acts = []
+                for act in chunk:
+                    pts = act.get("points", [])
+                    if len(pts) >= 2:
+                        trimmed_pts, priv_stats = apply_privacy_filters(pts, user_zones)
+                        if not priv_stats["is_empty"] and len(trimmed_pts) >= 2:
+                            valid_acts.append((act, trimmed_pts))
+                            match_tasks.append(map_match_activity(trimmed_pts, sport=act.get("sport", "mtb").lower()))
+                if match_tasks:
+                    results = await asyncio.gather(*match_tasks)
+                    for (act, _), edge_counts in zip(valid_acts, results):
+                        if edge_counts:
+                            total_heat_edges += len(edge_counts)
+                            act_time = None
+                            try:
+                                act_time = datetime.datetime.fromisoformat(act["date"])
+                            except Exception:
+                                act_time = datetime.datetime.now(datetime.timezone.utc)
+                            record_activity_edge_visits(
+                                activity_id=act.get("external_id", str(uuid.uuid4())),
+                                edge_counts=edge_counts,
+                                user_id=user_id,
+                                sport=act.get("sport", "mtb").lower(),
+                                visited_at=act_time
+                            )
 
         # Update last sync timestamp
         service_record = get_user_connected_service(user_id, self.name)
@@ -460,7 +572,7 @@ class GarminConnector(BaseConnector):
             "activities_imported": len(activities),
             "heat_edges_updated": total_heat_edges,
             "bulk_heat_imported": import_to_heat,
-            "message": f"Successfully synchronized {len(activities)} activities from Garmin Connect{heat_msg}."
+            "message": f"Successfully synchronized {len(activities)} outdoor activities from Garmin Connect (filtered out breathwork, gym, and stationary activities){heat_msg}."
         }
 
     async def disconnect(self, user_id: str) -> bool:

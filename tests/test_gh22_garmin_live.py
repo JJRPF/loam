@@ -133,3 +133,60 @@ async def test_garmin_mfa_error_handling():
         )
         assert bad_sess_resp.status_code == 400
         assert "expired or invalid" in bad_sess_resp.json()["detail"].lower()
+
+
+@pytest.mark.asyncio
+async def test_garmin_activity_filtering_and_classification():
+    """Verifies that non-trail activities (breathwork, gym, stationary, resort ski) are excluded."""
+    from app.connectors.garmin import classify_garmin_sport, GarminConnector, EXCLUDED_ACTIVITY_TYPES
+    from app.connectors.manager import connector_manager
+
+    # 1. Classification & Exclusions
+    assert classify_garmin_sport("breathwork") is None
+    assert classify_garmin_sport("breathing") is None
+    assert classify_garmin_sport("indoor_climbing") is None
+    assert classify_garmin_sport("strength_training") is None
+    assert classify_garmin_sport("treadmill_running") is None
+    assert classify_garmin_sport("indoor_cycling") is None
+    assert classify_garmin_sport("virtual_ride") is None
+    assert classify_garmin_sport("resort_skiing") is None
+    assert classify_garmin_sport("golf") is None
+    assert classify_garmin_sport("stop_watch") is None
+    assert classify_garmin_sport("incident_detected") is None
+
+    # 2. Included Outdoor Sports
+    assert classify_garmin_sport("mountain_biking") == "mtb"
+    assert classify_garmin_sport("e_bike_mountain") == "mtb"
+    assert classify_garmin_sport("cycling") == "mtb"
+    assert classify_garmin_sport("e_bike_fitness") == "mtb"
+    assert classify_garmin_sport("trail_running") == "trail_run"
+    assert classify_garmin_sport("running") == "trail_run"
+    assert classify_garmin_sport("hiking") == "trail_run"
+    assert classify_garmin_sport("walking") == "trail_run"
+
+    # 3. Idempotent bulk-import test with mock connector
+    test_uid = "test_gh22_idempotent_user"
+    save_user_connected_service(
+        user_id=test_uid,
+        provider="garmin",
+        encrypted_token=encrypt_token("mock_garmin_token")
+    )
+    garmin = connector_manager.get_connector("garmin")
+    assert garmin is not None
+
+    # First sync
+    res1 = await garmin.sync_activities(test_uid, import_to_heat=True)
+    assert res1["status"] == "success"
+    imported1 = res1["activities_imported"]
+    assert imported1 == 3
+
+    # Second sync (idempotent, updating rather than duplicating rows)
+    res2 = await garmin.sync_activities(test_uid, import_to_heat=True)
+    assert res2["status"] == "success"
+    assert res2["activities_imported"] == 3
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM activities WHERE user_id = %s;", (test_uid,))
+            count = cur.fetchone()[0]
+            assert count == 3, f"Expected 3 activities without duplicates, found {count}"
