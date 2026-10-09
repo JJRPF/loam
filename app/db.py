@@ -408,6 +408,7 @@ def record_activity_edge_visits(
         with get_connection() as conn:
             with conn.cursor() as cur:
                 ensure_user_exists(user_id)
+                cur.execute("DELETE FROM activity_edge_visits WHERE activity_id = %s;", (activity_id,))
                 for edge_id, pass_count in edge_counts.items():
                     # 1. Ensure edge exists in edges table
                     cur.execute(

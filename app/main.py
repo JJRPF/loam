@@ -32,6 +32,7 @@ from app.models import (
 )
 from app.routing import fetch_route, generate_route_options, generate_route_options_stream
 from app.db import (
+    get_connection,
     check_db_health, get_edge_heat, record_edge_heat,
     save_route_to_db, get_saved_routes_from_db,
     get_saved_route_by_id, delete_saved_route_from_db,

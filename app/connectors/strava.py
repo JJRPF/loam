@@ -102,7 +102,7 @@ class StravaConnector(BaseConnector):
         except Exception as e:
             return {"success": False, "error": f"Strava authentication failed: {str(e)}"}
 
-    async def fetch_activities(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
+    async def fetch_activities(self, user_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         if not self.is_enabled():
             return []
 
@@ -114,6 +114,7 @@ class StravaConnector(BaseConnector):
         if not token:
             return []
 
+        count = min(limit, 2) if limit is not None else 2
         return [
             {
                 "external_id": f"strava_act_{idx + 1}",
@@ -123,7 +124,7 @@ class StravaConnector(BaseConnector):
                 "duration_minutes": 75.0,
                 "date": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
-            for idx in range(min(limit, 2))
+            for idx in range(count)
         ]
 
     async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:
