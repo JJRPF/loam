@@ -203,6 +203,13 @@ export const NH_TRAILHEAD_PRESETS: TrailheadPreset[] = [
     description: "Hub of 40+ miles of prime singletrack, Little Bear, Bobcat, and Hedgehog."
   },
   {
+    name: "Bow Town Forest (Knox Rd)",
+    region: "Bow, NH",
+    lat: 43.1343,
+    lon: -71.4972,
+    description: "Diverse town forest network with technical singletrack, Robinson's Crest, and Nottingcook connections."
+  },
+  {
     name: "Highland Mountain Bike Park",
     region: "Northfield, NH",
     lat: 43.4357,

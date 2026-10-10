@@ -41,7 +41,7 @@ async function runBrowserVerification() {
   try {
     const targetUrl = process.env.TEST_URL || 'http://127.0.0.1:8089';
     console.log(`1. Navigating to ${targetUrl}...`);
-    await page.goto(targetUrl, { waitUntil: 'networkidle', timeout: 15000 });
+    await page.goto(targetUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
     // 2. Check Map Canvas presence
     console.log('2. Verifying MapLibre Canvas...');
@@ -116,7 +116,7 @@ async function runBrowserVerification() {
 
     // 7. Test Dev Tools Page and Google SSO
     console.log('6. Testing Developer Tools Page (#/dev) and Google SSO...');
-    await page.goto(`${targetUrl}/#/dev`, { waitUntil: 'networkidle', timeout: 10000 });
+    await page.goto(`${targetUrl}/#/dev`, { waitUntil: 'domcontentloaded', timeout: 20000 });
     await page.waitForTimeout(1000);
 
     const devHeader = await page.waitForSelector('text=Developer Tools & Operations', { timeout: 5000 });

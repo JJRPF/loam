@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDevStatus, clearDevCache, recalculateDevHeat } from '../services/api';
+import { getDevStatus, clearDevCache, recalculateDevHeat, ingestBowDevData } from '../services/api';
 
 interface DevConsolePanelProps {
   userEmail?: string;
@@ -35,7 +35,7 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
   idToken,
   devKey,
   onClose,
-  isDarkMode = false
+  isDarkMode = true
 }) => {
   const [statusData, setStatusData] = useState<DevStatusData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -88,6 +88,19 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
       await loadStatus();
     } catch (err: any) {
       addLog(`Failed to recalculate heat: ${err.message}`, 'error');
+    } finally {
+      setActionInProgress(null);
+    }
+  };
+
+  const handleIngestBowData = async () => {
+    setActionInProgress('ingestBow');
+    try {
+      const res = await ingestBowDevData(devKey, idToken, userEmail);
+      addLog(`Bow Town Forest data ingested: ${res.edges_ingested ?? 0} edges added/updated with public heat.`, 'success');
+      await loadStatus();
+    } catch (err: any) {
+      addLog(`Failed to ingest Bow data: ${err.message}`, 'error');
     } finally {
       setActionInProgress(null);
     }
@@ -312,6 +325,16 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
             style={{ fontSize: 12, padding: '6px 12px', minHeight: 32 }}
           >
             {actionInProgress === 'recalculateHeat' ? '⏳ Recalculating...' : '🔥 Recalculate Heat Layer'}
+          </button>
+
+          <button
+            type="button"
+            onClick={handleIngestBowData}
+            disabled={actionInProgress !== null}
+            className="btn-outline"
+            style={{ fontSize: 12, padding: '6px 12px', minHeight: 32, borderColor: '#16A34A', color: '#16A34A' }}
+          >
+            {actionInProgress === 'ingestBow' ? '⏳ Ingesting...' : '🌲 Ingest Bow Town Forest Data & Heat'}
           </button>
         </div>
       </div>

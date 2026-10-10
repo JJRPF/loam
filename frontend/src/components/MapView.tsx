@@ -84,7 +84,7 @@ export const MapView: React.FC<MapViewProps> = ({
   end,
   scrubCoord,
   onMapClick,
-  isDarkMode = false
+  isDarkMode = true
 }) => {
   const mapContainer = useRef<HTMLDivElement>(null);
   const mapRef = useRef<Map | null>(null);

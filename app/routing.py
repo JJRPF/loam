@@ -1,5 +1,6 @@
 import math
 import asyncio
+import re
 import httpx
 from typing import Dict, Any, List, Tuple, Optional, AsyncGenerator, Set
 from app.config import settings
@@ -33,28 +34,84 @@ PROFILE_SPEED_MPH = {
     SportProfile.FOOT: 3.5,
 }
 
-def classify_surface(road_class: str, surface: str, track_type: str) -> str:
-    """Classifies an edge segment into one of: singletrack, doubletrack, gravel, paved."""
+ROAD_CLASSES = {
+    "primary", "secondary", "tertiary", "residential", "service",
+    "unclassified", "living_street", "motorway", "trunk", "road"
+}
+ROAD_NAME_REGEX = re.compile(
+    r'\b(road|rd|drive|dr|lane|ln|street|st|avenue|ave|boulevard|blvd|way|court|ct|circle|cir|highway|hwy|turnpike|pike|loop)\b',
+    re.IGNORECASE
+)
+
+def classify_surface(road_class: Optional[str] = None, surface: Optional[str] = None, track_type: Optional[str] = None, way_name: str = "") -> str:
+    """
+    Classifies an edge segment into one of: singletrack, doubletrack, gravel, paved.
+    Residential and paved streets (e.g. Grandview Road, Ridgewood Drive, Bettys Lane)
+    are categorized as road/paved (or gravel if unpaved road), and NEVER as singletrack.
+    Singletrack is strictly reserved for actual trail ways (e.g. highway=path/track/footway
+    with surface=dirt/ground or bicycle=designated).
+    """
     rc = (road_class or "").lower()
     s = (surface or "").lower()
     tt = (track_type or "").lower()
-    
-    if rc in ("path", "bridleway", "steps") or (rc == "footway" and s in ("ground", "dirt", "grass", "")):
+    name = (way_name or "").lower()
+
+    # If 3 arguments provided and 3rd is way_name rather than track_type
+    if not name and tt and not tt.startswith("grade"):
+        name = tt
+        tt = ""
+
+    # 1. Road check: if it is a motor road or named street, it is a road (paved or gravel)
+    is_road = rc in ROAD_CLASSES or (not rc and bool(ROAD_NAME_REGEX.search(name)))
+    if is_road:
+        if s in ("gravel", "fine_gravel", "compacted", "dirt", "earth", "ground", "sand", "unpaved") and rc not in ("primary", "secondary", "motorway", "trunk"):
+            return "gravel"
+        return "paved"
+
+    # 2. Path & singletrack classifications
+    if rc in ("path", "bridleway", "steps"):
+        if s in ("asphalt", "paved", "concrete", "paving_stones"):
+            return "paved"
+        elif s in ("gravel", "fine_gravel", "compacted", "crushed_limestone"):
+            return "gravel"
         return "singletrack"
-    
+
+    if rc == "footway":
+        if s in ("asphalt", "paved", "concrete", "paving_stones"):
+            return "paved"
+        elif s in ("gravel", "fine_gravel", "compacted"):
+            return "gravel"
+        return "singletrack"
+
     if rc == "track":
         if tt in ("grade2", "grade3", "grade4", "grade5") or s in ("ground", "dirt", "grass", "earth"):
             return "doubletrack"
         elif tt == "grade1" or s in ("gravel", "fine_gravel", "compacted", "crushed_limestone"):
             return "gravel"
+        elif s in ("asphalt", "paved", "concrete"):
+            return "paved"
         return "doubletrack"
-        
-    if s in ("gravel", "fine_gravel", "compacted", "dirt", "earth", "ground", "sand", "pebblestone"):
-        return "gravel"
-        
-    if s in ("asphalt", "paved", "concrete", "paving_stones") or rc in ("primary", "secondary", "tertiary", "residential", "service", "unclassified"):
+
+    if rc == "cycleway":
+        if s in ("dirt", "ground", "earth"):
+            return "singletrack"
+        elif s in ("gravel", "fine_gravel", "compacted"):
+            return "gravel"
         return "paved"
-        
+
+    # 3. Surface-based fallbacks
+    if s in ("asphalt", "paved", "concrete", "paving_stones"):
+        return "paved"
+    if s in ("gravel", "fine_gravel", "compacted", "crushed_limestone"):
+        return "gravel"
+    if s in ("dirt", "earth", "ground", "grass", "sand"):
+        if bool(ROAD_NAME_REGEX.search(name)):
+            return "gravel"
+        return "singletrack"
+
+    if bool(ROAD_NAME_REGEX.search(name)):
+        return "paved"
+
     return "unpaved"
 
 def decode_points(points_data: Any) -> List[List[float]]:
@@ -68,46 +125,45 @@ def decode_points(points_data: Any) -> List[List[float]]:
 def build_custom_model(req: RouteRequest) -> Optional[Dict[str, Any]]:
     """
     Builds a GraphHopper custom model based on sport profile and terrain preference.
-    Includes specialized Trail Running Polish per Project Plan:
-    - Favors footpaths, stairs, and hiking trails.
-    - Avoids high-speed downhill mountain bike flow trails.
-    - Permits steeper grades without bike-specific penalties.
+    Heavily penalizes residential / paved roads and strictly prioritizes singletrack trails.
     """
     pref = req.terrain_preference
     priority_rules = []
 
+    # 1. Paved Road Avoidance & Singletrack Prioritization
+    # For MTB / trail runs, residential & paved streets must be heavily discouraged
+    paved_weight = max(0.05, pref.paved * 0.4) if (pref and pref.paved < 0.2) else 0.15
+    priority_rules.append({
+        "if": "road_class == RESIDENTIAL || road_class == UNCLASSIFIED || road_class == SERVICE || road_class == TERTIARY || road_class == SECONDARY || road_class == PRIMARY || surface == ASPHALT || surface == PAVED || surface == CONCRETE",
+        "multiply_by": f"{paved_weight:.2f}"
+    })
+
+    # Boost singletrack trails (paths and bridleways)
+    st_boost = min(3.0, 1.8 + (pref.singletrack if pref else 0.7) * 1.5)
+    priority_rules.append({
+        "if": "road_class == PATH || road_class == BRIDLEWAY",
+        "multiply_by": f"{st_boost:.2f}"
+    })
+
+    # Boost unpaved natural surfaces (dirt, ground)
+    priority_rules.append({
+        "if": "surface == DIRT || surface == GROUND",
+        "multiply_by": "1.5"
+    })
+
     # Trail Running Profile Polish
     if req.profile in (SportProfile.TRAIL_RUN, SportProfile.FOOT):
-        # Strongly favor footpaths, walking paths, and stairs
         priority_rules.append({
             "if": "road_class == PATH || road_class == FOOTWAY || road_class == STEPS",
             "multiply_by": "2.0"
         })
-        # Avoid heavy high-speed downhill mountain bike flow trails
         if req.trail_run_avoid_mtb_flow:
             priority_rules.append({
                 "if": "road_class == PATH && (surface == DIRT || surface == UNPAVED) && track_type == GRADE1",
                 "multiply_by": "0.2"
             })
-        # Heavily penalize paved roadways for trail running
-        priority_rules.append({
-            "if": "road_class == PRIMARY || road_class == SECONDARY || surface == ASPHALT || surface == PAVED",
-            "multiply_by": "0.15"
-        })
 
     if pref:
-        # Singletrack priority
-        if pref.singletrack >= 0.5 and req.profile not in (SportProfile.TRAIL_RUN, SportProfile.FOOT):
-            priority_rules.append({
-                "if": "road_class == PATH || road_class == BRIDLEWAY",
-                "multiply_by": f"{min(2.0, 1.0 + pref.singletrack):.2f}"
-            })
-        elif pref.singletrack < 0.2:
-            priority_rules.append({
-                "if": "road_class == PATH",
-                "multiply_by": "0.5"
-            })
-
         # Gravel priority
         if pref.gravel >= 0.4:
             priority_rules.append({
@@ -120,13 +176,6 @@ def build_custom_model(req: RouteRequest) -> Optional[Dict[str, Any]]:
             priority_rules.append({
                 "if": "road_class == TRACK",
                 "multiply_by": f"{min(2.0, 1.0 + pref.doubletrack):.2f}"
-            })
-
-        # Paved preference
-        if pref.paved < 0.15 and req.profile not in (SportProfile.TRAIL_RUN, SportProfile.FOOT):
-            priority_rules.append({
-                "if": "surface == ASPHALT || surface == PAVED || road_class == PRIMARY || road_class == SECONDARY",
-                "multiply_by": f"{max(0.2, pref.paved * 1.5):.2f}"
             })
 
     if priority_rules:
@@ -240,6 +289,7 @@ def process_graphhopper_path(
     road_class_details = details.get("road_class", [])
     track_type_details = details.get("track_type", [])
     osm_way_details = details.get("osm_way_id", [])
+    street_name_details = details.get("street_name", [])
 
     total_pts = len(points)
     surface_map = {}
@@ -257,6 +307,11 @@ def process_graphhopper_path(
         for idx in range(t_start, min(t_end, total_pts)):
             tt_map[idx] = val
 
+    name_map = {}
+    for n_start, n_end, val in street_name_details:
+        for idx in range(n_start, min(n_end, total_pts)):
+            name_map[idx] = val
+
     surface_strip: List[SurfaceSegment] = []
     category_counts: Dict[str, int] = {
         "singletrack": 0,
@@ -272,7 +327,8 @@ def process_graphhopper_path(
         rc = rc_map.get(i, "")
         s = surface_map.get(i, "")
         tt = tt_map.get(i, "")
-        cat = classify_surface(rc, s, tt)
+        w_name = name_map.get(i, "")
+        cat = classify_surface(rc, s, tt, w_name)
         category_counts[cat] = category_counts.get(cat, 0) + 1
 
         if current_cat is None:
@@ -525,36 +581,57 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
         rep = calculate_repetition_ratio(pts, osm_d)
         g_type, _ = classify_route_geometry(pts, osm_d, rep)
 
-        # If user explicitly requested a Loop and initial route produced an out-and-back,
-        # attempt lollipop loop geometries to return a true loop
-        if is_loop and g_type == "out_and_back" and req.target_distance_miles and (not req.waypoints or len(req.waypoints) == 0):
+        # When 'Loop' is selected, strictly avoid out-and-back routes.
+        # Reference authentic trail ride routing patterns.
+        if is_loop and (g_type == "out_and_back" or rep > 0.28) and req.target_distance_miles and (not req.waypoints or len(req.waypoints) == 0):
             lat_deg_l = 111132.0
             lon_deg_l = 111132.0 * math.cos(math.radians(req.start.lat))
             base_r = (req.target_distance_miles * 1609.344) / 4.2
-            # Try rotating through sectors with lollipop geometry (stem -> loop -> stem)
-            for trial_deg in [45.0, 135.0, 225.0, 315.0, 90.0, 180.0]:
+
+            # Try authentic polygonal loop geometries across sectors
+            trial_specs = []
+            for trial_deg in [45.0, 135.0, 225.0, 315.0, 90.0, 180.0, 270.0, 0.0, 30.0, 150.0, 210.0, 330.0]:
+                # Triangular loop CW
+                r1 = base_r * 1.0
+                a1, a2 = math.radians(trial_deg - 22.0), math.radians(trial_deg + 22.0)
+                wp1 = (req.start.lat + (r1 * math.cos(a1)) / lat_deg_l, req.start.lon + (r1 * math.sin(a1)) / lon_deg_l)
+                wp2 = (req.start.lat + (r1 * math.cos(a2)) / lat_deg_l, req.start.lon + (r1 * math.sin(a2)) / lon_deg_l)
+                trial_specs.append([(req.start.lat, req.start.lon), wp1, wp2, (req.start.lat, req.start.lon)])
+                # Triangular loop CCW
+                trial_specs.append([(req.start.lat, req.start.lon), wp2, wp1, (req.start.lat, req.start.lon)])
+                # Lollipop loop (stem -> loop -> stem)
                 r_stem = base_r * 0.35
                 wp_stem = (req.start.lat + (r_stem * math.cos(math.radians(trial_deg))) / lat_deg_l, req.start.lon + (r_stem * math.sin(math.radians(trial_deg))) / lon_deg_l)
                 r_loop = base_r * 0.65
-                a1, a2 = math.radians(trial_deg - 28.0), math.radians(trial_deg + 28.0)
-                wp_l1 = (wp_stem[0] + (r_loop * math.cos(a1)) / lat_deg_l, wp_stem[1] + (r_loop * math.sin(a1)) / lon_deg_l)
-                wp_l2 = (wp_stem[0] + (r_loop * math.cos(a2)) / lat_deg_l, wp_stem[1] + (r_loop * math.sin(a2)) / lon_deg_l)
-                trial_coords = [(req.start.lat, req.start.lon), wp_stem, wp_l1, wp_l2, wp_stem, (req.start.lat, req.start.lon)]
+                al1, al2 = math.radians(trial_deg - 28.0), math.radians(trial_deg + 28.0)
+                wp_l1 = (wp_stem[0] + (r_loop * math.cos(al1)) / lat_deg_l, wp_stem[1] + (r_loop * math.sin(al1)) / lon_deg_l)
+                wp_l2 = (wp_stem[0] + (r_loop * math.cos(al2)) / lat_deg_l, wp_stem[1] + (r_loop * math.sin(al2)) / lon_deg_l)
+                trial_specs.append([(req.start.lat, req.start.lon), wp_stem, wp_l1, wp_l2, wp_stem, (req.start.lat, req.start.lon)])
+
+            best_t_path = None
+            min_rep = 1.0
+            for t_coords in trial_specs:
                 try:
-                    trial_resp = await _query_gh(client, trial_coords, gh_profile, custom_model)
+                    trial_resp = await _query_gh(client, t_coords, gh_profile, custom_model)
                     if trial_resp and trial_resp.status_code == 200:
                         t_data = trial_resp.json()
                         if t_data.get("paths"):
-                            t_path = t_data["paths"][0]
-                            t_pts = decode_points(t_path.get("points", {}))
-                            t_osm = t_path.get("details", {}).get("osm_way_id", [])
-                            t_rep = calculate_repetition_ratio(t_pts, t_osm)
-                            t_gtype, _ = classify_route_geometry(t_pts, t_osm, t_rep)
-                            if t_gtype in ("loop", "lollipop"):
-                                path = t_path
+                            cand_p = t_data["paths"][0]
+                            cand_pts = decode_points(cand_p.get("points", {}))
+                            cand_osm = cand_p.get("details", {}).get("osm_way_id", [])
+                            cand_rep = calculate_repetition_ratio(cand_pts, cand_osm)
+                            cand_gtype, _ = classify_route_geometry(cand_pts, cand_osm, cand_rep)
+                            if cand_gtype in ("loop", "lollipop") and cand_rep < 0.25:
+                                path = cand_p
                                 break
+                            elif cand_gtype in ("loop", "lollipop") and cand_rep < min_rep:
+                                min_rep = cand_rep
+                                best_t_path = cand_p
                 except Exception:
                     continue
+
+            if path == data["paths"][0] and best_t_path is not None:
+                path = best_t_path
 
     osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
     points = decode_points(path.get("points", {}))

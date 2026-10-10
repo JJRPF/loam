@@ -434,7 +434,7 @@ export const ExplorePanel: React.FC = () => {
                   <div style={{ display: 'flex', gap: 8, fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
                     <span>{trail.distance_miles.toFixed(2)} mi</span>
                     <span>•</span>
-                    <span style={{ textTransform: 'capitalize' }}>{trail.surface || 'Singletrack'}</span>
+                    <span style={{ textTransform: 'capitalize' }}>{trail.surface || 'Trail'}</span>
                     <span>•</span>
                     <span>Heat Score: <strong>{trail.heat_score}</strong></span>
                   </div>
