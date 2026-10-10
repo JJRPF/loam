@@ -19,6 +19,11 @@ from app.db import (
     check_route_trust_layer, log_dnr_override, get_user_ridden_edge_ids,
     resolve_osm_trail_name
 )
+from app.corridor_generator import generate_corridor_loop_candidate, find_retraced_segments
+from app.distance_fitting import fit_loop_distance
+from app.start_suggestions import find_nearby_loop_start
+from app.contracted_graph import ContractedTrailGraph
+from app.garmin_seeds import seed_catalog
 
 METERS_TO_MILES = 0.000621371192
 METERS_TO_FEET = 3.280839895
@@ -513,6 +518,11 @@ def process_graphhopper_path(
     flag_warns = trust_result.get("community_flag_warnings", []) if trust_result else []
     waived = bool(trust_result and trust_result.get("waived_hard_blocks_count", 0) > 0)
 
+    retraced_lines = path.get("retraced_coordinates")
+    if retraced_lines is None:
+        retraced_lines = find_retraced_segments(points, osm_way_details)
+    retraced_miles = float(path.get("retraced_miles", round(dist_miles * rep_ratio, 2)))
+
     return RouteResponse(
         id=cand_id,
         name=base_name,
@@ -537,6 +547,8 @@ def process_graphhopper_path(
         match_score=composite_score,
         score_breakdown=score_breakdown,
         repetition_ratio=rep_ratio,
+        retraced_miles=retraced_miles,
+        retraced_coordinates=retraced_lines,
         route_type=route_geom_type,
         primary_trail_name=primary_trail_name,
         verbal_summary=verbal_summary,
@@ -758,28 +770,41 @@ def select_options(
         rest = [p for p in scored_candidates if p[0].route_type != "out_and_back"]
         candidate_pool = oab + rest
     elif is_loop:
-        loop_pairs = [pair for pair in scored_candidates if pair[0].route_type in ("loop", "lollipop")]
-        oab_pairs = [pair for pair in scored_candidates if pair[0].route_type == "out_and_back"]
-
-        def is_severe(r: RouteResponse) -> bool:
-            if req.target_distance_miles and req.target_distance_miles > 0:
-                err = abs(r.distance_miles - req.target_distance_miles) / req.target_distance_miles
-                if err > 0.45:
-                    return True
-            if (r.match_score or 0) < 40:
-                return True
-            return False
-
-        viable_loops = [p for p in loop_pairs if not is_severe(p[0])]
-
-        if viable_loops:
-            candidate_pool = viable_loops + [p for p in loop_pairs if p not in viable_loops]
-        elif loop_pairs:
-            candidate_pool = loop_pairs
+        if req.loops_only:
+            true_loops = [p for p in scored_candidates if p[0].route_type == "loop"]
+            lollipops = [p for p in scored_candidates if p[0].route_type == "lollipop"]
+            candidate_pool = true_loops + lollipops
         else:
-            for r, _ in oab_pairs:
-                r.warnings.append("Out-and-back fallback: No viable loop circuit found in this trail network.")
-            candidate_pool = oab_pairs
+            true_loops = [pair for pair in scored_candidates if pair[0].route_type == "loop"]
+            lollipop_pairs = [pair for pair in scored_candidates if pair[0].route_type == "lollipop"]
+            oab_pairs = [pair for pair in scored_candidates if pair[0].route_type == "out_and_back"]
+
+            def is_severe(r: RouteResponse) -> bool:
+                if req.target_distance_miles and req.target_distance_miles > 0:
+                    err = abs(r.distance_miles - req.target_distance_miles) / req.target_distance_miles
+                    if err > 0.45:
+                        return True
+                if (r.match_score or 0) < 40:
+                    return True
+                return False
+
+            viable_true_loops = [p for p in true_loops if not is_severe(p[0])]
+            viable_lollipops = [p for p in lollipop_pairs if not is_severe(p[0])]
+
+            if viable_true_loops or viable_lollipops:
+                candidate_pool = (
+                    viable_true_loops
+                    + viable_lollipops
+                    + [p for p in true_loops if p not in viable_true_loops]
+                    + [p for p in lollipop_pairs if p not in viable_lollipops]
+                    + oab_pairs
+                )
+            elif true_loops or lollipop_pairs:
+                candidate_pool = true_loops + lollipop_pairs + oab_pairs
+            else:
+                for r, _ in oab_pairs:
+                    r.warnings.append("Out-and-back fallback: No viable loop circuit found in this trail network.")
+                candidate_pool = oab_pairs
     else:
         candidate_pool = scored_candidates
 
@@ -860,51 +885,32 @@ async def generate_route_options(
 
     try:
         if is_loop:
-            # 12 sectors across all 4 quadrants (0 deg to 330 deg in 30 deg steps)
+            # 1. Corridor Loops across 12 sectors
             sectors = [i * 30.0 for i in range(12)]
-            base_r = (target_miles * 1609.344) / 4.2
+            base_r = (target_miles * 1609.344) / 3.8
 
             for deg in sectors:
                 sec_name, sec_code, quad = get_sector_info(deg)
-
-                # Geometry 1: Triangular Loop CW (radius 1.0)
-                r1 = base_r * 1.0
-                a1, a2 = math.radians(deg - 22.0), math.radians(deg + 22.0)
-                wp1 = (start_lat + (r1 * math.cos(a1)) / lat_deg_len, start_lon + (r1 * math.sin(a1)) / lon_deg_len)
-                wp2 = (start_lat + (r1 * math.cos(a2)) / lat_deg_len, start_lon + (r1 * math.sin(a2)) / lon_deg_len)
+                dest_lat = start_lat + (base_r * math.cos(math.radians(deg))) / lat_deg_len
+                dest_lon = start_lon + (base_r * math.sin(math.radians(deg))) / lon_deg_len
                 candidate_tasks.append(
-                    _query_gh(client, [(start_lat, start_lon), wp1, wp2, (start_lat, start_lon)], gh_profile, custom_model)
+                    generate_corridor_loop_candidate(client, start_lat, start_lon, dest_lat, dest_lon, gh_profile, custom_model)
                 )
-                task_metadata.append({"sector_name": f"{sec_name} Loop", "sector_code": sec_code, "deg": deg, "var": "CW"})
+                task_metadata.append({"sector_name": f"{sec_name} Loop", "sector_code": sec_code, "deg": deg, "var": "CORRIDOR"})
 
-                # Geometry 2: Triangular Loop CCW (radius 1.0)
+            # 2. Compact Corridor Loops for cardinal directions
+            for deg in [0.0, 90.0, 180.0, 270.0]:
+                sec_name, sec_code, quad = get_sector_info(deg)
+                dest_lat = start_lat + (base_r * 0.75 * math.cos(math.radians(deg))) / lat_deg_len
+                dest_lon = start_lon + (base_r * 0.75 * math.sin(math.radians(deg))) / lon_deg_len
                 candidate_tasks.append(
-                    _query_gh(client, [(start_lat, start_lon), wp2, wp1, (start_lat, start_lon)], gh_profile, custom_model)
+                    generate_corridor_loop_candidate(client, start_lat, start_lon, dest_lat, dest_lon, gh_profile, custom_model)
                 )
-                task_metadata.append({"sector_name": f"{sec_name} Reverse Loop", "sector_code": sec_code, "deg": deg, "var": "CCW"})
+                task_metadata.append({"sector_name": f"{sec_name} Inner Loop", "sector_code": sec_code, "deg": deg, "var": "CORRIDOR_INNER"})
 
-                # Geometry 3: Sweeping Arc Loop (radius 1.25, 3 waypoints)
-                r_arc = base_r * 1.25
-                a_arc1, a_arc2, a_arc3 = math.radians(deg - 35.0), math.radians(deg), math.radians(deg + 35.0)
-                wp_arc1 = (start_lat + (r_arc * math.cos(a_arc1)) / lat_deg_len, start_lon + (r_arc * math.sin(a_arc1)) / lon_deg_len)
-                wp_arc2 = (start_lat + (r_arc * math.cos(a_arc2)) / lat_deg_len, start_lon + (r_arc * math.sin(a_arc2)) / lon_deg_len)
-                wp_arc3 = (start_lat + (r_arc * math.cos(a_arc3)) / lat_deg_len, start_lon + (r_arc * math.sin(a_arc3)) / lon_deg_len)
-                candidate_tasks.append(
-                    _query_gh(client, [(start_lat, start_lon), wp_arc1, wp_arc2, wp_arc3, (start_lat, start_lon)], gh_profile, custom_model)
-                )
-                task_metadata.append({"sector_name": f"{sec_name} Arc Loop", "sector_code": sec_code, "deg": deg, "var": "ARC"})
-
-                # Geometry 4: Compact Loop (radius 0.78)
-                r_comp = base_r * 0.78
-                a_c1, a_c2 = math.radians(deg - 18.0), math.radians(deg + 18.0)
-                wp_c1 = (start_lat + (r_comp * math.cos(a_c1)) / lat_deg_len, start_lon + (r_comp * math.sin(a_c1)) / lon_deg_len)
-                wp_c2 = (start_lat + (r_comp * math.cos(a_c2)) / lat_deg_len, start_lon + (r_comp * math.sin(a_c2)) / lon_deg_len)
-                candidate_tasks.append(
-                    _query_gh(client, [(start_lat, start_lon), wp_c1, wp_c2, (start_lat, start_lon)], gh_profile, custom_model)
-                )
-                task_metadata.append({"sector_name": f"{sec_name} Inner Loop", "sector_code": sec_code, "deg": deg, "var": "INNER"})
-
-                # Geometry 5: Lollipop Loop CW (stem -> loop circuit -> stem return)
+            # 3. Geometric lollipop & triangular options for variety
+            for deg in [45.0, 135.0, 225.0, 315.0]:
+                sec_name, sec_code, quad = get_sector_info(deg)
                 r_stem = base_r * 0.35
                 wp_stem = (start_lat + (r_stem * math.cos(math.radians(deg))) / lat_deg_len, start_lon + (r_stem * math.sin(math.radians(deg))) / lon_deg_len)
                 r_loop = base_r * 0.65
@@ -915,12 +921,6 @@ async def generate_route_options(
                     _query_gh(client, [(start_lat, start_lon), wp_stem, wp_l1, wp_l2, wp_stem, (start_lat, start_lon)], gh_profile, custom_model)
                 )
                 task_metadata.append({"sector_name": f"{sec_name} Lollipop Loop", "sector_code": sec_code, "deg": deg, "var": "LOLLIPOP_CW"})
-
-                # Geometry 6: Lollipop Loop CCW
-                candidate_tasks.append(
-                    _query_gh(client, [(start_lat, start_lon), wp_stem, wp_l2, wp_l1, wp_stem, (start_lat, start_lon)], gh_profile, custom_model)
-                )
-                task_metadata.append({"sector_name": f"{sec_name} Reverse Lollipop", "sector_code": sec_code, "deg": deg, "var": "LOLLIPOP_CCW"})
 
         else:
             # Point to Point Mode
@@ -963,18 +963,58 @@ async def generate_route_options(
     finally:
         await client.aclose()
 
+    # Append Garmin seed loops if available
+    matching_seeds = seed_catalog.get_matching_seeds(start_lat, start_lon, target_miles, sport=req.profile.value) if is_loop else []
+    for seed in matching_seeds:
+        _, sec_code, _ = get_sector_info(45.0)
+        seed_path = {
+            "distance": seed.distance_miles / METERS_TO_MILES,
+            "ascend": 150.0,
+            "descend": 150.0,
+            "points": {"coordinates": seed.coordinates},
+            "details": {
+                "surface": [[0, len(seed.coordinates) - 1, "singletrack"]],
+                "road_class": [[0, len(seed.coordinates) - 1, "path"]],
+                "track_type": [[0, len(seed.coordinates) - 1, "grade1"]],
+                "osm_way_id": [[0, len(seed.coordinates) - 1, wid] for wid in seed.osm_way_ids],
+                "street_name": [[0, len(seed.coordinates) - 1, seed.name]]
+            },
+            "repetition_ratio": seed.repetition_ratio,
+            "retraced_miles": round(seed.distance_miles * seed.repetition_ratio, 2),
+            "retraced_coordinates": []
+        }
+        results.append(seed_path)
+        task_metadata.append({"sector_name": f"{seed.name} (Garmin Seed)", "sector_code": sec_code, "deg": 45.0, "var": "SEED"})
+
+    # Evaluate nearby start suggestions if in loop mode
+    nearby_suggestion_text = None
+    if is_loop:
+        s_obj = find_nearby_loop_start(start_lat, start_lon, current_retrace_ratio=1.0)
+        if s_obj and isinstance(s_obj, dict):
+            nearby_suggestion_text = s_obj.get("message")
+
     # Process candidates
     valid_candidates = []
     all_traversed_ways = set()
 
     for idx, res in enumerate(results):
-        if isinstance(res, Exception) or res is None or res.status_code != 200:
+        if isinstance(res, Exception) or res is None:
             continue
         try:
-            data = res.json()
-            if not data.get("paths"):
-                continue
-            path = data["paths"][0]
+            if isinstance(res, dict):
+                path = res
+            else:
+                if res.status_code != 200:
+                    continue
+                data = res.json()
+                if not data.get("paths"):
+                    continue
+                path = data["paths"][0]
+
+            meta = task_metadata[idx]
+            if is_loop and req.target_distance_miles and "CORRIDOR" in meta.get("var", ""):
+                path = fit_loop_distance(path, req.target_distance_miles)
+
             points = decode_points(path.get("points", {}))
             if len(points) < 2:
                 continue
@@ -988,7 +1028,6 @@ async def generate_route_options(
                 # Violates hard block (closure, private land, bike-prohibited wilderness, etc.) - REJECT
                 continue
 
-            meta = task_metadata[idx]
             all_traversed_ways.update(osm_ways)
 
             valid_candidates.append({
@@ -1029,8 +1068,10 @@ async def generate_route_options(
             trust_result=t_res,
             user_ridden_ways=user_ridden
         )
+        route_resp.nearby_start_suggestion = nearby_suggestion_text
 
         # Trailhead name prefix with real trail names
+        start_prefix = req.start.name.split('(')[0].strip() if req.start.name else "Bear Brook"
         if route_resp.primary_trail_name:
             if route_resp.route_type == "lollipop":
                 type_label = "Lollipop Loop"
@@ -1040,11 +1081,9 @@ async def generate_route_options(
                 type_label = "Out-and-Back"
             else:
                 type_label = "Route"
-            route_resp.name = f"Bear Brook — {route_resp.primary_trail_name} {type_label}"
-        elif req.start.name and req.start.name != "Bear Brook Trailhead":
-            route_resp.name = f"{req.start.name.split('(')[0].strip()} — {meta['sector_name']}"
+            route_resp.name = f"{start_prefix} — {route_resp.primary_trail_name} {type_label}"
         else:
-            route_resp.name = f"Bear Brook — {meta['sector_name']}"
+            route_resp.name = f"{start_prefix} — {meta['sector_name']}"
 
         scored_candidates.append((route_resp, item["ways"]))
 

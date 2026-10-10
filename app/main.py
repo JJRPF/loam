@@ -212,11 +212,21 @@ async def calculate_route_options(
     try:
         uid = resolve_user_id(authorization, x_user_id)
         options = await generate_route_options(request, count=request.candidate_count, user_id=uid)
+        is_loop_req = request.is_loop or request.route_mode in ("loop", "round_trip") or (request.end is None and request.route_mode != "out_and_back")
+        has_true_loops = any(opt.route_type in ("loop", "lollipop") for opt in options)
+        no_true_loop = bool(is_loop_req and not has_true_loops)
+        nearby_sugg = None
+        if options and options[0].nearby_start_suggestion:
+            nearby_sugg = options[0].nearby_start_suggestion
+
         return RouteOptionsResponse(
             options=options,
             count=len(options),
             requested_target_miles=request.target_distance_miles,
-            start_name=request.start.name
+            start_name=request.start.name,
+            loops_only=request.loops_only,
+            no_true_loop_near_here=no_true_loop,
+            nearby_start_suggestion=nearby_sugg
         )
     except Exception as e:
         raise HTTPException(

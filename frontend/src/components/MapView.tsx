@@ -132,6 +132,29 @@ export const MapView: React.FC<MapViewProps> = ({
         }
       });
 
+      // Retraced sections (highlighted in red)
+      const retracedSource = map.getSource('retraced-route-source') as GeoJSONSource;
+      if (retracedSource) {
+        if (r.retraced_coordinates && r.retraced_coordinates.length > 0) {
+          retracedSource.setData({
+            type: 'FeatureCollection',
+            features: r.retraced_coordinates.map(line => ({
+              type: 'Feature',
+              properties: {},
+              geometry: {
+                type: 'LineString',
+                coordinates: line.map(pt => [Number(pt[0]), Number(pt[1])])
+              }
+            }))
+          });
+        } else {
+          retracedSource.setData({
+            type: 'FeatureCollection',
+            features: []
+          });
+        }
+      }
+
       // Fit bounds to route geometry
       if (r.bbox && r.bbox.length === 4) {
         map.fitBounds(
@@ -150,6 +173,14 @@ export const MapView: React.FC<MapViewProps> = ({
         type: 'FeatureCollection',
         features: []
       });
+
+      const retracedSource = map.getSource('retraced-route-source') as GeoJSONSource;
+      if (retracedSource) {
+        retracedSource.setData({
+          type: 'FeatureCollection',
+          features: []
+        });
+      }
 
       // When route is cleared, auto center back to route start or GPS
       if (start && start.lon && start.lat) {
@@ -449,6 +480,30 @@ export const MapView: React.FC<MapViewProps> = ({
           'line-color': '#FF5B14',
           'line-width': 5.0,
           'line-opacity': 1.0
+        }
+      });
+
+      // Retraced Sections Layer (Red #EF4444)
+      map.addSource('retraced-route-source', {
+        type: 'geojson',
+        data: {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: 'retraced-route-line',
+        type: 'line',
+        source: 'retraced-route-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round'
+        },
+        paint: {
+          'line-color': '#EF4444',
+          'line-width': 5.5,
+          'line-opacity': 0.95
         }
       });
 

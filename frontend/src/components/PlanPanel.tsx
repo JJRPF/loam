@@ -38,6 +38,8 @@ interface PlanPanelProps {
   onTrailRunSteeperGradesChange?: (val: boolean) => void;
   trailRunAvoidMtbFlow?: boolean;
   onTrailRunAvoidMtbFlowChange?: (val: boolean) => void;
+  loopsOnly?: boolean;
+  onLoopsOnlyChange?: (val: boolean) => void;
 }
 
 export const PlanPanel: React.FC<PlanPanelProps> = ({
@@ -66,7 +68,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   trailRunSteeperGrades = true,
   onTrailRunSteeperGradesChange,
   trailRunAvoidMtbFlow = true,
-  onTrailRunAvoidMtbFlowChange
+  onTrailRunAvoidMtbFlowChange,
+  loopsOnly = false,
+  onLoopsOnlyChange
 }) => {
   const [selectedPresetName, setSelectedPresetName] = useState<string>("Mostly Trail");
 
@@ -275,6 +279,20 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
             </button>
           ))}
         </div>
+        {routeMode === 'loop' && (
+          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', backgroundColor: 'var(--color-bg-subtle, #F5F7F7)', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)' }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)' }}>
+              Loops only (retrace ≤ 10%)
+            </span>
+            <input
+              type="checkbox"
+              id="loops-only-checkbox"
+              checked={loopsOnly}
+              onChange={(e) => onLoopsOnlyChange?.(e.target.checked)}
+              style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--color-lichen, #2E6F40)' }}
+            />
+          </div>
+        )}
       </section>
 
       {/* 3. Starting Location UX: Search, Direct Map Tap, Geolocation (No dropdown presets) */}

@@ -219,13 +219,17 @@ def classify_route_geometry(
             if dist_to_start_stem > max_separation:
                 max_separation = dist_to_start_stem
 
-        unrepeated_ratio = max(0.0, 1.0 - (repetition_ratio * 2.0))
-        if max_separation >= 100.0 and (unrepeated_ratio >= 0.12 or repetition_ratio < 0.40):
+        unrepeated_ratio = max(0.0, 1.0 - repetition_ratio)
+        if max_separation >= 100.0 and (unrepeated_ratio >= 0.50 or repetition_ratio < 0.40):
             is_lollipop = True
             best_loop_len = max(unrepeated_ratio * total_dist, 400.0)
 
     if is_lollipop:
-        return "lollipop", round(best_loop_len / total_dist, 3)
+        loop_frac = best_loop_len / total_dist
+        stem_frac = repetition_ratio / 2.0  # One-way stem fraction of total route
+        if stem_frac < 0.20 and loop_frac >= 0.60:
+            return "lollipop", round(loop_frac, 3)
+        return "out_and_back", 0.0
 
     # Retraces more than a clean loop allows and has no genuine circuit: out-and-back.
     return "out_and_back", 0.0
