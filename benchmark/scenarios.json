@@ -1,0 +1,3217 @@
+{
+ "scenarios": [
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.268,
+    "lollipop": 2.629,
+    "loop": 4.431,
+    "loop_spurs": 1.097,
+    "out_and_back": 1.163,
+    "point_to_point": 0.307,
+    "road_loop": 0.761
+   },
+   "area": "Marsh Pond Loudon",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s001",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10001,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.29,
+    "lon": -71.45
+   },
+   "tags": [
+    "loop",
+    "marsh"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.526,
+    "lollipop": 3.516,
+    "loop": 1.571,
+    "loop_spurs": 2.611,
+    "out_and_back": 2.131,
+    "point_to_point": 0.342,
+    "road_loop": 1.761
+   },
+   "area": "Kearsarge Winslow",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s002",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.15,
+   "seed": 10002,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.372,
+    "lon": -71.856
+   },
+   "tags": [
+    "loop",
+    "kearsarge"
+   ],
+   "target_miles": 5.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.057,
+    "lollipop": 1.856,
+    "loop": 1.915,
+    "loop_spurs": 2.399,
+    "out_and_back": 2.833,
+    "point_to_point": 0.204,
+    "road_loop": 1.509
+   },
+   "area": "Highland Mountain",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s003",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10003,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.4357,
+    "lon": -71.6111
+   },
+   "tags": [
+    "loop",
+    "highland"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.971,
+    "lollipop": 2.923,
+    "loop": 4.312,
+    "loop_spurs": 2.89,
+    "out_and_back": 2.865,
+    "point_to_point": 0.227,
+    "road_loop": 1.131
+   },
+   "area": "Kearsarge Winslow",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s004",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10004,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.372,
+    "lon": -71.856
+   },
+   "tags": [
+    "loop",
+    "kearsarge"
+   ],
+   "target_miles": 5.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.63,
+    "lollipop": 4.195,
+    "loop": 2.931,
+    "loop_spurs": 2.87,
+    "out_and_back": 1.599,
+    "point_to_point": 0.348,
+    "road_loop": 2.187
+   },
+   "area": "Highland Mountain",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s005",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10005,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.4357,
+    "lon": -71.6111
+   },
+   "tags": [
+    "loop",
+    "highland"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.239,
+    "lollipop": 3.568,
+    "loop": 0.926,
+    "loop_spurs": 0.821,
+    "out_and_back": 1.669,
+    "point_to_point": 0.316,
+    "road_loop": 0.799
+   },
+   "area": "Marsh Pond Loudon",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s006",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10006,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.29,
+    "lon": -71.45
+   },
+   "tags": [
+    "loop",
+    "marsh"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.033,
+    "lollipop": 2.814,
+    "loop": 3.336,
+    "loop_spurs": 1.746,
+    "out_and_back": 1.267,
+    "point_to_point": 0.308,
+    "road_loop": 2.129
+   },
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s007",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.08,
+   "seed": 10007,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "loop",
+    "bear"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.499,
+    "lollipop": 1.692,
+    "loop": 1.327,
+    "loop_spurs": 1.464,
+    "out_and_back": 1.585,
+    "point_to_point": 0.416,
+    "road_loop": 1.198
+   },
+   "area": "Bedford Town Forest",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s008",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10008,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.0,
+    "lon": -71.52
+   },
+   "tags": [
+    "loop",
+    "bedford"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.968,
+    "lollipop": 2.228,
+    "loop": 0.967,
+    "loop_spurs": 0.677,
+    "out_and_back": 1.211,
+    "point_to_point": 0.372,
+    "road_loop": 1.051
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s009",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.15,
+   "seed": 10009,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "loop",
+    "pisgah"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.299,
+    "lollipop": 3.293,
+    "loop": 0.916,
+    "loop_spurs": 0.804,
+    "out_and_back": 1.457,
+    "point_to_point": 0.329,
+    "road_loop": 1.8
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s010",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10010,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "loop",
+    "pisgah"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.829,
+    "lollipop": 3.658,
+    "loop": 2.745,
+    "loop_spurs": 1.576,
+    "out_and_back": 1.579,
+    "point_to_point": 0.4,
+    "road_loop": 1.978
+   },
+   "area": "Marsh Pond Loudon",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s011",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10011,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.29,
+    "lon": -71.45
+   },
+   "tags": [
+    "loop",
+    "marsh"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.8,
+    "lollipop": 1.635,
+    "loop": 1.292,
+    "loop_spurs": 0.576,
+    "out_and_back": 1.906,
+    "point_to_point": 0.327,
+    "road_loop": 2.033
+   },
+   "area": "Gunstock",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s012",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.03,
+   "seed": 10012,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.54,
+    "lon": -71.37
+   },
+   "tags": [
+    "loop",
+    "gunstock"
+   ],
+   "target_miles": 5.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.814,
+    "lollipop": 3.385,
+    "loop": 3.662,
+    "loop_spurs": 2.542,
+    "out_and_back": 1.382,
+    "point_to_point": 0.157,
+    "road_loop": 0.85
+   },
+   "area": "Bow Town Forest",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s013",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10013,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1343,
+    "lon": -71.4972
+   },
+   "tags": [
+    "loop",
+    "bow"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.022,
+    "lollipop": 4.478,
+    "loop": 2.072,
+    "loop_spurs": 2.092,
+    "out_and_back": 2.613,
+    "point_to_point": 0.444,
+    "road_loop": 2.08
+   },
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.1,
+   "id": "s014",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.15,
+   "seed": 10014,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "loop",
+    "bear"
+   ],
+   "target_miles": 12.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.133,
+    "lollipop": 1.883,
+    "loop": 3.481,
+    "loop_spurs": 1.85,
+    "out_and_back": 2.753,
+    "point_to_point": 0.173,
+    "road_loop": 2.141
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s015",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10015,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "loop",
+    "great"
+   ],
+   "target_miles": 3.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.357,
+    "lollipop": 3.66,
+    "loop": 1.041,
+    "loop_spurs": 1.016,
+    "out_and_back": 2.03,
+    "point_to_point": 0.25,
+    "road_loop": 1.73
+   },
+   "area": "Pawtuckaway",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s016",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.08,
+   "seed": 10016,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.083,
+    "lon": -71.177
+   },
+   "tags": [
+    "loop",
+    "pawtuckaway"
+   ],
+   "target_miles": 12.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.222,
+    "lollipop": 3.973,
+    "loop": 1.14,
+    "loop_spurs": 1.11,
+    "out_and_back": 1.452,
+    "point_to_point": 0.431,
+    "road_loop": 0.855
+   },
+   "area": "Marsh Pond Loudon",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s017",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10017,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.29,
+    "lon": -71.45
+   },
+   "tags": [
+    "loop",
+    "marsh"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.541,
+    "lollipop": 1.997,
+    "loop": 3.022,
+    "loop_spurs": 2.983,
+    "out_and_back": 1.562,
+    "point_to_point": 0.407,
+    "road_loop": 0.914
+   },
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s018",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10018,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "loop",
+    "bear"
+   ],
+   "target_miles": 14.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.424,
+    "lollipop": 1.95,
+    "loop": 2.176,
+    "loop_spurs": 2.226,
+    "out_and_back": 2.112,
+    "point_to_point": 0.35,
+    "road_loop": 1.645
+   },
+   "area": "Gunstock",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s019",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10019,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.54,
+    "lon": -71.37
+   },
+   "tags": [
+    "loop",
+    "gunstock"
+   ],
+   "target_miles": 3.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.926,
+    "lollipop": 1.578,
+    "loop": 4.169,
+    "loop_spurs": 2.301,
+    "out_and_back": 1.498,
+    "point_to_point": 0.296,
+    "road_loop": 1.484
+   },
+   "area": "Hall Mountain",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s020",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.03,
+   "seed": 10020,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.135,
+    "lon": -71.345
+   },
+   "tags": [
+    "loop",
+    "hall"
+   ],
+   "target_miles": 14.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.848,
+    "lollipop": 3.558,
+    "loop": 4.294,
+    "loop_spurs": 1.173,
+    "out_and_back": 1.496,
+    "point_to_point": 0.216,
+    "road_loop": 1.766
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s021",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10021,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "loop",
+    "pisgah"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.847,
+    "lollipop": 3.577,
+    "loop": 1.008,
+    "loop_spurs": 0.872,
+    "out_and_back": 2.878,
+    "point_to_point": 0.266,
+    "road_loop": 1.399
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s022",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10022,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "loop",
+    "oak"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.755,
+    "lollipop": 4.09,
+    "loop": 2.777,
+    "loop_spurs": 1.634,
+    "out_and_back": 1.685,
+    "point_to_point": 0.206,
+    "road_loop": 2.151
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 85.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s023",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10023,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "loop",
+    "great"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.772,
+    "lollipop": 4.079,
+    "loop": 2.315,
+    "loop_spurs": 2.926,
+    "out_and_back": 2.583,
+    "point_to_point": 0.437,
+    "road_loop": 1.218
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s024",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.03,
+   "seed": 10024,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "loop",
+    "oak"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.804,
+    "lollipop": 2.115,
+    "loop": 1.638,
+    "loop_spurs": 2.476,
+    "out_and_back": 2.622,
+    "point_to_point": 0.423,
+    "road_loop": 1.797
+   },
+   "area": "Marsh Pond Loudon",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s025",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10025,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.29,
+    "lon": -71.45
+   },
+   "tags": [
+    "loop",
+    "marsh"
+   ],
+   "target_miles": 14.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.472,
+    "lollipop": 1.756,
+    "loop": 1.757,
+    "loop_spurs": 1.284,
+    "out_and_back": 2.459,
+    "point_to_point": 0.215,
+    "road_loop": 0.865
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 85.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s026",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.25,
+   "seed": 10026,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "loop",
+    "great"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.202,
+    "lollipop": 4.316,
+    "loop": 0.755,
+    "loop_spurs": 1.152,
+    "out_and_back": 1.736,
+    "point_to_point": 0.303,
+    "road_loop": 1.322
+   },
+   "area": "Gunstock",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s027",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10027,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.54,
+    "lon": -71.37
+   },
+   "tags": [
+    "loop",
+    "gunstock"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.551,
+    "lollipop": 3.606,
+    "loop": 0.535,
+    "loop_spurs": 1.45,
+    "out_and_back": 2.931,
+    "point_to_point": 0.422,
+    "road_loop": 0.839
+   },
+   "area": "Highland Mountain",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s028",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.03,
+   "seed": 10028,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.4357,
+    "lon": -71.6111
+   },
+   "tags": [
+    "loop",
+    "highland"
+   ],
+   "target_miles": 3.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.93,
+    "lollipop": 4.0,
+    "loop": 4.166,
+    "loop_spurs": 1.167,
+    "out_and_back": 1.597,
+    "point_to_point": 0.158,
+    "road_loop": 1.584
+   },
+   "area": "Bedford Town Forest",
+   "climb_ft_per_mile": 110.0,
+   "covered": false,
+   "ghost_frac": 0.2,
+   "id": "s029",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10029,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.0,
+    "lon": -71.52
+   },
+   "tags": [
+    "loop",
+    "bedford"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.99,
+    "lollipop": 3.267,
+    "loop": 3.538,
+    "loop_spurs": 1.23,
+    "out_and_back": 1.621,
+    "point_to_point": 0.437,
+    "road_loop": 1.127
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s030",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10030,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "loop",
+    "pisgah"
+   ],
+   "target_miles": 5.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.414,
+    "lollipop": 2.976,
+    "loop": 4.321,
+    "loop_spurs": 2.931,
+    "out_and_back": 1.759,
+    "point_to_point": 0.331,
+    "road_loop": 1.193
+   },
+   "area": "Pawtuckaway",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.1,
+   "id": "s031",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10031,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.083,
+    "lon": -71.177
+   },
+   "tags": [
+    "loop",
+    "pawtuckaway"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.676,
+    "lollipop": 3.387,
+    "loop": 1.8,
+    "loop_spurs": 2.314,
+    "out_and_back": 1.545,
+    "point_to_point": 0.304,
+    "road_loop": 2.072
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s032",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.08,
+   "seed": 10032,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "loop",
+    "great"
+   ],
+   "target_miles": 12.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.925,
+    "lollipop": 2.548,
+    "loop": 3.373,
+    "loop_spurs": 2.623,
+    "out_and_back": 1.169,
+    "point_to_point": 0.286,
+    "road_loop": 0.753
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s033",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10033,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "loop",
+    "pisgah"
+   ],
+   "target_miles": 14.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.098,
+    "lollipop": 4.076,
+    "loop": 1.567,
+    "loop_spurs": 1.992,
+    "out_and_back": 1.3,
+    "point_to_point": 0.309,
+    "road_loop": 0.988
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s034",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10034,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "loop",
+    "pisgah"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.92,
+    "lollipop": 3.818,
+    "loop": 1.669,
+    "loop_spurs": 2.496,
+    "out_and_back": 2.014,
+    "point_to_point": 0.275,
+    "road_loop": 0.81
+   },
+   "area": "Kearsarge Winslow",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s035",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10035,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.372,
+    "lon": -71.856
+   },
+   "tags": [
+    "loop",
+    "kearsarge"
+   ],
+   "target_miles": 3.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.049,
+    "lollipop": 1.871,
+    "loop": 4.06,
+    "loop_spurs": 1.202,
+    "out_and_back": 2.233,
+    "point_to_point": 0.43,
+    "road_loop": 1.155
+   },
+   "area": "Kearsarge Winslow",
+   "climb_ft_per_mile": 110.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s036",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10036,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.372,
+    "lon": -71.856
+   },
+   "tags": [
+    "loop",
+    "kearsarge"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.905,
+    "lollipop": 2.983,
+    "loop": 1.015,
+    "loop_spurs": 1.271,
+    "out_and_back": 2.53,
+    "point_to_point": 0.161,
+    "road_loop": 1.934
+   },
+   "area": "Hall Mountain",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s037",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.25,
+   "seed": 10037,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.135,
+    "lon": -71.345
+   },
+   "tags": [
+    "loop",
+    "hall"
+   ],
+   "target_miles": 14.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.005,
+    "lollipop": 2.001,
+    "loop": 1.33,
+    "loop_spurs": 1.176,
+    "out_and_back": 2.738,
+    "point_to_point": 0.294,
+    "road_loop": 1.664
+   },
+   "area": "Hall Mountain",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s038",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10038,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.135,
+    "lon": -71.345
+   },
+   "tags": [
+    "loop",
+    "hall"
+   ],
+   "target_miles": 5.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.187,
+    "lollipop": 3.605,
+    "loop": 2.749,
+    "loop_spurs": 2.553,
+    "out_and_back": 2.345,
+    "point_to_point": 0.242,
+    "road_loop": 2.134
+   },
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s039",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10039,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "loop",
+    "bear"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.457,
+    "lollipop": 4.109,
+    "loop": 3.366,
+    "loop_spurs": 1.335,
+    "out_and_back": 2.511,
+    "point_to_point": 0.253,
+    "road_loop": 0.977
+   },
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s040",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10040,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "loop",
+    "bear"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.378,
+    "lollipop": 3.251,
+    "loop": 3.998,
+    "loop_spurs": 2.322,
+    "out_and_back": 1.417,
+    "point_to_point": 0.292,
+    "road_loop": 1.933
+   },
+   "area": "Bow Town Forest",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s041",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.03,
+   "seed": 10041,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1343,
+    "lon": -71.4972
+   },
+   "tags": [
+    "loop",
+    "bow"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.48,
+    "lollipop": 1.825,
+    "loop": 4.11,
+    "loop_spurs": 2.989,
+    "out_and_back": 2.874,
+    "point_to_point": 0.249,
+    "road_loop": 0.894
+   },
+   "area": "Gunstock",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s042",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10042,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.54,
+    "lon": -71.37
+   },
+   "tags": [
+    "loop",
+    "gunstock"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.804,
+    "lollipop": 3.993,
+    "loop": 1.062,
+    "loop_spurs": 0.594,
+    "out_and_back": 1.262,
+    "point_to_point": 0.412,
+    "road_loop": 0.877
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.2,
+   "id": "s043",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10043,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "loop",
+    "oak"
+   ],
+   "target_miles": 12.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.673,
+    "lollipop": 3.981,
+    "loop": 2.785,
+    "loop_spurs": 1.614,
+    "out_and_back": 2.417,
+    "point_to_point": 0.326,
+    "road_loop": 2.085
+   },
+   "area": "Kearsarge Winslow",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s044",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10044,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.372,
+    "lon": -71.856
+   },
+   "tags": [
+    "loop",
+    "kearsarge"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.837,
+    "lollipop": 3.502,
+    "loop": 0.969,
+    "loop_spurs": 1.301,
+    "out_and_back": 1.746,
+    "point_to_point": 0.296,
+    "road_loop": 0.898
+   },
+   "area": "Pawtuckaway",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s045",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.15,
+   "seed": 10045,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.083,
+    "lon": -71.177
+   },
+   "tags": [
+    "loop",
+    "pawtuckaway"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.056,
+    "lollipop": 2.049,
+    "loop": 3.647,
+    "loop_spurs": 2.087,
+    "out_and_back": 1.46,
+    "point_to_point": 0.342,
+    "road_loop": 1.242
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s046",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10046,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "loop",
+    "pisgah"
+   ],
+   "target_miles": 5.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.926,
+    "lollipop": 1.631,
+    "loop": 1.064,
+    "loop_spurs": 0.548,
+    "out_and_back": 1.741,
+    "point_to_point": 0.197,
+    "road_loop": 0.829
+   },
+   "area": "Gunstock",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s047",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10047,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.54,
+    "lon": -71.37
+   },
+   "tags": [
+    "loop",
+    "gunstock"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.392,
+    "lollipop": 2.995,
+    "loop": 0.786,
+    "loop_spurs": 1.454,
+    "out_and_back": 1.03,
+    "point_to_point": 0.396,
+    "road_loop": 1.157
+   },
+   "area": "Kearsarge Winslow",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s048",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10048,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.372,
+    "lon": -71.856
+   },
+   "tags": [
+    "loop",
+    "kearsarge"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.563,
+    "lollipop": 3.781,
+    "loop": 4.097,
+    "loop_spurs": 1.514,
+    "out_and_back": 1.175,
+    "point_to_point": 0.302,
+    "road_loop": 1.424
+   },
+   "area": "Pawtuckaway",
+   "climb_ft_per_mile": 110.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s049",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10049,
+   "shape": "loop",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.083,
+    "lon": -71.177
+   },
+   "tags": [
+    "loop",
+    "pawtuckaway"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.476,
+    "lollipop": 1.756,
+    "loop": 3.595,
+    "loop_spurs": 2.531,
+    "out_and_back": 2.612,
+    "point_to_point": 0.218,
+    "road_loop": 1.007
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.2,
+   "id": "s050",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10050,
+   "shape": "loop",
+   "split": "holdout",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "loop",
+    "oak"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.621,
+    "lollipop": 3.766,
+    "loop": 0.581,
+    "loop_spurs": 0.709,
+    "out_and_back": 2.157,
+    "point_to_point": 0.176,
+    "road_loop": 1.935
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s051",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.03,
+   "seed": 10051,
+   "shape": "loop",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "loop",
+    "oak"
+   ],
+   "target_miles": 14.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.622,
+    "lollipop": 2.531,
+    "loop": 1.633,
+    "loop_spurs": 1.49,
+    "out_and_back": 2.479,
+    "point_to_point": 0.343,
+    "road_loop": 1.304
+   },
+   "area": "Gunstock",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s052",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.25,
+   "seed": 10052,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.54,
+    "lon": -71.37
+   },
+   "tags": [
+    "loop",
+    "gunstock"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.574,
+    "lollipop": 2.057,
+    "loop": 2.658,
+    "loop_spurs": 2.034,
+    "out_and_back": 2.711,
+    "point_to_point": 0.248,
+    "road_loop": 1.438
+   },
+   "area": "Pawtuckaway",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s053",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10053,
+   "shape": "lollipop_ok",
+   "split": "val",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.083,
+    "lon": -71.177
+   },
+   "tags": [
+    "lollipop_ok",
+    "pawtuckaway"
+   ],
+   "target_miles": 3.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.747,
+    "lollipop": 2.762,
+    "loop": 2.366,
+    "loop_spurs": 2.625,
+    "out_and_back": 2.556,
+    "point_to_point": 0.365,
+    "road_loop": 1.622
+   },
+   "area": "Bow Town Forest",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s054",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.15,
+   "seed": 10054,
+   "shape": "lollipop_ok",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1343,
+    "lon": -71.4972
+   },
+   "tags": [
+    "lollipop_ok",
+    "bow"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.819,
+    "lollipop": 3.68,
+    "loop": 4.155,
+    "loop_spurs": 2.25,
+    "out_and_back": 1.641,
+    "point_to_point": 0.313,
+    "road_loop": 0.921
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 85.0,
+   "covered": false,
+   "ghost_frac": 0.2,
+   "id": "s055",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10055,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "lollipop_ok",
+    "oak"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.881,
+    "lollipop": 2.158,
+    "loop": 1.974,
+    "loop_spurs": 2.944,
+    "out_and_back": 2.557,
+    "point_to_point": 0.178,
+    "road_loop": 1.699
+   },
+   "area": "Bedford Town Forest",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s056",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10056,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.0,
+    "lon": -71.52
+   },
+   "tags": [
+    "lollipop_ok",
+    "bedford"
+   ],
+   "target_miles": 8.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.205,
+    "lollipop": 4.08,
+    "loop": 4.112,
+    "loop_spurs": 2.646,
+    "out_and_back": 2.158,
+    "point_to_point": 0.436,
+    "road_loop": 2.011
+   },
+   "area": "Pisgah Winchester",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s057",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10057,
+   "shape": "lollipop_ok",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 42.8,
+    "lon": -72.41
+   },
+   "tags": [
+    "lollipop_ok",
+    "pisgah"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.163,
+    "lollipop": 3.663,
+    "loop": 4.216,
+    "loop_spurs": 2.652,
+    "out_and_back": 1.426,
+    "point_to_point": 0.266,
+    "road_loop": 0.813
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 60.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s058",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10058,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "lollipop_ok",
+    "great"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.41,
+    "lollipop": 4.487,
+    "loop": 3.108,
+    "loop_spurs": 1.522,
+    "out_and_back": 2.526,
+    "point_to_point": 0.303,
+    "road_loop": 1.996
+   },
+   "area": "Bedford Town Forest",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s059",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10059,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.0,
+    "lon": -71.52
+   },
+   "tags": [
+    "lollipop_ok",
+    "bedford"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.609,
+    "lollipop": 1.542,
+    "loop": 1.013,
+    "loop_spurs": 1.387,
+    "out_and_back": 2.809,
+    "point_to_point": 0.292,
+    "road_loop": 2.003
+   },
+   "area": "Hall Mountain",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s060",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10060,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.135,
+    "lon": -71.345
+   },
+   "tags": [
+    "lollipop_ok",
+    "hall"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.024,
+    "lollipop": 1.929,
+    "loop": 0.895,
+    "loop_spurs": 0.706,
+    "out_and_back": 2.13,
+    "point_to_point": 0.284,
+    "road_loop": 1.875
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s061",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10061,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "lollipop_ok",
+    "oak"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.214,
+    "lollipop": 2.5,
+    "loop": 2.757,
+    "loop_spurs": 2.384,
+    "out_and_back": 2.466,
+    "point_to_point": 0.284,
+    "road_loop": 1.848
+   },
+   "area": "Bow Town Forest",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s062",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10062,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1343,
+    "lon": -71.4972
+   },
+   "tags": [
+    "lollipop_ok",
+    "bow"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.578,
+    "lollipop": 3.301,
+    "loop": 3.228,
+    "loop_spurs": 1.174,
+    "out_and_back": 2.238,
+    "point_to_point": 0.19,
+    "road_loop": 1.215
+   },
+   "area": "Pawtuckaway",
+   "climb_ft_per_mile": 110.0,
+   "covered": false,
+   "ghost_frac": 0.0,
+   "id": "s063",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10063,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.083,
+    "lon": -71.177
+   },
+   "tags": [
+    "lollipop_ok",
+    "pawtuckaway"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.112,
+    "lollipop": 1.998,
+    "loop": 1.189,
+    "loop_spurs": 0.78,
+    "out_and_back": 2.133,
+    "point_to_point": 0.425,
+    "road_loop": 0.919
+   },
+   "area": "Hall Mountain",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s064",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10064,
+   "shape": "lollipop_ok",
+   "split": "holdout",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.135,
+    "lon": -71.345
+   },
+   "tags": [
+    "lollipop_ok",
+    "hall"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.159,
+    "lollipop": 2.424,
+    "loop": 3.942,
+    "loop_spurs": 1.748,
+    "out_and_back": 1.144,
+    "point_to_point": 0.263,
+    "road_loop": 1.966
+   },
+   "area": "Bedford Town Forest",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s065",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10065,
+   "shape": "lollipop_ok",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.0,
+    "lon": -71.52
+   },
+   "tags": [
+    "lollipop_ok",
+    "bedford"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.78,
+    "lollipop": 4.227,
+    "loop": 2.565,
+    "loop_spurs": 2.201,
+    "out_and_back": 1.714,
+    "point_to_point": 0.151,
+    "road_loop": 2.038
+   },
+   "area": "Bow Town Forest",
+   "climb_ft_per_mile": 110.0,
+   "covered": false,
+   "ghost_frac": 0.2,
+   "id": "s066",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10066,
+   "shape": "lollipop_ok",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1343,
+    "lon": -71.4972
+   },
+   "tags": [
+    "lollipop_ok",
+    "bow"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.515,
+    "lollipop": 3.823,
+    "loop": 2.65,
+    "loop_spurs": 2.135,
+    "out_and_back": 2.559,
+    "point_to_point": 0.414,
+    "road_loop": 1.513
+   },
+   "area": "Bow Town Forest",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.2,
+   "id": "s067",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10067,
+   "shape": "out_and_back",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.1343,
+    "lon": -71.4972
+   },
+   "tags": [
+    "out_and_back",
+    "bow"
+   ],
+   "target_miles": 5.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.466,
+    "lollipop": 3.449,
+    "loop": 3.546,
+    "loop_spurs": 2.888,
+    "out_and_back": 2.283,
+    "point_to_point": 0.35,
+    "road_loop": 1.949
+   },
+   "area": "Pawtuckaway",
+   "climb_ft_per_mile": 110.0,
+   "covered": false,
+   "ghost_frac": 0.1,
+   "id": "s068",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10068,
+   "shape": "out_and_back",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.083,
+    "lon": -71.177
+   },
+   "tags": [
+    "out_and_back",
+    "pawtuckaway"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.824,
+    "lollipop": 3.951,
+    "loop": 0.911,
+    "loop_spurs": 0.793,
+    "out_and_back": 2.699,
+    "point_to_point": 0.224,
+    "road_loop": 0.836
+   },
+   "area": "Marsh Pond Loudon",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s069",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10069,
+   "shape": "out_and_back",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.29,
+    "lon": -71.45
+   },
+   "tags": [
+    "out_and_back",
+    "marsh"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.452,
+    "lollipop": 3.543,
+    "loop": 3.576,
+    "loop_spurs": 2.288,
+    "out_and_back": 2.563,
+    "point_to_point": 0.186,
+    "road_loop": 1.79
+   },
+   "area": "Marsh Pond Loudon",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s070",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10070,
+   "shape": "out_and_back",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.29,
+    "lon": -71.45
+   },
+   "tags": [
+    "out_and_back",
+    "marsh"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.509,
+    "lollipop": 2.505,
+    "loop": 1.502,
+    "loop_spurs": 1.914,
+    "out_and_back": 2.156,
+    "point_to_point": 0.422,
+    "road_loop": 1.484
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s071",
+   "road_cap_pct": 25.0,
+   "road_prevalence": 0.15,
+   "seed": 10071,
+   "shape": "out_and_back",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "out_and_back",
+    "great"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.1,
+    "paved": 0.2,
+    "singletrack": 0.5
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.173,
+    "lollipop": 2.496,
+    "loop": 2.073,
+    "loop_spurs": 2.861,
+    "out_and_back": 2.918,
+    "point_to_point": 0.259,
+    "road_loop": 2.16
+   },
+   "area": "Bedford Town Forest",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "s072",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10072,
+   "shape": "out_and_back",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.0,
+    "lon": -71.52
+   },
+   "tags": [
+    "out_and_back",
+    "bedford"
+   ],
+   "target_miles": 12.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.7,
+    "lollipop": 2.484,
+    "loop": 3.364,
+    "loop_spurs": 2.805,
+    "out_and_back": 2.421,
+    "point_to_point": 0.399,
+    "road_loop": 2.169
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.1,
+   "id": "s073",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10073,
+   "shape": "out_and_back",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "out_and_back",
+    "great"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 1.036,
+    "lollipop": 4.025,
+    "loop": 3.219,
+    "loop_spurs": 2.61,
+    "out_and_back": 1.488,
+    "point_to_point": 8.0,
+    "road_loop": 1.637
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "end": {
+    "lat": 43.24409,
+    "lon": -71.5141
+   },
+   "ghost_frac": 0.1,
+   "id": "s074",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.03,
+   "seed": 10074,
+   "shape": "point_to_point",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "point_to_point",
+    "oak"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.22,
+    "lollipop": 3.519,
+    "loop": 3.012,
+    "loop_spurs": 1.031,
+    "out_and_back": 2.188,
+    "point_to_point": 8.0,
+    "road_loop": 1.858
+   },
+   "area": "Gunstock",
+   "climb_ft_per_mile": 110.0,
+   "covered": false,
+   "end": {
+    "lat": 43.54839,
+    "lon": -71.36148
+   },
+   "ghost_frac": 0.2,
+   "id": "s075",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10075,
+   "shape": "point_to_point",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.54,
+    "lon": -71.37
+   },
+   "tags": [
+    "point_to_point",
+    "gunstock"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.833,
+    "lollipop": 1.833,
+    "loop": 1.719,
+    "loop_spurs": 2.676,
+    "out_and_back": 1.781,
+    "point_to_point": 8.0,
+    "road_loop": 1.712
+   },
+   "area": "Oak Hill Concord",
+   "climb_ft_per_mile": 110.0,
+   "covered": true,
+   "end": {
+    "lat": 43.24808,
+    "lon": -71.51049
+   },
+   "ghost_frac": 0.0,
+   "id": "s076",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10076,
+   "shape": "point_to_point",
+   "split": "holdout",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.236,
+    "lon": -71.523
+   },
+   "tags": [
+    "point_to_point",
+    "oak"
+   ],
+   "target_miles": 10.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.208,
+    "lollipop": 4.254,
+    "loop": 2.854,
+    "loop_spurs": 1.864,
+    "out_and_back": 2.654,
+    "point_to_point": 8.0,
+    "road_loop": 2.192
+   },
+   "area": "Bow Town Forest",
+   "climb_ft_per_mile": 60.0,
+   "covered": true,
+   "end": {
+    "lat": 43.14879,
+    "lon": -71.48944
+   },
+   "ghost_frac": 0.1,
+   "id": "s077",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.15,
+   "seed": 10077,
+   "shape": "point_to_point",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1343,
+    "lon": -71.4972
+   },
+   "tags": [
+    "point_to_point",
+    "bow"
+   ],
+   "target_miles": 16.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.394,
+    "lollipop": 3.093,
+    "loop": 3.656,
+    "loop_spurs": 1.622,
+    "out_and_back": 1.122,
+    "point_to_point": 8.0,
+    "road_loop": 1.796
+   },
+   "area": "Great Brook Goffstown",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "end": {
+    "lat": 43.02469,
+    "lon": -71.58414
+   },
+   "ghost_frac": 0.0,
+   "id": "s078",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10078,
+   "shape": "point_to_point",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.017,
+    "lon": -71.595
+   },
+   "tags": [
+    "point_to_point",
+    "great"
+   ],
+   "target_miles": 14.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.069,
+    "lollipop": 2.569,
+    "loop": 4.494,
+    "loop_spurs": 2.216,
+    "out_and_back": 1.653,
+    "point_to_point": 8.0,
+    "road_loop": 1.014
+   },
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "end": {
+    "lat": 43.14009,
+    "lon": -71.3448
+   },
+   "ghost_frac": 0.0,
+   "id": "s079",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.25,
+   "seed": 10079,
+   "shape": "point_to_point",
+   "split": "val",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "point_to_point",
+    "bear"
+   ],
+   "target_miles": 6.0,
+   "terrain": {
+    "doubletrack": 0.1,
+    "gravel": 0.1,
+    "paved": 0.0,
+    "singletrack": 0.8
+   }
+  },
+  {
+   "archetype_weights": {
+    "fake_lollipop": 2.406,
+    "lollipop": 2.337,
+    "loop": 0.552,
+    "loop_spurs": 0.84,
+    "out_and_back": 2.851,
+    "point_to_point": 8.0,
+    "road_loop": 1.299
+   },
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "end": {
+    "lat": 43.13899,
+    "lon": -71.33761
+   },
+   "ghost_frac": 0.0,
+   "id": "s080",
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.08,
+   "seed": 10080,
+   "shape": "point_to_point",
+   "split": "train",
+   "sport": "trail_run",
+   "sport_profile": "trail_run",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "point_to_point",
+    "bear"
+   ],
+   "target_miles": 4.0,
+   "terrain": {
+    "doubletrack": 0.3,
+    "gravel": 0.2,
+    "paved": 0.1,
+    "singletrack": 0.4
+   }
+  },
+  {
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "r4_true_loop_vs_retraced",
+   "notes": "14.1 mi 25%-retrace lollipop must outrank a 10.8 mi out-and-back and fake lollipops (47% repeat; engine convention caps repeat at 50%).",
+   "pool_spec": [
+    {
+     "archetype": "lollipop",
+     "miles": 14.1,
+     "retrace": 0.25
+    },
+    {
+     "archetype": "out_and_back",
+     "miles": 10.8
+    },
+    {
+     "archetype": "fake_lollipop",
+     "miles": 12.6,
+     "retrace": 0.47
+    },
+    {
+     "archetype": "fake_lollipop",
+     "miles": 12.0,
+     "retrace": 0.47
+    },
+    {
+     "archetype": "road_loop",
+     "miles": 12.5
+    }
+   ],
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.05,
+   "seed": 40001,
+   "shape": "lollipop_ok",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "round4"
+   ],
+   "target_miles": 12.5,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "r4_road_cap",
+   "notes": "A loop with ~45% road must never beat a lower-road alternative.",
+   "pool_spec": [
+    {
+     "archetype": "road_loop",
+     "miles": 12.4
+    },
+    {
+     "archetype": "road_loop",
+     "miles": 12.6
+    },
+    {
+     "archetype": "loop",
+     "miles": 13.5,
+     "road_share": 0.0
+    },
+    {
+     "archetype": "loop",
+     "miles": 11.8,
+     "road_share": 0.05
+    }
+   ],
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.05,
+   "seed": 40002,
+   "shape": "loop",
+   "split": "val",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "round4"
+   ],
+   "target_miles": 12.5,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  },
+  {
+   "area": "Bear Brook",
+   "climb_ft_per_mile": 85.0,
+   "covered": true,
+   "ghost_frac": 0.0,
+   "id": "r4_oab_label",
+   "notes": "10.8 mi out-and-back must be labelled out_and_back.",
+   "pool_spec": [
+    {
+     "archetype": "out_and_back",
+     "miles": 10.8
+    },
+    {
+     "archetype": "fake_lollipop",
+     "miles": 10.9,
+     "retrace": 0.47
+    }
+   ],
+   "road_cap_pct": 15.0,
+   "road_prevalence": 0.05,
+   "seed": 40003,
+   "shape": "out_and_back",
+   "split": "train",
+   "sport": "mtb",
+   "sport_profile": "mtb_hardtail",
+   "start": {
+    "lat": 43.1305,
+    "lon": -71.3524
+   },
+   "tags": [
+    "round4"
+   ],
+   "target_miles": 10.8,
+   "terrain": {
+    "doubletrack": 0.2,
+    "gravel": 0.15,
+    "paved": 0.05,
+    "singletrack": 0.6
+   }
+  }
+ ],
+ "split_seed": 30,
+ "version": 1
+}

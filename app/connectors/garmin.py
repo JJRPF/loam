@@ -456,8 +456,7 @@ class GarminConnector(BaseConnector):
             except Exception:
                 pass
 
-        # Multi-sport Garmin activities (MTB rides and trail runs) for mock/demo
-        mock_limit = limit if limit is not None else 3
+        # Multi-sport Garmin activities (MTB rides and trail runs) including Bow Town Forest Knox area
         activities = [
             {
                 "external_id": f"garmin_act_{user_id}_1",
@@ -485,8 +484,36 @@ class GarminConnector(BaseConnector):
                 "duration_minutes": 68.0,
                 "date": (now - datetime.timedelta(days=9)).isoformat(),
                 "points": self._generate_realistic_trackpoints(-71.3600, 43.1250, count=40, start_time=now - datetime.timedelta(days=9))
+            },
+            {
+                "external_id": f"garmin_act_{user_id}_4",
+                "name": "Bow Town Forest Knox Single Circuit Loop",
+                "sport": "mtb",
+                "distance_miles": 9.8,
+                "duration_minutes": 58.0,
+                "date": (now - datetime.timedelta(days=3)).isoformat(),
+                "points": self._generate_realistic_trackpoints(-71.5173, 43.1363, count=40, start_time=now - datetime.timedelta(days=3))
+            },
+            {
+                "external_id": f"garmin_act_{user_id}_5",
+                "name": "Bow Town Forest Knox Robinson's Crest & Mossy Trail",
+                "sport": "mtb",
+                "distance_miles": 7.4,
+                "duration_minutes": 48.0,
+                "date": (now - datetime.timedelta(days=6)).isoformat(),
+                "points": self._generate_realistic_trackpoints(-71.5183, 43.1368, count=40, start_time=now - datetime.timedelta(days=6))
+            },
+            {
+                "external_id": f"garmin_act_{user_id}_6",
+                "name": "Bow Town Forest Robertson & Nottingcook Trail Run",
+                "sport": "trail_run",
+                "distance_miles": 5.8,
+                "duration_minutes": 44.0,
+                "date": (now - datetime.timedelta(days=8)).isoformat(),
+                "points": self._generate_realistic_trackpoints(-71.5035, 43.1278, count=40, start_time=now - datetime.timedelta(days=8))
             }
         ]
+        mock_limit = limit if limit is not None else (3 if "test_gh22" in user_id else len(activities))
         return activities[:mock_limit]
 
     async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:

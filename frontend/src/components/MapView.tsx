@@ -315,10 +315,10 @@ export const MapView: React.FC<MapViewProps> = ({
         const rides = feat.properties?.ride_count || 0;
         new Popup({ offset: 10 })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-family: -apple-system, sans-serif; font-size: 13px; color: #1D3B34; padding: 2px;">
+          .setHTML(`<div style="font-family: -apple-system, sans-serif; font-size: 13px; color: #E7ECEC; padding: 2px;">
             <div style="font-weight: 700; font-size: 14px; margin-bottom: 2px;">${name}</div>
             <div style="color: #FF5B14; font-weight: 600;">🔥 Heat Index: ${heat}/100</div>
-            <div style="font-size: 11px; color: #64748B;">${rides} logged activity passes</div>
+            <div style="font-size: 11px; color: #A0B5AE;">${rides} logged activity passes</div>
           </div>`)
           .addTo(map);
       });
@@ -352,10 +352,10 @@ export const MapView: React.FC<MapViewProps> = ({
           'line-color': [
             'match',
             ['get', 'difficulty'],
-            'expert', '#1A1A1A',
-            'advanced', '#1565C0',
-            'beginner', '#2E7D32',
-            '#0288D1'
+            'expert', '#CE93D8',
+            'advanced', '#64B5F6',
+            'beginner', '#81C784',
+            '#4FC3F7'
           ],
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 13, 3, 16, 5],
           'line-opacity': 0.85,
@@ -371,10 +371,10 @@ export const MapView: React.FC<MapViewProps> = ({
         const surf = feat.properties?.surface || 'natural';
         new Popup({ offset: 10 })
           .setLngLat(e.lngLat)
-          .setHTML(`<div style="font-family: -apple-system, sans-serif; font-size: 13px; color: #1D3B34; padding: 2px;">
+          .setHTML(`<div style="font-family: -apple-system, sans-serif; font-size: 13px; color: #E7ECEC; padding: 2px;">
             <div style="font-weight: 700; font-size: 14px; margin-bottom: 2px;">🌲 ${name}</div>
             <div style="color: #0288D1; font-weight: 600; text-transform: capitalize;">Difficulty: ${diff}</div>
-            <div style="font-size: 11px; color: #64748B;">Surface: ${surf} | OpenTrailMap</div>
+            <div style="font-size: 11px; color: #A0B5AE;">Surface: ${surf} | OpenTrailMap</div>
           </div>`)
           .addTo(map);
       });
@@ -666,9 +666,9 @@ export const MapView: React.FC<MapViewProps> = ({
           type="button"
           onClick={() => setShowHeatmap(!showHeatmap)}
           style={{
-            backgroundColor: showHeatmap ? 'var(--color-header-bg, #1D3B34)' : 'rgba(255, 255, 255, 0.92)',
-            color: showHeatmap ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
-            border: showHeatmap ? '1px solid var(--color-blaze, #FF5B14)' : '1px solid var(--color-divider, #D1D8D8)',
+            backgroundColor: showHeatmap ? 'var(--color-header-bg)' : 'var(--color-card-bg)',
+            color: showHeatmap ? '#FFFFFF' : 'var(--color-text-secondary)',
+            border: showHeatmap ? '1px solid var(--color-blaze, #FF5B14)' : '1px solid var(--color-divider)',
             borderRadius: 20,
             padding: '6px 14px',
             fontSize: 12,
@@ -687,8 +687,8 @@ export const MapView: React.FC<MapViewProps> = ({
           {heatTrailCount > 0 && (
             <span
               style={{
-                backgroundColor: showHeatmap ? 'var(--color-blaze, #FF5B14)' : '#E2E8F0',
-                color: showHeatmap ? '#FFFFFF' : '#475569',
+                backgroundColor: showHeatmap ? 'var(--color-blaze, #FF5B14)' : 'var(--color-divider)',
+                color: showHeatmap ? '#FFFFFF' : 'var(--color-text-secondary)',
                 padding: '1px 6px',
                 borderRadius: 10,
                 fontSize: 10,
@@ -705,9 +705,9 @@ export const MapView: React.FC<MapViewProps> = ({
           type="button"
           onClick={() => setShowOtmTrails(!showOtmTrails)}
           style={{
-            backgroundColor: showOtmTrails ? 'var(--color-header-bg, #1D3B34)' : 'rgba(255, 255, 255, 0.92)',
-            color: showOtmTrails ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
-            border: showOtmTrails ? '1px solid #0288D1' : '1px solid var(--color-divider, #D1D8D8)',
+            backgroundColor: showOtmTrails ? 'var(--color-header-bg)' : 'var(--color-card-bg)',
+            color: showOtmTrails ? '#FFFFFF' : 'var(--color-text-secondary)',
+            border: showOtmTrails ? '1px solid #0288D1' : '1px solid var(--color-divider)',
             borderRadius: 20,
             padding: '6px 14px',
             fontSize: 12,
@@ -726,8 +726,8 @@ export const MapView: React.FC<MapViewProps> = ({
           {otmTrailCount > 0 && (
             <span
               style={{
-                backgroundColor: showOtmTrails ? '#0288D1' : '#E2E8F0',
-                color: showOtmTrails ? '#FFFFFF' : '#475569',
+                backgroundColor: showOtmTrails ? '#0288D1' : 'var(--color-divider)',
+                color: showOtmTrails ? '#FFFFFF' : 'var(--color-text-secondary)',
                 padding: '1px 6px',
                 borderRadius: 10,
                 fontSize: 10,

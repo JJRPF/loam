@@ -1,0 +1,2593 @@
+[
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s002",
+  "infeasible": false,
+  "latency_ms": 27.50579098938033,
+  "n_routes": 9,
+  "n_top3": 3,
+  "oracle": 83.512,
+  "q1": 83.512,
+  "road_ok_routes": 3,
+  "score": 75.6747,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c11",
+    "label": "loop",
+    "miles": 4.76,
+    "q": 83.51205532038055,
+    "road_pct": 12.15,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 87,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c01",
+    "label": "loop",
+    "miles": 4.65,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c15",
+    "label": "loop",
+    "miles": 5.65,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.06,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s004",
+  "infeasible": false,
+  "latency_ms": 27.737500029616058,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 92.007,
+  "q1": 92.007,
+  "road_ok_routes": 3,
+  "score": 93.1446,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 91,
+    "fails": [],
+    "id": "c24",
+    "label": "loop",
+    "miles": 4.76,
+    "q": 92.00670001780709,
+    "road_pct": 0.0,
+    "true_retrace": 0.012,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 90,
+    "fails": [],
+    "id": "c17",
+    "label": "loop",
+    "miles": 5.51,
+    "q": 87.43914555460113,
+    "road_pct": 0.0,
+    "true_retrace": 0.03,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c23",
+    "label": "loop",
+    "miles": 4.43,
+    "q": 89.66333687832069,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s005",
+  "infeasible": false,
+  "latency_ms": 41.73635400366038,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 89.429,
+  "q1": 89.429,
+  "road_ok_routes": 3,
+  "score": 79.6195,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 82,
+    "fails": [],
+    "id": "c18",
+    "label": "loop",
+    "miles": 8.31,
+    "q": 89.429242276086,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 79,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c33",
+    "label": "loop",
+    "miles": 8.66,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.033,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 78,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c23",
+    "label": "loop",
+    "miles": 7.53,
+    "q": 0.0,
+    "road_pct": 11.53,
+    "true_retrace": 0.016,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s006",
+  "infeasible": false,
+  "latency_ms": 21.611698961351067,
+  "n_routes": 5,
+  "n_top3": 3,
+  "oracle": 89.384,
+  "q1": 89.384,
+  "road_ok_routes": 3,
+  "score": 90.8225,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c01",
+    "label": "loop",
+    "miles": 4.13,
+    "q": 89.38399864976822,
+    "road_pct": 0.0,
+    "true_retrace": 0.009,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [],
+    "id": "c00",
+    "label": "loop",
+    "miles": 3.53,
+    "q": 86.952254447724,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 82,
+    "fails": [],
+    "id": "c24",
+    "label": "loop",
+    "miles": 3.61,
+    "q": 81.54490863172673,
+    "road_pct": 13.21,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s007",
+  "infeasible": false,
+  "latency_ms": 42.64260595664382,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 94.336,
+  "q1": 94.336,
+  "road_ok_routes": 3,
+  "score": 94.2575,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 90,
+    "fails": [],
+    "id": "c09",
+    "label": "loop",
+    "miles": 8.14,
+    "q": 94.3356283505732,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c16",
+    "label": "loop",
+    "miles": 8.43,
+    "q": 88.59777831678828,
+    "road_pct": 0.0,
+    "true_retrace": 0.033,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c23",
+    "label": "loop",
+    "miles": 8.32,
+    "q": 81.90801458730267,
+    "road_pct": 19.85,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s009",
+  "infeasible": false,
+  "latency_ms": 32.37588197225705,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 92.13,
+  "q1": 81.359,
+  "road_ok_routes": 3,
+  "score": 84.2571,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 90,
+    "fails": [],
+    "id": "c25",
+    "label": "loop",
+    "miles": 6.28,
+    "q": 81.35930172363386,
+    "road_pct": 18.19,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c09",
+    "label": "loop",
+    "miles": 6.24,
+    "q": 83.19536782344905,
+    "road_pct": 10.82,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c22",
+    "label": "loop",
+    "miles": 5.79,
+    "q": 84.6036383425093,
+    "road_pct": 11.7,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s010",
+  "infeasible": false,
+  "latency_ms": 33.59317500144243,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 90.703,
+  "q1": 88.738,
+  "road_ok_routes": 3,
+  "score": 90.7554,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c19",
+    "label": "loop",
+    "miles": 5.95,
+    "q": 88.73837479012417,
+    "road_pct": 9.72,
+    "true_retrace": 0.018,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 87,
+    "fails": [],
+    "id": "c05",
+    "label": "loop",
+    "miles": 6.29,
+    "q": 86.49362141833092,
+    "road_pct": 11.68,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [],
+    "id": "c20",
+    "label": "loop",
+    "miles": 6.12,
+    "q": 90.70256983486996,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s011",
+  "infeasible": false,
+  "latency_ms": 21.964200015645474,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 85.299,
+  "q1": 82.852,
+  "road_ok_routes": 3,
+  "score": 86.3056,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c29",
+    "label": "loop",
+    "miles": 4.41,
+    "q": 82.85205800240959,
+    "road_pct": 11.55,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c34",
+    "label": "loop",
+    "miles": 4.05,
+    "q": 85.29898925988493,
+    "road_pct": 0.0,
+    "true_retrace": 0.036,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [],
+    "id": "c26",
+    "label": "loop",
+    "miles": 3.63,
+    "q": 85.06668166807161,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s015",
+  "infeasible": true,
+  "latency_ms": 17.659692966844887,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 0.0,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 20.0,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 89,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c05",
+    "label": "loop",
+    "miles": 3.2,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c23",
+    "label": "loop",
+    "miles": 3.15,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 88,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c03",
+    "label": "loop",
+    "miles": 2.86,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.035,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s016",
+  "infeasible": false,
+  "latency_ms": 61.726926011033356,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 92.195,
+  "q1": 92.195,
+  "road_ok_routes": 3,
+  "score": 92.7763,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c23",
+    "label": "loop",
+    "miles": 11.99,
+    "q": 92.19454036010443,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c33",
+    "label": "loop",
+    "miles": 11.3,
+    "q": 88.41603019604128,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c12",
+    "label": "loop",
+    "miles": 11.55,
+    "q": 81.28340181163004,
+    "road_pct": 13.32,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s018",
+  "infeasible": false,
+  "latency_ms": 71.08398101991042,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 95.784,
+  "q1": 95.172,
+  "road_ok_routes": 3,
+  "score": 94.8907,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 93,
+    "fails": [],
+    "id": "c28",
+    "label": "loop",
+    "miles": 13.48,
+    "q": 95.1724520167707,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c27",
+    "label": "loop",
+    "miles": 14.34,
+    "q": 93.45462719510833,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [],
+    "id": "c06",
+    "label": "loop",
+    "miles": 11.96,
+    "q": 79.13850413329415,
+    "road_pct": 9.96,
+    "true_retrace": 0.016,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s019",
+  "infeasible": false,
+  "latency_ms": 17.14590098708868,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 84.045,
+  "q1": 84.02,
+  "road_ok_routes": 3,
+  "score": 86.5078,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 83,
+    "fails": [],
+    "id": "c02",
+    "label": "loop",
+    "miles": 3.21,
+    "q": 84.02043656930073,
+    "road_pct": 0.0,
+    "true_retrace": 0.038,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 83,
+    "fails": [],
+    "id": "c06",
+    "label": "loop",
+    "miles": 2.97,
+    "q": 79.56894063393655,
+    "road_pct": 0.0,
+    "true_retrace": 0.055,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 82,
+    "fails": [],
+    "id": "c19",
+    "label": "loop",
+    "miles": 2.89,
+    "q": 77.88799360507696,
+    "road_pct": 0.0,
+    "true_retrace": 0.056,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s021",
+  "infeasible": false,
+  "latency_ms": 31.93729801569134,
+  "n_routes": 5,
+  "n_top3": 3,
+  "oracle": 87.867,
+  "q1": 87.867,
+  "road_ok_routes": 3,
+  "score": 78.5779,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c05",
+    "label": "loop",
+    "miles": 6.47,
+    "q": 87.86678535131858,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 75,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c34",
+    "label": "lollipop",
+    "miles": 6.69,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.144,
+    "true_shape": "lollipop"
+   },
+   {
+    "engine_score": 69,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c02",
+    "label": "lollipop",
+    "miles": 5.17,
+    "q": 0.0,
+    "road_pct": 8.43,
+    "true_retrace": 0.177,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s022",
+  "infeasible": false,
+  "latency_ms": 42.31822898145765,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 92.738,
+  "q1": 92.738,
+  "road_ok_routes": 3,
+  "score": 81.8251,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c26",
+    "label": "loop",
+    "miles": 8.23,
+    "q": 92.73760599008592,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 78,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c06",
+    "label": "lollipop",
+    "miles": 7.43,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.197,
+    "true_shape": "lollipop"
+   },
+   {
+    "engine_score": 77,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c25",
+    "label": "lollipop",
+    "miles": 8.26,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.306,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s023",
+  "infeasible": false,
+  "latency_ms": 22.551200992893428,
+  "n_routes": 8,
+  "n_top3": 3,
+  "oracle": 93.533,
+  "q1": 93.533,
+  "road_ok_routes": 3,
+  "score": 93.1948,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c17",
+    "label": "loop",
+    "miles": 3.97,
+    "q": 93.53297469728784,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c20",
+    "label": "loop",
+    "miles": 4.29,
+    "q": 85.15766366951465,
+    "road_pct": 11.11,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 78,
+    "fails": [],
+    "id": "c18",
+    "label": "loop",
+    "miles": 4.21,
+    "q": 77.43451519575386,
+    "road_pct": 14.84,
+    "true_retrace": 0.022,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s024",
+  "infeasible": false,
+  "latency_ms": 149.87222297349945,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 84.855,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 15.657,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 86,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c12",
+    "label": "loop",
+    "miles": 6.69,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.025,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [],
+    "id": "c10",
+    "label": "loop",
+    "miles": 5.51,
+    "q": 84.85549712559914,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c34",
+    "label": "loop",
+    "miles": 5.39,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s025",
+  "infeasible": false,
+  "latency_ms": 72.90331699186936,
+  "n_routes": 7,
+  "n_top3": 3,
+  "oracle": 85.343,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 15.6895,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 92,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c35",
+    "label": "loop",
+    "miles": 14.03,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.016,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 90,
+    "fails": [],
+    "id": "c15",
+    "label": "loop",
+    "miles": 12.14,
+    "q": 85.34310409979888,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 79,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c27",
+    "label": "loop",
+    "miles": 13.9,
+    "q": 0.0,
+    "road_pct": 11.85,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s027",
+  "infeasible": true,
+  "latency_ms": 42.76231396943331,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 0.0,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 20.0,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 85,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c07",
+    "label": "loop",
+    "miles": 8.91,
+    "q": 0.0,
+    "road_pct": 10.35,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 80,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c25",
+    "label": "loop",
+    "miles": 7.19,
+    "q": 0.0,
+    "road_pct": 12.4,
+    "true_retrace": 0.03,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 79,
+    "fails": [
+     "shape_mismatch",
+     "ghost_trail"
+    ],
+    "id": "c01",
+    "label": "lollipop",
+    "miles": 7.65,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.312,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s031",
+  "infeasible": false,
+  "latency_ms": 51.424868986941874,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 88.068,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 15.7526,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 91,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c15",
+    "label": "loop",
+    "miles": 9.09,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.014,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 91,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c25",
+    "label": "loop",
+    "miles": 10.13,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 90,
+    "fails": [],
+    "id": "c09",
+    "label": "loop",
+    "miles": 10.95,
+    "q": 86.28890899388242,
+    "road_pct": 0.0,
+    "true_retrace": 0.013,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s032",
+  "infeasible": false,
+  "latency_ms": 62.888093991205096,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 89.149,
+  "q1": 78.158,
+  "road_ok_routes": 3,
+  "score": 82.3037,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c18",
+    "label": "loop",
+    "miles": 11.64,
+    "q": 78.15776292703417,
+    "road_pct": 15.52,
+    "true_retrace": 0.034,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c27",
+    "label": "loop",
+    "miles": 11.0,
+    "q": 85.67384755397372,
+    "road_pct": 0.0,
+    "true_retrace": 0.015,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c04",
+    "label": "loop",
+    "miles": 13.07,
+    "q": 85.79752481625324,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s033",
+  "infeasible": false,
+  "latency_ms": 71.13377295900136,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 89.978,
+  "q1": 89.978,
+  "road_ok_routes": 3,
+  "score": 85.615,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c11",
+    "label": "loop",
+    "miles": 15.08,
+    "q": 89.97766227463403,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 85,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c26",
+    "label": "loop",
+    "miles": 14.79,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 85,
+    "fails": [],
+    "id": "c32",
+    "label": "loop",
+    "miles": 12.19,
+    "q": 84.44774357068412,
+    "road_pct": 0.0,
+    "true_retrace": 0.011,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s034",
+  "infeasible": true,
+  "latency_ms": 51.02736799744889,
+  "n_routes": 7,
+  "n_top3": 3,
+  "oracle": 0.0,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 20.0,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 85,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c05",
+    "label": "loop",
+    "miles": 9.89,
+    "q": 0.0,
+    "road_pct": 11.12,
+    "true_retrace": 0.028,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 83,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c06",
+    "label": "loop",
+    "miles": 9.71,
+    "q": 0.0,
+    "road_pct": 13.15,
+    "true_retrace": 0.008,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 81,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c17",
+    "label": "loop",
+    "miles": 10.46,
+    "q": 0.0,
+    "road_pct": 12.58,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s035",
+  "infeasible": false,
+  "latency_ms": 17.844568006694317,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 79.678,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 20.3545,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 87,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c12",
+    "label": "loop",
+    "miles": 3.1,
+    "q": 0.0,
+    "road_pct": 10.19,
+    "true_retrace": 0.037,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [],
+    "id": "c21",
+    "label": "loop",
+    "miles": 2.61,
+    "q": 79.67773194332109,
+    "road_pct": 12.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 79,
+    "fails": [],
+    "id": "c06",
+    "label": "loop",
+    "miles": 2.72,
+    "q": 75.64010968081976,
+    "road_pct": 13.04,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s038",
+  "infeasible": false,
+  "latency_ms": 27.199289994314313,
+  "n_routes": 5,
+  "n_top3": 3,
+  "oracle": 93.032,
+  "q1": 93.032,
+  "road_ok_routes": 3,
+  "score": 82.0211,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c22",
+    "label": "loop",
+    "miles": 4.77,
+    "q": 93.03158567784634,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c11",
+    "label": "loop",
+    "miles": 4.51,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 79,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c18",
+    "label": "lollipop",
+    "miles": 5.27,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.176,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s040",
+  "infeasible": false,
+  "latency_ms": 32.25925599690527,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 88.673,
+  "q1": 88.673,
+  "road_ok_routes": 3,
+  "score": 90.3388,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 87,
+    "fails": [],
+    "id": "c21",
+    "label": "loop",
+    "miles": 5.79,
+    "q": 88.67342807708604,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 81,
+    "fails": [],
+    "id": "c06",
+    "label": "loop",
+    "miles": 6.39,
+    "q": 81.92060063050168,
+    "road_pct": 11.34,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 81,
+    "fails": [],
+    "id": "c07",
+    "label": "lollipop",
+    "miles": 5.9,
+    "q": 86.427566418182,
+    "road_pct": 0.0,
+    "true_retrace": 0.038,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s041",
+  "infeasible": false,
+  "latency_ms": 42.36960399430245,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 87.756,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 15.8504,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c10",
+    "label": "loop",
+    "miles": 7.59,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c12",
+    "label": "loop",
+    "miles": 8.41,
+    "q": 0.0,
+    "road_pct": 12.18,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 85,
+    "fails": [],
+    "id": "c19",
+    "label": "loop",
+    "miles": 7.74,
+    "q": 87.75628795644012,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s044",
+  "infeasible": false,
+  "latency_ms": 83.41675001429394,
+  "n_routes": 5,
+  "n_top3": 3,
+  "oracle": 87.433,
+  "q1": 87.433,
+  "road_ok_routes": 3,
+  "score": 78.2888,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 87,
+    "fails": [],
+    "id": "c17",
+    "label": "loop",
+    "miles": 17.94,
+    "q": 87.43317183558558,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 79,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c12",
+    "label": "loop",
+    "miles": 16.45,
+    "q": 0.0,
+    "road_pct": 11.07,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 76,
+    "fails": [
+     "shape_mismatch",
+     "ghost_trail"
+    ],
+    "id": "c30",
+    "label": "lollipop",
+    "miles": 16.25,
+    "q": 0.0,
+    "road_pct": 6.7,
+    "true_retrace": 0.296,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s046",
+  "infeasible": false,
+  "latency_ms": 26.22828900348395,
+  "n_routes": 8,
+  "n_top3": 3,
+  "oracle": 86.603,
+  "q1": 81.975,
+  "road_ok_routes": 3,
+  "score": 85.3159,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c32",
+    "label": "loop",
+    "miles": 5.49,
+    "q": 81.9751652853994,
+    "road_pct": 10.89,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 85,
+    "fails": [],
+    "id": "c02",
+    "label": "loop",
+    "miles": 5.33,
+    "q": 81.39942246797186,
+    "road_pct": 14.22,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 85,
+    "fails": [],
+    "id": "c20",
+    "label": "loop",
+    "miles": 5.18,
+    "q": 86.60280553409602,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s048",
+  "infeasible": false,
+  "latency_ms": 31.56267199665308,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 94.19,
+  "q1": 94.078,
+  "road_ok_routes": 3,
+  "score": 94.9072,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 90,
+    "fails": [],
+    "id": "c32",
+    "label": "loop",
+    "miles": 5.99,
+    "q": 94.07758391665928,
+    "road_pct": 0.0,
+    "true_retrace": 0.031,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c09",
+    "label": "loop",
+    "miles": 6.32,
+    "q": 90.29445509849549,
+    "road_pct": 0.0,
+    "true_retrace": 0.015,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c14",
+    "label": "loop",
+    "miles": 5.85,
+    "q": 92.71778589895824,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s049",
+  "infeasible": false,
+  "latency_ms": 22.134158003609627,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 91.371,
+  "q1": 80.662,
+  "road_ok_routes": 3,
+  "score": 84.2027,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c21",
+    "label": "loop",
+    "miles": 4.54,
+    "q": 80.66232668698251,
+    "road_pct": 13.85,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c31",
+    "label": "loop",
+    "miles": 3.6,
+    "q": 82.62648066282068,
+    "road_pct": 14.96,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [],
+    "id": "c01",
+    "label": "loop",
+    "miles": 4.0,
+    "q": 91.37113967097008,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s051",
+  "infeasible": true,
+  "latency_ms": 72.41964899003506,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 0.0,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 20.0,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 87,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c28",
+    "label": "loop",
+    "miles": 13.51,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.012,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 83,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c13",
+    "label": "loop",
+    "miles": 15.05,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 82,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c20",
+    "label": "loop",
+    "miles": 15.21,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s055",
+  "infeasible": true,
+  "latency_ms": 82.74324896046892,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 0.0,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 20.0,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 91,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c35",
+    "label": "loop",
+    "miles": 15.84,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 90,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c06",
+    "label": "loop",
+    "miles": 15.97,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 90,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c22",
+    "label": "loop",
+    "miles": 15.23,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s056",
+  "infeasible": false,
+  "latency_ms": 43.4458979871124,
+  "n_routes": 8,
+  "n_top3": 3,
+  "oracle": 95.407,
+  "q1": 95.407,
+  "road_ok_routes": 3,
+  "score": 94.7449,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c03",
+    "label": "loop",
+    "miles": 8.07,
+    "q": 95.40711674224282,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 83,
+    "fails": [],
+    "id": "c19",
+    "label": "loop",
+    "miles": 8.31,
+    "q": 83.97430082453013,
+    "road_pct": 12.62,
+    "true_retrace": 0.02,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 80,
+    "fails": [],
+    "id": "c05",
+    "label": "loop",
+    "miles": 7.29,
+    "q": 83.12768872131234,
+    "road_pct": 12.24,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s058",
+  "infeasible": false,
+  "latency_ms": 53.50203800480813,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 92.01,
+  "q1": 84.638,
+  "road_ok_routes": 3,
+  "score": 87.6158,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c00",
+    "label": "loop",
+    "miles": 8.57,
+    "q": 84.6378841054425,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c04",
+    "label": "loop",
+    "miles": 10.05,
+    "q": 92.00990769448806,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c26",
+    "label": "loop",
+    "miles": 9.11,
+    "q": 87.86617545535753,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s059",
+  "infeasible": false,
+  "latency_ms": 21.93132502725348,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 73.587,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 10.0,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 86,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c16",
+    "label": "loop",
+    "miles": 4.46,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c20",
+    "label": "loop",
+    "miles": 4.07,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 84,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c28",
+    "label": "loop",
+    "miles": 3.9,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s060",
+  "infeasible": false,
+  "latency_ms": 52.09553596796468,
+  "n_routes": 4,
+  "n_top3": 3,
+  "oracle": 87.221,
+  "q1": 87.221,
+  "road_ok_routes": 3,
+  "score": 78.1473,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c20",
+    "label": "loop",
+    "miles": 11.18,
+    "q": 87.22091719830601,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 78,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c00",
+    "label": "loop",
+    "miles": 10.4,
+    "q": 0.0,
+    "road_pct": 10.62,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 72,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c07",
+    "label": "lollipop",
+    "miles": 11.16,
+    "q": 0.0,
+    "road_pct": 4.78,
+    "true_retrace": 0.216,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s061",
+  "infeasible": false,
+  "latency_ms": 22.118658002000302,
+  "n_routes": 7,
+  "n_top3": 3,
+  "oracle": 87.747,
+  "q1": 87.747,
+  "road_ok_routes": 3,
+  "score": 89.5551,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c09",
+    "label": "loop",
+    "miles": 3.56,
+    "q": 87.74728961299688,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 81,
+    "fails": [],
+    "id": "c17",
+    "label": "loop",
+    "miles": 4.21,
+    "q": 85.70444774427604,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 80,
+    "fails": [],
+    "id": "c03",
+    "label": "lollipop",
+    "miles": 3.44,
+    "q": 80.14855732317287,
+    "road_pct": 0.0,
+    "true_retrace": 0.136,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s062",
+  "infeasible": false,
+  "latency_ms": 31.83317295042798,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 90.151,
+  "q1": 90.151,
+  "road_ok_routes": 3,
+  "score": 91.7009,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 93,
+    "fails": [],
+    "id": "c05",
+    "label": "loop",
+    "miles": 6.01,
+    "q": 90.15127452633597,
+    "road_pct": 0.0,
+    "true_retrace": 0.04,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c35",
+    "label": "loop",
+    "miles": 5.85,
+    "q": 86.90689206988347,
+    "road_pct": 0.0,
+    "true_retrace": 0.039,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 86,
+    "fails": [],
+    "id": "c31",
+    "label": "loop",
+    "miles": 5.28,
+    "q": 87.0940952882953,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s063",
+  "infeasible": false,
+  "latency_ms": 53.08312101988122,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 95.787,
+  "q1": 95.787,
+  "road_ok_routes": 3,
+  "score": 96.0708,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c25",
+    "label": "loop",
+    "miles": 9.96,
+    "q": 95.78696340899116,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c32",
+    "label": "loop",
+    "miles": 9.71,
+    "q": 94.54724401460831,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 87,
+    "fails": [],
+    "id": "c21",
+    "label": "loop",
+    "miles": 11.09,
+    "q": 88.64521016634336,
+    "road_pct": 0.0,
+    "true_retrace": 0.009,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s067",
+  "infeasible": false,
+  "latency_ms": 26.809374045114964,
+  "n_routes": 9,
+  "n_top3": 3,
+  "oracle": 79.265,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 14.2653,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 49,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c20",
+    "label": "out_and_back",
+    "miles": 4.69,
+    "q": 0.0,
+    "road_pct": 3.08,
+    "true_retrace": 0.398,
+    "true_shape": "out_and_back"
+   },
+   {
+    "engine_score": 44,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c21",
+    "label": "out_and_back",
+    "miles": 4.44,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.5,
+    "true_shape": "out_and_back"
+   },
+   {
+    "engine_score": 38,
+    "fails": [],
+    "id": "c03",
+    "label": "out_and_back",
+    "miles": 4.79,
+    "q": 63.97895863011594,
+    "road_pct": 12.51,
+    "true_retrace": 0.5,
+    "true_shape": "out_and_back"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s069",
+  "infeasible": false,
+  "latency_ms": 21.903116023167968,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 92.241,
+  "q1": 78.963,
+  "road_ok_routes": 3,
+  "score": 71.2027,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 51,
+    "fails": [],
+    "id": "c02",
+    "label": "out_and_back",
+    "miles": 4.14,
+    "q": 78.96334022991658,
+    "road_pct": 0.0,
+    "true_retrace": 0.409,
+    "true_shape": "out_and_back"
+   },
+   {
+    "engine_score": 51,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c15",
+    "label": "out_and_back",
+    "miles": 4.18,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.388,
+    "true_shape": "out_and_back"
+   },
+   {
+    "engine_score": 51,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c35",
+    "label": "out_and_back",
+    "miles": 4.01,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.417,
+    "true_shape": "out_and_back"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": false,
+  "id": "s070",
+  "infeasible": false,
+  "latency_ms": 52.34557902440429,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 92.745,
+  "q1": 0.0,
+  "road_ok_routes": 3,
+  "score": 14.4191,
+  "split": "train",
+  "top1_fails": [
+   "ghost_trail"
+  ],
+  "top3": [
+   {
+    "engine_score": 51,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c22",
+    "label": "out_and_back",
+    "miles": 9.96,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.474,
+    "true_shape": "out_and_back"
+   },
+   {
+    "engine_score": 51,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c29",
+    "label": "out_and_back",
+    "miles": 9.62,
+    "q": 0.0,
+    "road_pct": 3.08,
+    "true_retrace": 0.422,
+    "true_shape": "out_and_back"
+   },
+   {
+    "engine_score": 47,
+    "fails": [],
+    "id": "c14",
+    "label": "out_and_back",
+    "miles": 9.32,
+    "q": 66.28706163714189,
+    "road_pct": 10.99,
+    "true_retrace": 0.412,
+    "true_shape": "out_and_back"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s073",
+  "infeasible": false,
+  "latency_ms": 84.10879201255739,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 83.548,
+  "q1": 73.088,
+  "road_ok_routes": 3,
+  "score": 67.4737,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 51,
+    "fails": [],
+    "id": "c25",
+    "label": "out_and_back",
+    "miles": 16.52,
+    "q": 73.08837175918583,
+    "road_pct": 0.0,
+    "true_retrace": 0.5,
+    "true_shape": "out_and_back"
+   },
+   {
+    "engine_score": 49,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c02",
+    "label": "out_and_back",
+    "miles": 15.55,
+    "q": 0.0,
+    "road_pct": 10.41,
+    "true_retrace": 0.017,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 49,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c22",
+    "label": "out_and_back",
+    "miles": 16.78,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.5,
+    "true_shape": "out_and_back"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s074",
+  "infeasible": false,
+  "latency_ms": 30.965796031523496,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 95.904,
+  "q1": 95.904,
+  "road_ok_routes": 3,
+  "score": 90.3179,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 93,
+    "fails": [],
+    "id": "c05",
+    "label": "point_to_point",
+    "miles": 5.89,
+    "q": 95.90409788844926,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   },
+   {
+    "engine_score": 91,
+    "fails": [],
+    "id": "c35",
+    "label": "point_to_point",
+    "miles": 6.09,
+    "q": 95.72738208239842,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   },
+   {
+    "engine_score": 90,
+    "fails": [
+     "ghost_trail"
+    ],
+    "id": "c33",
+    "label": "point_to_point",
+    "miles": 6.6,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s077",
+  "infeasible": false,
+  "latency_ms": 81.46887202747166,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 93.249,
+  "q1": 93.249,
+  "road_ok_routes": 3,
+  "score": 88.2522,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 93,
+    "fails": [],
+    "id": "c12",
+    "label": "point_to_point",
+    "miles": 15.57,
+    "q": 93.24934656650066,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   },
+   {
+    "engine_score": 92,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c06",
+    "label": "loop",
+    "miles": 15.75,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.005,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 92,
+    "fails": [],
+    "id": "c33",
+    "label": "point_to_point",
+    "miles": 16.89,
+    "q": 91.2888318394418,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s078",
+  "infeasible": false,
+  "latency_ms": 74.85644501866773,
+  "n_routes": 7,
+  "n_top3": 3,
+  "oracle": 92.823,
+  "q1": 86.037,
+  "road_ok_routes": 3,
+  "score": 82.8151,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c00",
+    "label": "point_to_point",
+    "miles": 12.97,
+    "q": 86.03693732242208,
+    "road_pct": 11.11,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   },
+   {
+    "engine_score": 88,
+    "fails": [],
+    "id": "c03",
+    "label": "point_to_point",
+    "miles": 13.46,
+    "q": 92.82269273804462,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   },
+   {
+    "engine_score": 78,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c04",
+    "label": "loop",
+    "miles": 15.99,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "loop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "s080",
+  "infeasible": false,
+  "latency_ms": 21.61736600100994,
+  "n_routes": 10,
+  "n_top3": 3,
+  "oracle": 93.375,
+  "q1": 93.375,
+  "road_ok_routes": 3,
+  "score": 88.4492,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c04",
+    "label": "point_to_point",
+    "miles": 3.9,
+    "q": 93.37486704900486,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   },
+   {
+    "engine_score": 89,
+    "fails": [
+     "shape_mismatch"
+    ],
+    "id": "c25",
+    "label": "loop",
+    "miles": 4.32,
+    "q": 0.0,
+    "road_pct": 0.0,
+    "true_retrace": 0.024,
+    "true_shape": "loop"
+   },
+   {
+    "engine_score": 89,
+    "fails": [],
+    "id": "c27",
+    "label": "point_to_point",
+    "miles": 4.13,
+    "q": 92.98940056993497,
+    "road_pct": 0.0,
+    "true_retrace": 0.0,
+    "true_shape": "point_to_point"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "r4_true_loop_vs_retraced",
+  "infeasible": false,
+  "latency_ms": 8.783472003415227,
+  "n_routes": 1,
+  "n_top3": 1,
+  "oracle": 78.736,
+  "q1": 78.736,
+  "road_ok_routes": 1,
+  "score": 82.9892,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 76,
+    "fails": [],
+    "id": "c00",
+    "label": "lollipop",
+    "miles": 13.82,
+    "q": 78.73644511633076,
+    "road_pct": 0.0,
+    "true_retrace": 0.256,
+    "true_shape": "lollipop"
+   }
+  ]
+ },
+ {
+  "diversity": 100.0,
+  "fake_lollipops": 0,
+  "gate_pass": true,
+  "id": "r4_oab_label",
+  "infeasible": false,
+  "latency_ms": 3.0308379791677,
+  "n_routes": 1,
+  "n_top3": 1,
+  "oracle": 75.648,
+  "q1": 75.648,
+  "road_ok_routes": 1,
+  "score": 80.5187,
+  "split": "train",
+  "top1_fails": [],
+  "top3": [
+   {
+    "engine_score": 51,
+    "fails": [],
+    "id": "c01",
+    "label": "out_and_back",
+    "miles": 10.85,
+    "q": 75.64841165191555,
+    "road_pct": 0.0,
+    "true_retrace": 0.473,
+    "true_shape": "out_and_back"
+   }
+  ]
+ }
+]

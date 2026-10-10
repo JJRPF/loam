@@ -4,7 +4,7 @@ import httpx
 from app.config import settings
 from app.activity_parser import TrackPoint
 from app.gpx_export import build_gpx_track
-from app.db import get_connection
+from app.db import get_connection, upsert_edge_geometries
 
 logger = logging.getLogger("loam.map_matching")
 
@@ -15,6 +15,37 @@ def get_gh_matching_profile(sport: str) -> str:
     elif "gravel" in s or "bike" in s:
         return "bike"
     return "mtb"
+
+def extract_way_geometries(path: Dict[str, Any]) -> Dict[int, Dict[str, Any]]:
+    """Longest contiguous matched polyline per OSM way id, with optional name/class/surface."""
+    pts = path.get("points") or {}
+    coords = pts.get("coordinates", []) if isinstance(pts, dict) else (pts or [])
+    details = path.get("details", {}) or {}
+
+    def lookup(key: str, idx: int):
+        for it in details.get(key, []) or []:
+            if len(it) >= 3 and it[0] <= idx < it[1]:
+                return it[2]
+        return None
+
+    best: Dict[int, Dict[str, Any]] = {}
+    for item in details.get("osm_way_id", []) or []:
+        if len(item) < 3:
+            continue
+        s_idx, e_idx, wid = int(item[0]), int(item[1]), int(item[2])
+        seg = [[c[0], c[1]] for c in coords[s_idx:e_idx + 1]]
+        if len(seg) < 2 or seg[0] == seg[-1] and len(seg) == 2:
+            continue
+        cur = best.get(wid)
+        if cur is None or len(seg) > len(cur["coords"]):
+            best[wid] = {"coords": seg, "name": lookup("street_name", s_idx),
+                         "highway": lookup("road_class", s_idx), "surface": lookup("surface", s_idx)}
+    return best
+
+
+def persist_matched_geometry(path: Dict[str, Any]) -> int:
+    return upsert_edge_geometries(extract_way_geometries(path))
+
 
 async def match_trackpoints_graphhopper(
     points: List[TrackPoint],
@@ -44,7 +75,7 @@ async def match_trackpoints_graphhopper(
         "profile": gh_profile,
         "type": "json",
         "points_encoded": "false",
-        "details": "osm_way_id"
+        "details": ["osm_way_id", "street_name", "road_class", "surface"]
     }
     headers = {"Content-Type": "application/gpx+xml"}
 
@@ -66,6 +97,14 @@ async def match_trackpoints_graphhopper(
                 if len(item) >= 3:
                     wid = int(item[2])
                     edge_counts[wid] = edge_counts.get(wid, 0) + 1
+
+            # Heat can only be drawn for edges that have geometry. Edges first seen via a ride
+            # used to be inserted with osm_id only (invisible on the map), which made heat look
+            # far sparser than the rides that produced it. Persist the matched geometry.
+            try:
+                persist_matched_geometry(paths[0])
+            except Exception as geo_err:  # never let geometry persistence break ingestion
+                logger.warning(f"Persisting matched edge geometry failed: {geo_err}")
 
             return edge_counts
 

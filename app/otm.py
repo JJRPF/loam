@@ -189,6 +189,61 @@ FALLBACK_OTM_TRAILS = [
         "operator": "Bow Town Forest",
         "length_miles": 1.80,
         "geometry": [[-71.51599, 43.1221], [-71.51611, 43.12208], [-71.51619, 43.12211], [-71.5170, 43.1225], [-71.5180, 43.1230]]
+    },
+    {
+        "osm_id": 304316556,
+        "name": "Knox Mountain Trail",
+        "highway": "path",
+        "surface": "singletrack",
+        "mtb_scale": 1,
+        "sac_scale": "hiking",
+        "operator": "Bow Town Forest",
+        "length_miles": 0.96,
+        "geometry": [[-71.5120, 43.1410], [-71.5135, 43.1420], [-71.5150, 43.1430], [-71.5160, 43.1440]]
+    },
+    {
+        "osm_id": 304316557,
+        "name": "Tower Trail",
+        "highway": "path",
+        "surface": "singletrack",
+        "mtb_scale": 2,
+        "sac_scale": "mountain_hiking",
+        "operator": "Bow Town Forest",
+        "length_miles": 0.87,
+        "geometry": [[-71.5160, 43.1440], [-71.5175, 43.1450], [-71.5190, 43.1460], [-71.5200, 43.1465]]
+    },
+    {
+        "osm_id": 304316558,
+        "name": "Walker Forest Connector",
+        "highway": "path",
+        "surface": "singletrack",
+        "mtb_scale": 1,
+        "sac_scale": "hiking",
+        "operator": "Bow Town Forest",
+        "length_miles": 0.96,
+        "geometry": [[-71.5100, 43.1350], [-71.5115, 43.1365], [-71.5130, 43.1385], [-71.5140, 43.1400]]
+    },
+    {
+        "osm_id": 304316559,
+        "name": "Beaver Pond Trail",
+        "highway": "path",
+        "surface": "singletrack",
+        "mtb_scale": 1,
+        "sac_scale": "hiking",
+        "operator": "Bow Town Forest",
+        "length_miles": 0.84,
+        "geometry": [[-71.5188, 43.1375], [-71.5200, 43.1385], [-71.5212, 43.1395], [-71.5220, 43.1405]]
+    },
+    {
+        "osm_id": 304316560,
+        "name": "Page Road Trail",
+        "highway": "track",
+        "surface": "doubletrack",
+        "mtb_scale": 0,
+        "sac_scale": "hiking",
+        "operator": "Bow Town Forest",
+        "length_miles": 1.02,
+        "geometry": [[-71.5080, 43.1320], [-71.5095, 43.1340], [-71.5110, 43.1360], [-71.5120, 43.1380]]
     }
 ]
 

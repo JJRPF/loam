@@ -180,3 +180,20 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus {
     z-index: 25;
   }
 }
+
+/* Dark-theme map popups (MapLibre defaults to a bright white card) */
+.maplibregl-popup-content {
+  background: var(--color-card-bg);
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-divider);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+}
+.maplibregl-popup-anchor-top .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-top-right .maplibregl-popup-tip { border-bottom-color: var(--color-card-bg); }
+.maplibregl-popup-anchor-bottom .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-left .maplibregl-popup-tip,
+.maplibregl-popup-anchor-bottom-right .maplibregl-popup-tip { border-top-color: var(--color-card-bg); }
+.maplibregl-popup-anchor-left .maplibregl-popup-tip { border-right-color: var(--color-card-bg); }
+.maplibregl-popup-anchor-right .maplibregl-popup-tip { border-left-color: var(--color-card-bg); }
+.maplibregl-popup-close-button { color: var(--color-text-secondary); }
