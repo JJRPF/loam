@@ -18,13 +18,12 @@ interface YouPanelProps {
   onToggleDarkMode?: () => void;
 }
 
-export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggleDarkMode }) => {
+export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
   const isSignedIn = !!currentUser;
   const user = {
     name: currentUser?.displayName || (isSignedIn ? 'User' : 'Guest'),
-    email: currentUser?.email || '',
-    device: 'Garmin fenix 7 Pro'
+    email: currentUser?.email || ''
   };
   const [privacyZoneEnabled, setPrivacyZoneEnabled] = useState(true);
   const [dnrList, setDnrList] = useState<UserDNR[]>([]);
@@ -201,10 +200,6 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
               </div>
             </div>
 
-            <div style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)', backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: '8px 10px', borderRadius: 6, marginBottom: 12 }}>
-              Connected Device: <strong>{user.device}</strong> (Garmin FIT & GPX enabled)
-            </div>
-
             <button
               type="button"
               onClick={handleSignOut}
@@ -379,20 +374,25 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = false, onToggle
       <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Preferences & Privacy</h3>
 
-        {/* Display Theme Toggle */}
+        {/* Display Theme (Dark Mode Only) */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
           <div>
             <strong>Display Theme</strong>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Section 18 tokens (Fog / Spruce)</div>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Dark Mode exclusively (Round 4)</div>
           </div>
-          <button
-            type="button"
-            onClick={onToggleDarkMode}
-            className="btn-secondary"
-            style={{ fontSize: 12, padding: '4px 10px', minHeight: 32 }}
+          <span
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              padding: '4px 10px',
+              borderRadius: 6,
+              backgroundColor: 'var(--color-bg-subtle, #162C27)',
+              color: 'var(--color-text-primary, #E7ECEC)',
+              border: '1px solid var(--color-divider, #264A42)'
+            }}
           >
-            {isDarkMode ? '🌙 Dark Mode' : '☀️ Light Mode'}
-          </button>
+            🌙 Dark Mode
+          </span>
         </div>
 
         <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>

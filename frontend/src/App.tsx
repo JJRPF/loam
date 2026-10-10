@@ -19,15 +19,13 @@ import { DevToolsPage } from './components/DevToolsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const App: React.FC = () => {
-  // Dark mode state
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    return localStorage.getItem('loam_theme') === 'dark';
-  });
+  // Dark mode only: enforce dark theme exclusively across application
+  const isDarkMode = true;
 
   useEffect(() => {
-    document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
-    localStorage.setItem('loam_theme', isDarkMode ? 'dark' : 'light');
-  }, [isDarkMode]);
+    document.documentElement.setAttribute('data-theme', 'dark');
+    localStorage.setItem('loam_theme', 'dark');
+  }, []);
 
   // Separate Dev Tools page route state
   const [isDevRoute, setIsDevRoute] = useState<boolean>(() => {
@@ -60,6 +58,26 @@ export const App: React.FC = () => {
     lon: -71.3524,
     name: "Bear Brook State Park"
   });
+
+  // Default Starting Location to GPS (browser geolocation)
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setStart({
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            name: "Current GPS Location"
+          });
+        },
+        (err) => {
+          // Log softly and keep fallback if permission denied or unavailable
+          console.debug("Browser geolocation unavailable, keeping fallback:", err.message);
+        },
+        { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+      );
+    }
+  }, []);
   const [end, setEnd] = useState<LatLon | undefined>(undefined);
   const [waypoints] = useState<LatLon[]>([]);
   const [routeMode, setRouteMode] = useState<'loop' | 'point_to_point' | 'out_and_back'>('loop');
@@ -250,23 +268,6 @@ export const App: React.FC = () => {
                   {route.distance_miles.toFixed(1)} mi
                 </span>
               )}
-              {/* Dark mode button */}
-              <button
-                type="button"
-                onClick={() => setIsDarkMode(!isDarkMode)}
-                style={{
-                  backgroundColor: 'rgba(255,255,255,0.15)',
-                  border: 'none',
-                  borderRadius: 6,
-                  color: '#FFFFFF',
-                  padding: '4px 8px',
-                  minHeight: 30,
-                  fontSize: 14
-                }}
-                title={isDarkMode ? 'Switch to Light Mode' : 'Switch to Dark Mode'}
-              >
-                {isDarkMode ? '🌙' : '☀️'}
-              </button>
             </div>
           </header>
 
@@ -357,10 +358,7 @@ export const App: React.FC = () => {
               {activeTab === 'explore' && <ExplorePanel />}
               {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
               {activeTab === 'you' && (
-                <YouPanel
-                  isDarkMode={isDarkMode}
-                  onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-                />
+                <YouPanel isDarkMode={isDarkMode} />
               )}
             </ErrorBoundary>
           </div>
@@ -465,16 +463,6 @@ export const App: React.FC = () => {
                     type="button"
                     onClick={(e) => {
                       e.stopPropagation();
-                      setIsDarkMode(!isDarkMode);
-                    }}
-                    style={{ minHeight: 32, padding: '2px 8px', fontSize: 12, backgroundColor: 'transparent', border: '1px solid var(--color-divider)' }}
-                  >
-                    {isDarkMode ? '🌙' : '☀️'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
                       if (!route) handleBuildRoutes();
                       else setSheetSnap('half');
                     }}
@@ -542,10 +530,7 @@ export const App: React.FC = () => {
                 {activeTab === 'explore' && <ExplorePanel />}
                 {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
                 {activeTab === 'you' && (
-                  <YouPanel
-                    isDarkMode={isDarkMode}
-                    onToggleDarkMode={() => setIsDarkMode(!isDarkMode)}
-                  />
+                  <YouPanel isDarkMode={isDarkMode} />
                 )}
               </ErrorBoundary>
             </div>

@@ -1039,6 +1039,19 @@ export async function recalculateDevHeat(devKey?: string, idToken?: string, user
   return await res.json();
 }
 
+export async function ingestBowDevData(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
+  const headers: Record<string, string> = {};
+  if (devKey) headers['X-Dev-Key'] = devKey;
+  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
+  if (userEmail) headers['X-User-Id'] = userEmail;
+
+  const res = await fetch(`${API_BASE}/api/dev/bow/ingest`, { method: 'POST', headers });
+  if (!res.ok) {
+    throw new Error(`Bow ingestion failed (${res.status}): ${await res.text()}`);
+  }
+  return await res.json();
+}
+
 export async function syncConnector(
   provider: string,
   userId: string = 'justin_default_user',

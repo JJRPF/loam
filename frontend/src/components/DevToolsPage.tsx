@@ -18,7 +18,7 @@ const AUTHORIZED_DEVELOPER_EMAILS = [
   'admin@loam.local'
 ];
 
-export const DevToolsPage: React.FC<DevToolsPageProps> = ({ onBack, isDarkMode = false }) => {
+export const DevToolsPage: React.FC<DevToolsPageProps> = ({ onBack, isDarkMode = true }) => {
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
   const [devKey, setDevKey] = useState<string>(() => localStorage.getItem('loam_dev_key') || '');
   const [inputKey, setInputKey] = useState<string>('');

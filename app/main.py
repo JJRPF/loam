@@ -51,7 +51,8 @@ from app.db import (
     get_trail_submission_by_id, get_trail_submissions,
     record_submission_evidence, evaluate_and_verify_submission,
     admin_update_submission_status, list_user_connected_services,
-    recalculate_all_edge_heat, get_heat_trail_geojson, resolve_osm_trail_name
+    recalculate_all_edge_heat, get_heat_trail_geojson, resolve_osm_trail_name,
+    ingest_bow_ride_data_and_trails
 )
 from app.connectors import connector_manager
 from app.gpx_export import build_gpx_track
@@ -77,6 +78,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.on_event("startup")
+async def startup_event():
+    try:
+        ingest_bow_ride_data_and_trails()
+    except Exception as e:
+        print(f"Startup Bow ingestion notice: {e}")
 
 def verify_google_id_token(token: str) -> Dict[str, Any]:
     """
@@ -1502,6 +1510,18 @@ async def recalculate_dev_heat(
         raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
     res = recalculate_all_edge_heat()
     return {"status": "success", "updated_edges": res.get("updated_edges", 0), "message": "Heat layer recalculation complete."}
+
+@app.post("/api/dev/bow/ingest")
+async def ingest_dev_bow_data(
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None),
+    x_dev_key: Optional[str] = Header(None)
+):
+    """Developer action: Ingests Bow Town Forest trails, ride data, and sets public heat."""
+    if not verify_developer_auth(authorization, x_user_id, x_dev_key):
+        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
+    res = ingest_bow_ride_data_and_trails()
+    return res
 
 
 
