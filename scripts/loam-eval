@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# loam-eval: routing-engine benchmark CLI (run from anywhere)
+DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PY="${LOAM_PYTHON:-$DIR/.venv/bin/python}"
+cd "$DIR" && exec "$PY" -m loam_eval "$@"

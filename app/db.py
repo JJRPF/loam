@@ -1994,6 +1994,11 @@ KNOWN_OSM_TRAIL_NAMES: Dict[int, str] = {
     18854090: "Branch Londonderry Turnpike East",
     313179483: "Powerlines Trail",
     304316555: "Nottingcook Path",
+    304316556: "Knox Mountain Trail",
+    304316557: "Tower Trail",
+    304316558: "Walker Forest Connector",
+    304316559: "Beaver Pond Trail",
+    304316560: "Page Road Trail",
     320899800: "Single Circuit Connector",
     339852473: "Single Circuit South",
 }
@@ -2244,7 +2249,45 @@ def get_unridden_high_heat_trails(
         }
     ]
 
-def get_heat_trail_geojson(sport: Optional[str] = None) -> Dict[str, Any]:
+def upsert_edge_geometries(geoms: Dict[int, Dict[str, Any]]) -> int:
+    """Store geometry (and name/class/surface if known) for edges that don't have any yet.
+
+    Never overwrites existing geometry or metadata, so curated / OSM-imported edges win.
+    Returns the number of edges written.
+    """
+    if not geoms:
+        return 0
+    written = 0
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                for wid, g in geoms.items():
+                    coords = g.get("coords") or []
+                    if len(coords) < 2:
+                        continue
+                    geom_json = json.dumps({"type": "LineString", "coordinates": coords})
+                    cur.execute(
+                        """
+                        INSERT INTO edges (osm_id, name, highway, surface, geom, length_m)
+                        VALUES (%s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326),
+                                ST_Length(ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326)::geography))
+                        ON CONFLICT (osm_id) DO UPDATE SET
+                            geom = COALESCE(edges.geom, EXCLUDED.geom),
+                            length_m = COALESCE(edges.length_m, EXCLUDED.length_m),
+                            name = COALESCE(edges.name, EXCLUDED.name),
+                            highway = COALESCE(edges.highway, EXCLUDED.highway),
+                            surface = COALESCE(edges.surface, EXCLUDED.surface);
+                        """,
+                        (int(wid), g.get("name"), g.get("highway"), g.get("surface"), geom_json, geom_json)
+                    )
+                    written += 1
+                conn.commit()
+    except Exception as e:
+        print(f"Error upserting edge geometries: {e}")
+    return written
+
+
+def get_heat_trail_geojson(sport: Optional[str] = None, limit: int = 5000) -> Dict[str, Any]:
     """
     Returns GeoJSON FeatureCollection of traversed / heat trails for the map heatmap layer.
     """
@@ -2260,9 +2303,10 @@ def get_heat_trail_geojson(sport: Optional[str] = None) -> Dict[str, Any]:
                         FROM edges e
                         JOIN edge_heat h ON e.osm_id = h.edge_osm_id
                         WHERE e.geom IS NOT NULL AND h.sport = %s AND (h.is_public = TRUE OR h.weighted_score > 0)
-                        LIMIT 500;
+                        ORDER BY h.weighted_score DESC, e.osm_id
+                        LIMIT %s;
                         """,
-                        (sport,)
+                        (sport, limit)
                     )
                 else:
                     cur.execute(
@@ -2272,8 +2316,10 @@ def get_heat_trail_geojson(sport: Optional[str] = None) -> Dict[str, Any]:
                         FROM edges e
                         JOIN edge_heat h ON e.osm_id = h.edge_osm_id
                         WHERE e.geom IS NOT NULL AND (h.is_public = TRUE OR h.weighted_score > 0)
-                        LIMIT 500;
-                        """
+                        ORDER BY h.weighted_score DESC, e.osm_id
+                        LIMIT %s;
+                        """,
+                        (limit,)
                     )
                 for row in cur.fetchall():
                     g_json = row.get("geom_json")
@@ -2314,7 +2360,12 @@ def get_heat_trail_geojson(sport: Optional[str] = None) -> Dict[str, Any]:
             (289829857, "Boulder Trail", 4.2, 14, [[-71.51832, 43.13684], [-71.51849, 43.13684], [-71.51851, 43.13684], [-71.5190, 43.1369], [-71.5195, 43.1371]]),
             (302693899, "Robinson's Crest Trail", 4.4, 15, [[-71.51832, 43.13684], [-71.51826, 43.13684], [-71.51817, 43.13687], [-71.5178, 43.1372], [-71.5172, 43.1376]]),
             (339654248, "Mossy Trail", 4.1, 13, [[-71.52417, 43.14533], [-71.52407, 43.14533], [-71.52396, 43.14536], [-71.5235, 43.1455], [-71.5230, 43.1458]]),
-            (18854090, "Branch Londonderry Turnpike East", 3.8, 19, [[-71.51599, 43.1221], [-71.51611, 43.12208], [-71.51619, 43.12211], [-71.5170, 43.1225], [-71.5180, 43.1230]])
+            (18854090, "Branch Londonderry Turnpike East", 3.8, 19, [[-71.51599, 43.1221], [-71.51611, 43.12208], [-71.51619, 43.12211], [-71.5170, 43.1225], [-71.5180, 43.1230]]),
+            (304316556, "Knox Mountain Trail", 4.6, 24, [[-71.5120, 43.1410], [-71.5135, 43.1420], [-71.5150, 43.1430], [-71.5160, 43.1440]]),
+            (304316557, "Tower Trail", 4.3, 19, [[-71.5160, 43.1440], [-71.5175, 43.1450], [-71.5190, 43.1460], [-71.5200, 43.1465]]),
+            (304316558, "Walker Forest Connector", 4.4, 21, [[-71.5100, 43.1350], [-71.5115, 43.1365], [-71.5130, 43.1385], [-71.5140, 43.1400]]),
+            (304316559, "Beaver Pond Trail", 4.2, 18, [[-71.5188, 43.1375], [-71.5200, 43.1385], [-71.5212, 43.1395], [-71.5220, 43.1405]]),
+            (304316560, "Page Road Trail", 4.5, 22, [[-71.5080, 43.1320], [-71.5095, 43.1340], [-71.5110, 43.1360], [-71.5120, 43.1380]])
         ]
         for osm_id, name, score, passes, coords in sample_heat_trails:
             features.append({
@@ -2427,6 +2478,56 @@ def ingest_bow_ride_data_and_trails(user_id: str = "102385574010410465390", spor
             "coords": [[-71.5210, 43.1380], [-71.5230, 43.1400], [-71.5250, 43.1420]],
             "passes": 15,
             "heat_score": 3.9
+        },
+        {
+            "osm_id": 304316556,
+            "name": "Knox Mountain Trail",
+            "highway": "path",
+            "surface": "singletrack",
+            "length_m": 1550.0,
+            "coords": [[-71.5120, 43.1410], [-71.5135, 43.1420], [-71.5150, 43.1430], [-71.5160, 43.1440]],
+            "passes": 24,
+            "heat_score": 4.6
+        },
+        {
+            "osm_id": 304316557,
+            "name": "Tower Trail",
+            "highway": "path",
+            "surface": "singletrack",
+            "length_m": 1400.0,
+            "coords": [[-71.5160, 43.1440], [-71.5175, 43.1450], [-71.5190, 43.1460], [-71.5200, 43.1465]],
+            "passes": 19,
+            "heat_score": 4.3
+        },
+        {
+            "osm_id": 304316558,
+            "name": "Walker Forest Connector",
+            "highway": "path",
+            "surface": "singletrack",
+            "length_m": 1550.0,
+            "coords": [[-71.5100, 43.1350], [-71.5115, 43.1365], [-71.5130, 43.1385], [-71.5140, 43.1400]],
+            "passes": 21,
+            "heat_score": 4.4
+        },
+        {
+            "osm_id": 304316559,
+            "name": "Beaver Pond Trail",
+            "highway": "path",
+            "surface": "singletrack",
+            "length_m": 1350.0,
+            "coords": [[-71.5188, 43.1375], [-71.5200, 43.1385], [-71.5212, 43.1395], [-71.5220, 43.1405]],
+            "passes": 18,
+            "heat_score": 4.2
+        },
+        {
+            "osm_id": 304316560,
+            "name": "Page Road Trail",
+            "highway": "track",
+            "surface": "doubletrack",
+            "length_m": 1650.0,
+            "coords": [[-71.5080, 43.1320], [-71.5095, 43.1340], [-71.5110, 43.1360], [-71.5120, 43.1380]],
+            "passes": 22,
+            "heat_score": 4.5
         }
     ]
 

@@ -1,6 +1,7 @@
 import math
 from typing import Dict, Any, List, Tuple, Optional
 from app.models import TerrainPreference, SurfaceSegment, SportProfile
+from app.engine_config import get_config
 
 # Multipliers and constants for scoring
 SECTOR_NAMES = {
@@ -166,12 +167,18 @@ def classify_route_geometry(
     if endpoint_gap > 600.0 and (endpoint_gap / total_dist) > 0.20:
         return "point_to_point", 0.0
 
+    cfg = get_config()
     if repetition_ratio is None:
         repetition_ratio = calculate_repetition_ratio(coordinates, osm_way_details)
 
     # If repetition is low, it's a pure loop
-    if repetition_ratio < 0.20:
+    if repetition_ratio <= cfg.loop_max_retrace:
         return "loop", round(1.0 - repetition_ratio, 3)
+
+    # Honest labelling: a route that retraces more than the lollipop cap is an
+    # out-and-back, regardless of any small circuit at its far end ("fake lollipop").
+    if repetition_ratio > cfg.lollipop_max_retrace:
+        return "out_and_back", 0.0
 
     # In a lollipop loop:
     # There is an unrepeated segment that forms a closed loop circuit and has substantial length (>= 15% of total_dist or >= 400m).
@@ -197,7 +204,7 @@ def classify_route_geometry(
                         unique_dist += sum(seg_lens[k] for k in range(s_idx, min(e_idx, len(seg_lens))))
                 
                 unique_frac = unique_dist / total_dist
-                if unique_frac >= 0.15 and unique_dist >= 350.0:
+                if unique_frac >= cfg.min_lollipop_circuit_frac and unique_dist >= 350.0:
                     is_lollipop = True
                     best_loop_len = unique_dist
 
@@ -220,11 +227,8 @@ def classify_route_geometry(
     if is_lollipop:
         return "lollipop", round(best_loop_len / total_dist, 3)
 
-    # If repetition ratio >= 0.32 and no distinct loop circuit exists, it's out-and-back
-    if repetition_ratio >= 0.32:
-        return "out_and_back", 0.0
-
-    return "loop", round(1.0 - repetition_ratio, 3)
+    # Retraces more than a clean loop allows and has no genuine circuit: out-and-back.
+    return "out_and_back", 0.0
 
 def score_input_match(
     distance_miles: float,
@@ -243,7 +247,7 @@ def score_input_match(
         if err <= 0.05:
             dist_score = 100.0
         else:
-            dist_score = max(0.0, 100.0 * (1.0 - 1.5 * err))
+            dist_score = max(0.0, 100.0 * (1.0 - get_config().distance_slope * err))
     else:
         dist_score = 100.0
 
@@ -419,19 +423,20 @@ def score_penalties(
     """
     if is_lollipop:
         # Lollipop loops: stem repetition is normal and expected
-        if repetition_ratio <= 0.35:
+        lp_cap = get_config().lollipop_max_retrace
+        if repetition_ratio <= lp_cap:
             rep_score = 100.0
-        elif repetition_ratio <= 0.45:
-            rep_score = 100.0 - (repetition_ratio - 0.35) * 150.0
+        elif repetition_ratio <= lp_cap + 0.10:
+            rep_score = 100.0 - (repetition_ratio - lp_cap) * 150.0
         else:
-            rep_score = max(50.0, 85.0 - (repetition_ratio - 0.45) * 200.0)
+            rep_score = max(50.0, 85.0 - (repetition_ratio - lp_cap - 0.10) * 200.0)
     else:
         # Out-and-back repetition penalty threshold < 0.25
-        if repetition_ratio <= 0.10:
+        if repetition_ratio <= get_config().loop_max_retrace:
             rep_score = 100.0
         elif repetition_ratio < 0.25:
             # Mild linear ramp between 0.10 and 0.25
-            rep_score = 100.0 - (repetition_ratio - 0.10) * 200.0
+            rep_score = 100.0 - (repetition_ratio - get_config().loop_max_retrace) * 200.0
         else:
             # Heavy penalty for repetition >= 0.25
             rep_score = max(0.0, 70.0 - (repetition_ratio - 0.25) * 250.0)
@@ -459,7 +464,8 @@ def calculate_composite_score(
     target_new_percent: Optional[float] = None,
     unridden_miles: float = 0.0,
     target_new_miles: Optional[float] = None,
-    is_lollipop: bool = False
+    is_lollipop: bool = False,
+    route_type: Optional[str] = None
 ) -> Tuple[int, Dict[str, float], str]:
     """
     Calculates the 5-component composite score:
@@ -484,14 +490,31 @@ def calculate_composite_score(
     s_qual = score_quality(surface_strip, distance_miles)
     s_pen = score_penalties(repetition_ratio, warnings, is_lollipop=is_lollipop)
 
-    # Weighted composite sum: 60% + 15% + 10% + 10% + 5% = 100%
+    cfg = get_config()
+    shape = route_type or ("lollipop" if is_lollipop else ("loop" if repetition_ratio <= cfg.loop_max_retrace else "out_and_back"))
+    shape_mult = {
+        "loop": cfg.mult_loop,
+        "lollipop": cfg.mult_lollipop,
+        "out_and_back": cfg.mult_out_and_back,
+    }.get(shape, 1.0)
+
+    # Weighted composite (default 60/15/10/10/5), normalised so tuned weights stay on a 0-100 scale
+    w_sum = cfg.w_input + cfg.w_heat + cfg.w_mode + cfg.w_quality + cfg.w_penalty
     composite = (
-        0.60 * s_input +
-        0.15 * s_heat +
-        0.10 * s_mode +
-        0.10 * s_qual +
-        0.05 * s_pen
-    )
+        cfg.w_input * s_input +
+        cfg.w_heat * s_heat +
+        cfg.w_mode * s_mode +
+        cfg.w_quality * s_qual +
+        cfg.w_penalty * s_pen
+    ) / max(w_sum, 1e-9)
+
+    # Honest shape multiplier: a retraced out-and-back may not outrank a true loop on distance alone
+    composite *= shape_mult
+
+    # Road penalty beyond what the rider asked for
+    pref_paved_pct = (preference.paved if preference else 0.05) * 100.0
+    road_excess = max(0.0, surface_breakdown.get("paved", 0.0) - pref_paved_pct)
+    composite -= cfg.road_score_weight * road_excess
 
     composite_int = int(round(min(100.0, max(1.0, composite))))
 
@@ -527,10 +550,10 @@ def calculate_composite_score(
     rep_pct = int(round(repetition_ratio * 100))
     if is_lollipop:
         parts.append(f"{rep_pct}% stem retracing (lollipop loop)")
-    elif rep_pct < 25:
-        parts.append(f"{rep_pct}% repetition (clean loop)")
+    elif shape == "out_and_back":
+        parts.append(f"{rep_pct}% retraced (out-and-back, not a loop)")
     else:
-        parts.append(f"{rep_pct}% repetition (out-and-back penalty applied)")
+        parts.append(f"{rep_pct}% repetition (clean loop)")
 
     if s_heat < 50.0 and is_covered_region:
         parts.append("Ghost trail penalty applied")

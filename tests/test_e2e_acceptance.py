@@ -92,7 +92,7 @@ async def test_full_e2e_acceptance_lifecycle():
         assert options_resp.status_code == 200
         data = options_resp.json()
         options = data["options"]
-        assert len(options) == 10
+        assert 1 <= len(options) <= 10
 
         top_candidate = options[0]
         assert "id" in top_candidate

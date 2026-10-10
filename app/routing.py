@@ -5,12 +5,14 @@ import httpx
 from typing import Dict, Any, List, Tuple, Optional, AsyncGenerator, Set
 from app.config import settings
 from app.models import RouteRequest, RouteResponse, SurfaceSegment, SportProfile
+from app.engine_config import get_config
 from app.scoring import (
     calculate_composite_score,
     calculate_repetition_ratio,
     classify_route_geometry,
     generate_minimap,
-    get_sector_info
+    get_sector_info,
+    haversine_m
 )
 from app.db import (
     get_edges_heat, check_restrictions_along_line, is_region_covered,
@@ -313,7 +315,7 @@ def process_graphhopper_path(
             name_map[idx] = val
 
     surface_strip: List[SurfaceSegment] = []
-    category_counts: Dict[str, int] = {
+    category_counts: Dict[str, float] = {
         "singletrack": 0,
         "doubletrack": 0,
         "gravel": 0,
@@ -329,7 +331,10 @@ def process_graphhopper_path(
         tt = tt_map.get(i, "")
         w_name = name_map.get(i, "")
         cat = classify_surface(rc, s, tt, w_name)
-        category_counts[cat] = category_counts.get(cat, 0) + 1
+        # Weight by segment length (not point count): GraphHopper point density varies by
+        # surface, so point-share under-reports long straight road stretches (road-cap leak).
+        seg_w = haversine_m(points[i], points[i + 1]) if i + 1 < total_pts else 0.0
+        category_counts[cat] = category_counts.get(cat, 0) + seg_w
 
         if current_cat is None:
             current_cat = cat
@@ -356,7 +361,9 @@ def process_graphhopper_path(
 
     # Calculate breakdown percentages
     breakdown = {}
-    pts_divisor = max(total_pts, 1)
+    pts_divisor = sum(category_counts.values())
+    if pts_divisor <= 0:
+        pts_divisor = 1.0
     for cat, count in category_counts.items():
         pct = round((count / pts_divisor) * 100.0, 1)
         if pct > 0:
@@ -374,6 +381,18 @@ def process_graphhopper_path(
 
     # Collect unique traversed OSM way IDs
     unique_ways = [w[2] for w in osm_way_details if len(w) >= 3]
+
+    # Check for unverified ghost trails in covered networks
+    if is_covered_region and edge_heat_cache is not None:
+        ghost_trail_ways = set()
+        for item in osm_way_details:
+            if len(item) >= 3:
+                s_idx, wid = item[0], item[2]
+                cat = classify_surface(rc_map.get(s_idx, ""), surface_map.get(s_idx, ""), tt_map.get(s_idx, ""), name_map.get(s_idx, ""))
+                if cat != "paved" and wid not in edge_heat_cache:
+                    ghost_trail_ways.add(wid)
+        if ghost_trail_ways:
+            warnings.append(f"Ghost trail warning: traverses {len(ghost_trail_ways)} trail edge(s) with no logged activity heat.")
 
     # Calculate repetition ratio and classify route geometry (loop, lollipop, out_and_back)
     rep_ratio = calculate_repetition_ratio(points, osm_way_details)
@@ -462,7 +481,8 @@ def process_graphhopper_path(
         target_new_percent=req.min_new_trail_percent,
         unridden_miles=unridden_miles,
         target_new_miles=req.min_new_trail_miles,
-        is_lollipop=is_lollipop
+        is_lollipop=is_lollipop,
+        route_type=route_geom_type
     )
 
     # Generate lightweight SVG minimap & bounds
@@ -529,7 +549,7 @@ def process_graphhopper_path(
 
 async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> RouteResponse:
     # Handle loop / round trip mode
-    is_loop = req.is_loop or req.route_mode in ("loop", "round_trip") or req.end is None
+    is_loop = req.is_loop or req.route_mode in ("loop", "round_trip") or (req.end is None and req.route_mode != "out_and_back")
 
     points_coords: List[Tuple[float, float]] = [(req.start.lat, req.start.lon)]
 
@@ -666,6 +686,152 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
     )
 
 
+def road_pct(route: RouteResponse) -> float:
+    """Share of route (percent) on paved/road surface."""
+    return float((route.surface_breakdown or {}).get("paved", 0.0))
+
+
+def effective_road_cap(req: RouteRequest, cfg=None) -> float:
+    """Road cap (percent): the engine cap, raised only if the rider explicitly asked for more pavement."""
+    cfg = cfg or get_config()
+    asked = (req.terrain_preference.paved * 100.0) if req.terrain_preference else 0.0
+    return max(cfg.road_cap_pct, asked) + cfg.road_cap_slack_pct
+
+
+def passes_hard_gates(route: RouteResponse, req: RouteRequest, cfg=None) -> List[str]:
+    """Layer-0 style gates for the live engine. Returns the list of violated gates."""
+    cfg = cfg or get_config()
+    fails: List[str] = []
+    if road_pct(route) > effective_road_cap(req, cfg):
+        fails.append("road_cap")
+    if cfg.distance_gate_enforced and req.target_distance_miles and req.target_distance_miles > 0:
+        err = abs(route.distance_miles - req.target_distance_miles) / req.target_distance_miles
+        if err > cfg.distance_tolerance:
+            fails.append("distance")
+    if any("ghost trail" in (w or "").lower() for w in (route.warnings or [])):
+        fails.append("ghost_trail")
+    return fails
+
+
+def select_options(
+    scored_candidates: List[Tuple[RouteResponse, Set[int]]],
+    req: RouteRequest,
+    count: int,
+    is_loop: bool,
+) -> List[RouteResponse]:
+    """Rank, gate and diversify scored candidates (pure; no I/O).
+
+    Hard gates (road cap, distance) are applied as *filters*, never as soft score
+    terms. Gate-failing routes are only returned, flagged with a warning, when
+    nothing passes, so the UI is never empty but violations are never silent.
+    """
+    cfg = get_config()
+    count = count or cfg.candidate_count
+
+    # Sort descending by composite match score (stable: ties keep generation order)
+    scored_candidates = sorted(scored_candidates, key=lambda pair: pair[0].match_score or 0, reverse=True)
+
+    # Layer-0 gates, applied as tiers (order preserved within a tier):
+    #   tier 0: passes everything
+    #   tier 1: only the distance tolerance is violated -> kept (flagged) *after* tier 0 so
+    #           the UI can still show a full set of options
+    #   tier 2: violates the road cap -> dropped. Never traded for distance or variety.
+    #           Returned (flagged) only if absolutely nothing else exists.
+    tier0, tier1, tier2 = [], [], []
+    for pair in scored_candidates:
+        fails = passes_hard_gates(pair[0], req, cfg)
+        if not fails:
+            tier0.append(pair)
+        elif fails == ["distance"]:
+            pair[0].warnings.append("Distance is outside the requested tolerance.")
+            tier1.append(pair)
+        else:
+            if "road_cap" in fails:
+                pair[0].warnings.append(
+                    f"Road cap exceeded: {road_pct(pair[0]):.0f}% road vs {effective_road_cap(req, cfg):.0f}% cap.")
+            tier2.append(pair)
+    scored_candidates = (tier0 + tier1) or tier2
+
+    if req.route_mode == "out_and_back":
+        # Honest shape handling for out-and-back requests: genuine out-and-backs first.
+        oab = [p for p in scored_candidates if p[0].route_type == "out_and_back"]
+        rest = [p for p in scored_candidates if p[0].route_type != "out_and_back"]
+        candidate_pool = oab + rest
+    elif is_loop:
+        loop_pairs = [pair for pair in scored_candidates if pair[0].route_type in ("loop", "lollipop")]
+        oab_pairs = [pair for pair in scored_candidates if pair[0].route_type == "out_and_back"]
+
+        def is_severe(r: RouteResponse) -> bool:
+            if req.target_distance_miles and req.target_distance_miles > 0:
+                err = abs(r.distance_miles - req.target_distance_miles) / req.target_distance_miles
+                if err > 0.45:
+                    return True
+            if (r.match_score or 0) < 40:
+                return True
+            return False
+
+        viable_loops = [p for p in loop_pairs if not is_severe(p[0])]
+
+        if viable_loops:
+            candidate_pool = viable_loops + [p for p in loop_pairs if p not in viable_loops]
+        elif loop_pairs:
+            candidate_pool = loop_pairs
+        else:
+            for r, _ in oab_pairs:
+                r.warnings.append("Out-and-back fallback: No viable loop circuit found in this trail network.")
+            candidate_pool = oab_pairs
+    else:
+        candidate_pool = scored_candidates
+
+    # Diversity selection and Deduplication:
+    # Reject near-duplicates that share more than 70% of edges with already selected routes
+    selected: List[RouteResponse] = []
+    selected_way_sets: List[Set[int]] = []
+
+    # Pass 1: Strict <= 70% edge overlap
+    for route_resp, ways in candidate_pool:
+        is_dup = False
+        for s_ways in selected_way_sets:
+            if ways and s_ways:
+                overlap = len(ways & s_ways) / max(len(ways), 1)
+                if overlap > cfg.dup_overlap_strict:
+                    is_dup = True
+                    break
+        if not is_dup:
+            selected.append(route_resp)
+            selected_way_sets.append(ways)
+            if len(selected) == count:
+                break
+
+    # Pass 2: If we have fewer than count distinct options, relax threshold to 0.82 to fill remaining slots
+    if len(selected) < count:
+        for route_resp, ways in candidate_pool:
+            if route_resp in selected:
+                continue
+            is_dup = False
+            for s_ways in selected_way_sets:
+                if ways and s_ways:
+                    overlap = len(ways & s_ways) / max(len(ways), 1)
+                    if overlap > cfg.dup_overlap_relaxed:
+                        is_dup = True
+                        break
+            if not is_dup:
+                selected.append(route_resp)
+                selected_way_sets.append(ways)
+                if len(selected) == count:
+                    break
+
+    # Final fallback if still under count (e.g. sparse single track system): take next highest score
+    if len(selected) < count:
+        for route_resp, ways in candidate_pool:
+            if route_resp not in selected:
+                selected.append(route_resp)
+                if len(selected) == count:
+                    break
+
+    return selected
+
+
 async def generate_route_options(
     req: RouteRequest,
     count: int = 10,
@@ -678,7 +844,7 @@ async def generate_route_options(
     and composite scoring.
     """
     target_miles = req.target_distance_miles or 10.0
-    is_loop = req.is_loop or req.route_mode in ("loop", "round_trip") or req.end is None
+    is_loop = req.is_loop or req.route_mode in ("loop", "round_trip") or (req.end is None and req.route_mode != "out_and_back")
     start_lat = req.start.lat
     start_lon = req.start.lon
     gh_profile = get_gh_profile(req.profile)
@@ -882,85 +1048,7 @@ async def generate_route_options(
 
         scored_candidates.append((route_resp, item["ways"]))
 
-    # Sort descending by composite match score
-    scored_candidates.sort(key=lambda pair: pair[0].match_score or 0, reverse=True)
-
-    # Filter candidate pool when Loop mode is selected:
-    # Strictly return loops (including lollipop loops). Do NOT return out-and-back routes
-    # unless all other candidate options deviate severely from user inputs.
-    if is_loop:
-        loop_pairs = [pair for pair in scored_candidates if pair[0].route_type in ("loop", "lollipop")]
-        oab_pairs = [pair for pair in scored_candidates if pair[0].route_type == "out_and_back"]
-
-        def is_severe(r: RouteResponse) -> bool:
-            if req.target_distance_miles and req.target_distance_miles > 0:
-                err = abs(r.distance_miles - req.target_distance_miles) / req.target_distance_miles
-                if err > 0.45:
-                    return True
-            if (r.match_score or 0) < 40:
-                return True
-            return False
-
-        viable_loops = [p for p in loop_pairs if not is_severe(p[0])]
-
-        if viable_loops:
-            candidate_pool = viable_loops + [p for p in loop_pairs if p not in viable_loops]
-        elif loop_pairs:
-            candidate_pool = loop_pairs
-        else:
-            for r, _ in oab_pairs:
-                r.warnings.append("Out-and-back fallback: No viable loop circuit found in this trail network.")
-            candidate_pool = oab_pairs
-    else:
-        candidate_pool = scored_candidates
-
-    # Diversity selection and Deduplication:
-    # Reject near-duplicates that share more than 70% of edges with already selected routes
-    selected: List[RouteResponse] = []
-    selected_way_sets: List[Set[int]] = []
-
-    # Pass 1: Strict <= 70% edge overlap
-    for route_resp, ways in candidate_pool:
-        is_dup = False
-        for s_ways in selected_way_sets:
-            if ways and s_ways:
-                overlap = len(ways & s_ways) / max(len(ways), 1)
-                if overlap > 0.70:
-                    is_dup = True
-                    break
-        if not is_dup:
-            selected.append(route_resp)
-            selected_way_sets.append(ways)
-            if len(selected) == count:
-                break
-
-    # Pass 2: If we have fewer than count distinct options, relax threshold to 0.82 to fill remaining slots
-    if len(selected) < count:
-        for route_resp, ways in candidate_pool:
-            if route_resp in selected:
-                continue
-            is_dup = False
-            for s_ways in selected_way_sets:
-                if ways and s_ways:
-                    overlap = len(ways & s_ways) / max(len(ways), 1)
-                    if overlap > 0.82:
-                        is_dup = True
-                        break
-            if not is_dup:
-                selected.append(route_resp)
-                selected_way_sets.append(ways)
-                if len(selected) == count:
-                    break
-
-    # Final fallback if still under count (e.g. sparse single track system): take next highest score
-    if len(selected) < count:
-        for route_resp, ways in candidate_pool:
-            if route_resp not in selected:
-                selected.append(route_resp)
-                if len(selected) == count:
-                    break
-
-    return selected
+    return select_options(scored_candidates, req, count, is_loop)
 
 async def generate_route_options_stream(
     req: RouteRequest,

@@ -173,7 +173,8 @@ async def test_route_options_endpoint_bear_brook():
         assert res.status_code == 200
         data = res.json()
         options = data["options"]
-        assert len(options) == 10
+        # Round 5: honest shape labels + strict road cap mean fewer (but real) options; never padded
+        assert 1 <= len(options) <= 10
 
         # Verify each option has miles, climbing, minimap bounds & svg, and composite score
         sectors_seen = set()
@@ -219,7 +220,7 @@ async def test_route_options_streaming_endpoint():
         assert "event: candidate" in body_text
         assert "event: complete" in body_text
         candidate_count = body_text.count("event: candidate")
-        assert candidate_count == 10
+        assert 1 <= candidate_count <= 10
 
 @pytest.mark.asyncio
 async def test_route_options_highland_mountain():
