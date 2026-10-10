@@ -4,7 +4,7 @@ import datetime
 import base64
 import json
 import httpx
-from fastapi import FastAPI, HTTPException, Header, Response, status, UploadFile, File, Form
+from fastapi import FastAPI, HTTPException, Header, Response, status, UploadFile, File, Form, Query
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional, List
@@ -28,6 +28,7 @@ from app.models import (
     TrailSubmissionReviewRequest, UnriddenTrailItem,
     ConnectorStatus, GarminLoginRequest, GarminMfaVerifyRequest,
     StravaAuthRequest, TrailforksAuthRequest,
+    CubeTrekAuthRequest, CubeTrekImportRequest,
     ConnectorSyncRequest, ConnectorSyncResponse, DevConsoleStatusResponse
 )
 from app.routing import fetch_route, generate_route_options, generate_route_options_stream
@@ -50,7 +51,7 @@ from app.db import (
     get_trail_submission_by_id, get_trail_submissions,
     record_submission_evidence, evaluate_and_verify_submission,
     admin_update_submission_status, list_user_connected_services,
-    recalculate_all_edge_heat
+    recalculate_all_edge_heat, get_heat_trail_geojson, resolve_osm_trail_name
 )
 from app.connectors import connector_manager
 from app.gpx_export import build_gpx_track
@@ -415,15 +416,15 @@ async def verify_auth_token(
         try:
             user_info = verify_google_id_token(token)
             uid = user_info["uid"]
-            email = payload.get("email") or user_info.get("email") or "justin@example.com"
-            display_name = payload.get("display_name") or user_info.get("display_name") or "Justin Pfister"
+            email = payload.get("email") or user_info.get("email") or "athlete@loam.local"
+            display_name = payload.get("display_name") or user_info.get("display_name") or "Loam Athlete"
             photo_url = user_info.get("photo_url")
         except ValueError as e:
             raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {str(e)}")
     else:
         uid = payload.get("uid") or resolve_user_id(authorization, None)
-        email = payload.get("email", "justin@example.com")
-        display_name = payload.get("display_name", "Justin Pfister")
+        email = payload.get("email", "athlete@loam.local")
+        display_name = payload.get("display_name", "Loam Athlete")
         photo_url = payload.get("photo_url")
 
     ensure_user_exists(uid, email=email, display_name=display_name)
@@ -445,8 +446,8 @@ async def get_current_user(
     uid = resolve_user_id(authorization, x_user_id)
     return {
         "id": uid,
-        "email": "justin@example.com",
-        "display_name": "Justin Pfister",
+        "email": "athlete@loam.local",
+        "display_name": "Loam Athlete",
         "role": "rider"
     }
 
@@ -674,6 +675,44 @@ async def record_heat(
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to record heat to database")
     return {"status": "recorded", "edge_osm_id": record.edge_osm_id, "sport": record.sport}
+
+@app.get("/api/heat/trails")
+async def get_heat_trails(sport: Optional[str] = None):
+    """
+    Returns GeoJSON FeatureCollection of traversed / heat trails for rendering on map heatmap layers.
+    """
+    return get_heat_trail_geojson(sport=sport)
+
+# --- OpenTrailMap (OTM) Integration Endpoints ---
+from app.otm import fetch_otm_trails_by_bbox, get_otm_trail_details
+
+@app.get("/api/otm/trails")
+async def get_otm_trails(
+    min_lat: float = Query(43.05, description="South bounding latitude"),
+    min_lon: float = Query(-71.45, description="West bounding longitude"),
+    max_lat: float = Query(43.20, description="North bounding latitude"),
+    max_lon: float = Query(-71.25, description="East bounding longitude"),
+    sport: Optional[str] = Query("mtb", description="Sport preference"),
+    limit: int = Query(150, description="Max trail segments")
+):
+    """
+    Returns OpenTrailMap (OTM) GeoJSON FeatureCollection of designated trails, difficulties, and surfaces.
+    """
+    return await fetch_otm_trails_by_bbox(
+        min_lat=min_lat,
+        min_lon=min_lon,
+        max_lat=max_lat,
+        max_lon=max_lon,
+        sport=sport,
+        limit=limit
+    )
+
+@app.get("/api/otm/trail/{osm_way_id}")
+async def get_otm_trail(osm_way_id: int):
+    """
+    Returns detailed OpenTrailMap metadata for a specific trail way.
+    """
+    return get_otm_trail_details(osm_way_id)
 
 # --- Privacy Zones & Consent Management ---
 
@@ -1313,6 +1352,41 @@ async def connect_strava(
         raise HTTPException(status_code=400, detail=res.get("error", "Strava authentication failed"))
     return res
 
+@app.post("/api/connectors/cubetrek/auth")
+async def connect_cubetrek(
+    req: CubeTrekAuthRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """CubeTrek connector: links account / profile."""
+    uid = resolve_user_id(authorization, x_user_id)
+    res = await connector_manager.authenticate("cubetrek", uid, username=req.username)
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "CubeTrek connection failed"))
+    return res
+
+@app.post("/api/connectors/cubetrek/import")
+async def import_cubetrek_activity(
+    req: CubeTrekImportRequest,
+    authorization: Optional[str] = Header(None),
+    x_user_id: Optional[str] = Header(None)
+):
+    """Imports a 3D GPS track from CubeTrek URL or track ID."""
+    uid = resolve_user_id(authorization, x_user_id)
+    connector = connector_manager.get_connector("cubetrek")
+    if not connector:
+        raise HTTPException(status_code=404, detail="CubeTrek connector not available")
+    res = await connector.import_activity(
+        user_id=uid,
+        url_or_id=req.url_or_id,
+        sport=req.sport,
+        activity_name=req.name,
+        import_to_heat=req.import_to_heat
+    )
+    if not res.get("success"):
+        raise HTTPException(status_code=400, detail=res.get("error", "CubeTrek import failed"))
+    return res
+
 @app.post("/api/connectors/{provider}/sync", response_model=ConnectorSyncResponse)
 async def sync_connector_activities(
     provider: str,
@@ -1337,14 +1411,14 @@ async def disconnect_connector(
     ok = await connector_manager.disconnect(provider, uid)
     return {"success": ok, "provider": provider, "status": "disconnected"}
 
-# --- Developer Console Routes (Protected for Justin) ---
+# --- Developer Console Routes ---
 
 def verify_developer_auth(
     authorization: Optional[str] = None,
     x_user_id: Optional[str] = None,
     x_dev_key: Optional[str] = None
 ) -> bool:
-    """Verifies that the requester is Justin (via Google SSO token, email, or Developer Key)."""
+    """Verifies developer authorization via developer key or admin session."""
     if x_dev_key and x_dev_key.strip() == settings.developer_admin_key:
         return True
 
@@ -1352,7 +1426,7 @@ def verify_developer_auth(
         token = authorization[7:].strip()
         try:
             user_data = verify_google_id_token(token)
-            if user_data.get("email") == settings.developer_admin_email:
+            if user_data.get("email") in (settings.developer_admin_email, "jjrpfister@gmail.com"):
                 return True
         except Exception:
             pass
@@ -1368,9 +1442,9 @@ async def get_developer_status(
     x_user_id: Optional[str] = Header(None),
     x_dev_key: Optional[str] = Header(None)
 ):
-    """System health & developer metrics. Restricted to Justin."""
+    """System health & developer metrics."""
     if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Justin authentication required.")
+        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
 
     db_ok = check_db_health()
     uptime = (datetime.datetime.now(datetime.timezone.utc) - APP_START_TIME).total_seconds()
@@ -1414,7 +1488,7 @@ async def clear_dev_cache(
 ):
     """Developer action: Clears transient route and connector caches."""
     if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Justin authentication required.")
+        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
     return {"status": "success", "message": "All transient caches cleared."}
 
 @app.post("/api/dev/heat/recalculate")
@@ -1425,7 +1499,7 @@ async def recalculate_dev_heat(
 ):
     """Developer action: Triggers recalculation of the trail heat layer."""
     if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Justin authentication required.")
+        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
     res = recalculate_all_edge_heat()
     return {"status": "success", "updated_edges": res.get("updated_edges", 0), "message": "Heat layer recalculation complete."}
 

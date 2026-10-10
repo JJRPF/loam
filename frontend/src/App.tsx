@@ -15,6 +15,7 @@ import { ResultsPanel } from './components/ResultsPanel';
 import { SavedRoutesPanel } from './components/SavedRoutesPanel';
 import { ExplorePanel } from './components/ExplorePanel';
 import { YouPanel } from './components/YouPanel';
+import { DevToolsPage } from './components/DevToolsPage';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const App: React.FC = () => {
@@ -27,6 +28,23 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', isDarkMode ? 'dark' : 'light');
     localStorage.setItem('loam_theme', isDarkMode ? 'dark' : 'light');
   }, [isDarkMode]);
+
+  // Separate Dev Tools page route state
+  const [isDevRoute, setIsDevRoute] = useState<boolean>(() => {
+    return window.location.hash === '#/dev' || window.location.pathname === '/dev';
+  });
+
+  useEffect(() => {
+    const handleLocationChange = () => {
+      setIsDevRoute(window.location.hash === '#/dev' || window.location.pathname === '/dev');
+    };
+    window.addEventListener('hashchange', handleLocationChange);
+    window.addEventListener('popstate', handleLocationChange);
+    return () => {
+      window.removeEventListener('hashchange', handleLocationChange);
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, []);
 
   // Navigation tabs
   const [activeTab, setActiveTab] = useState<'plan' | 'results' | 'explore' | 'saved' | 'you'>('plan');
@@ -175,6 +193,18 @@ export const App: React.FC = () => {
       case 'full': return '88vh';
     }
   };
+
+  if (isDevRoute) {
+    return (
+      <DevToolsPage
+        onBack={() => {
+          window.location.hash = '';
+          setIsDevRoute(false);
+        }}
+        isDarkMode={isDarkMode}
+      />
+    );
+  }
 
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
@@ -342,7 +372,7 @@ export const App: React.FC = () => {
          ========================================================================= */}
       <main style={{ flex: 1, height: '100%', position: 'relative' }}>
         <MapView
-          route={route}
+          route={route || (options.length > 0 ? options[0] : null)}
           hoverRoute={hoverRoute}
           start={start}
           end={end}

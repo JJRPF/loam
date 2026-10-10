@@ -414,7 +414,7 @@ export const ExplorePanel: React.FC = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                     <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--color-text-primary, #1D3B34)' }}>
-                      {trail.name || `Trail #${trail.edge_osm_id}`}
+                      {trail.name || 'Named Trail'}
                     </div>
                     <span
                       style={{

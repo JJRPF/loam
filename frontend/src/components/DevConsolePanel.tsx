@@ -127,7 +127,7 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
               Developer Console
             </h2>
             <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
-              Authenticated for Justin Pfister ({userEmail || 'Admin Key'})
+              Authorized Session ({userEmail || 'Developer Key'})
             </div>
           </div>
         </div>

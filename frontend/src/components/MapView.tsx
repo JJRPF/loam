@@ -1,14 +1,20 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { 
   Map, 
   Marker, 
+  Popup,
   NavigationControl, 
   ScaleControl, 
   GeolocateControl,
+  setWorkerUrl,
   type StyleSpecification, 
   type GeoJSONSource 
 } from 'maplibre-gl';
 import type { RouteResponse, LatLon } from '../types';
+import { fetchHeatTrails, fetchOtmTrails } from '../services/api';
+
+// Explicitly register worker URL to guarantee local worker loading in dev & prod
+setWorkerUrl('/assets/maplibre-gl-worker.mjs');
 
 interface MapViewProps {
   route: RouteResponse | null;
@@ -88,9 +94,133 @@ export const MapView: React.FC<MapViewProps> = ({
   const onMapClickRef = useRef(onMapClick);
   const prevStartRef = useRef<{ lat: number; lon: number } | null>(null);
 
+  // Active route reference for map event callbacks
+  const routeRef = useRef<RouteResponse | null>(route);
+  routeRef.current = route;
+
+  const hoverRouteRef = useRef<RouteResponse | null>(hoverRoute || null);
+  hoverRouteRef.current = hoverRoute || null;
+
+  // Heat trail state & cached GeoJSON
+  const [showHeatmap, setShowHeatmap] = useState<boolean>(true);
+  const [heatTrailCount, setHeatTrailCount] = useState<number>(0);
+  const heatDataRef = useRef<any>(null);
+
+  // OpenTrailMap (OTM) trails state & cached GeoJSON
+  const [showOtmTrails, setShowOtmTrails] = useState<boolean>(false);
+  const [otmTrailCount, setOtmTrailCount] = useState<number>(0);
+  const otmDataRef = useRef<any>(null);
+
   useEffect(() => {
     onMapClickRef.current = onMapClick;
   }, [onMapClick]);
+
+  // Apply route line data directly whenever source exists
+  const applyRoute = useCallback((r: RouteResponse | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const source = map.getSource('route-line-source') as GeoJSONSource;
+    if (!source) return;
+
+    if (r && r.coordinates && r.coordinates.length > 0) {
+      source.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: r.coordinates.map(pt => [Number(pt[0]), Number(pt[1])])
+        }
+      });
+
+      // Fit bounds to route geometry
+      if (r.bbox && r.bbox.length === 4) {
+        map.fitBounds(
+          [
+            [Number(r.bbox[0]), Number(r.bbox[1])],
+            [Number(r.bbox[2]), Number(r.bbox[3])]
+          ],
+          { padding: { top: 60, bottom: 240, left: 60, right: 60 }, maxZoom: 15.5, duration: 800 }
+        );
+      } else {
+        const first = r.coordinates[0];
+        map.flyTo({ center: [Number(first[0]), Number(first[1])], zoom: 13, duration: 600 });
+      }
+    } else {
+      source.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+
+      // When route is cleared, auto center back to route start or GPS
+      if (start && start.lon && start.lat) {
+        map.flyTo({ center: [Number(start.lon), Number(start.lat)], zoom: 13, duration: 600 });
+      }
+    }
+  }, [start]);
+
+  // Apply hover preview route data directly
+  const applyHoverRoute = useCallback((hr: RouteResponse | null) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const hoverSource = map.getSource('hover-route-source') as GeoJSONSource;
+    if (!hoverSource) return;
+
+    if (hr && hr.coordinates && hr.coordinates.length > 0 && hr.name !== routeRef.current?.name) {
+      hoverSource.setData({
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: hr.coordinates.map(pt => [Number(pt[0]), Number(pt[1])])
+        }
+      });
+    } else {
+      hoverSource.setData({
+        type: 'FeatureCollection',
+        features: []
+      });
+    }
+  }, []);
+
+  // Fetch heat trail GeoJSON on mount
+  useEffect(() => {
+    fetchHeatTrails()
+      .then((geojson) => {
+        if (!geojson || !geojson.features) return;
+        setHeatTrailCount(geojson.features.length);
+        heatDataRef.current = geojson;
+        const map = mapRef.current;
+        if (map) {
+          const src = map.getSource('heat-trails-source') as GeoJSONSource;
+          if (src) {
+            src.setData(geojson);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load heat trails:', err);
+      });
+  }, []);
+
+  // Fetch OpenTrailMap (OTM) trails
+  useEffect(() => {
+    fetchOtmTrails()
+      .then((geojson) => {
+        if (!geojson || !geojson.features) return;
+        setOtmTrailCount(geojson.features.length);
+        otmDataRef.current = geojson;
+        const map = mapRef.current;
+        if (map) {
+          const src = map.getSource('otm-trails-source') as GeoJSONSource;
+          if (src) {
+            src.setData(geojson);
+          }
+        }
+      })
+      .catch((err) => {
+        console.warn('Failed to load OpenTrailMap trails:', err);
+      });
+  }, []);
 
   // Initialize MapLibre
   useEffect(() => {
@@ -118,7 +248,145 @@ export const MapView: React.FC<MapViewProps> = ({
     map.addControl(new ScaleControl({ unit: 'imperial' }), 'bottom-left');
 
     map.on('load', () => {
-      // Add empty route source & layers
+      // 1. Heat trail GeoJSON source & layers (rendered below active route)
+      map.addSource('heat-trails-source', {
+        type: 'geojson',
+        data: heatDataRef.current || {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: 'heat-trails-glow',
+        type: 'line',
+        source: 'heat-trails-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+          visibility: showHeatmap ? 'visible' : 'none'
+        },
+        paint: {
+          'line-color': [
+            'interpolate',
+            ['linear'],
+            ['get', 'heat_score'],
+            0, '#FFA726',
+            40, '#FF7043',
+            75, '#E63946',
+            100, '#D90429'
+          ],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 8, 17, 14],
+          'line-blur': 3,
+          'line-opacity': 0.65
+        }
+      });
+
+      map.addLayer({
+        id: 'heat-trails-line',
+        type: 'line',
+        source: 'heat-trails-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+          visibility: showHeatmap ? 'visible' : 'none'
+        },
+        paint: {
+          'line-color': [
+            'interpolate',
+            ['linear'],
+            ['get', 'heat_score'],
+            0, '#FFB74D',
+            40, '#FF7043',
+            75, '#E63946',
+            100, '#B71C1C'
+          ],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 13, 3, 16, 5],
+          'line-opacity': 0.85
+        }
+      });
+
+      // Trail click popup for heat trail inspection
+      map.on('click', 'heat-trails-line', (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feat = e.features[0];
+        const name = feat.properties?.name || 'Local Trail';
+        const heat = feat.properties?.heat_score || 0;
+        const rides = feat.properties?.ride_count || 0;
+        new Popup({ offset: 10 })
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="font-family: -apple-system, sans-serif; font-size: 13px; color: #1D3B34; padding: 2px;">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 2px;">${name}</div>
+            <div style="color: #FF5B14; font-weight: 600;">🔥 Heat Index: ${heat}/100</div>
+            <div style="font-size: 11px; color: #64748B;">${rides} logged activity passes</div>
+          </div>`)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'heat-trails-line', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'heat-trails-line', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      // 1.5 OpenTrailMap (OTM) trails source & layer
+      map.addSource('otm-trails-source', {
+        type: 'geojson',
+        data: otmDataRef.current || {
+          type: 'FeatureCollection',
+          features: []
+        }
+      });
+
+      map.addLayer({
+        id: 'otm-trails-line',
+        type: 'line',
+        source: 'otm-trails-source',
+        layout: {
+          'line-cap': 'round',
+          'line-join': 'round',
+          visibility: showOtmTrails ? 'visible' : 'none'
+        },
+        paint: {
+          'line-color': [
+            'match',
+            ['get', 'difficulty'],
+            'expert', '#1A1A1A',
+            'advanced', '#1565C0',
+            'beginner', '#2E7D32',
+            '#0288D1'
+          ],
+          'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 13, 3, 16, 5],
+          'line-opacity': 0.85,
+          'line-dasharray': [3, 1]
+        }
+      });
+
+      map.on('click', 'otm-trails-line', (e) => {
+        if (!e.features || !e.features[0]) return;
+        const feat = e.features[0];
+        const name = feat.properties?.name || 'OpenTrailMap Trail';
+        const diff = feat.properties?.difficulty || 'Standard';
+        const surf = feat.properties?.surface || 'natural';
+        new Popup({ offset: 10 })
+          .setLngLat(e.lngLat)
+          .setHTML(`<div style="font-family: -apple-system, sans-serif; font-size: 13px; color: #1D3B34; padding: 2px;">
+            <div style="font-weight: 700; font-size: 14px; margin-bottom: 2px;">🌲 ${name}</div>
+            <div style="color: #0288D1; font-weight: 600; text-transform: capitalize;">Difficulty: ${diff}</div>
+            <div style="font-size: 11px; color: #64748B;">Surface: ${surf} | OpenTrailMap</div>
+          </div>`)
+          .addTo(map);
+      });
+
+      map.on('mouseenter', 'otm-trails-line', () => {
+        map.getCanvas().style.cursor = 'pointer';
+      });
+      map.on('mouseleave', 'otm-trails-line', () => {
+        map.getCanvas().style.cursor = '';
+      });
+
+      // 2. Active route source & layers
       map.addSource('route-line-source', {
         type: 'geojson',
         data: {
@@ -137,9 +405,9 @@ export const MapView: React.FC<MapViewProps> = ({
           'line-join': 'round'
         },
         paint: {
-          'line-color': isDarkMode ? '#0E1D19' : '#1D3B34',
-          'line-width': 7,
-          'line-opacity': 0.8
+          'line-color': isDarkMode ? '#050D0A' : '#0B1D18',
+          'line-width': 8,
+          'line-opacity': 0.85
         }
       });
 
@@ -162,9 +430,9 @@ export const MapView: React.FC<MapViewProps> = ({
         },
         paint: {
           'line-color': '#3F6C8F',
-          'line-width': 4.0,
+          'line-width': 4.5,
           'line-dasharray': [2, 2],
-          'line-opacity': 0.85
+          'line-opacity': 0.9
         }
       });
 
@@ -179,17 +447,21 @@ export const MapView: React.FC<MapViewProps> = ({
         },
         paint: {
           'line-color': '#FF5B14',
-          'line-width': 4.5,
+          'line-width': 5.0,
           'line-opacity': 1.0
         }
       });
 
+      // Apply initial route and hover route immediately upon map load
+      applyRoute(routeRef.current);
+      applyHoverRoute(hoverRouteRef.current);
+
       // Auto center on GPS if no route and default/no start selected
-      if (!route && (!start || (start.lat === 43.1305 && start.lon === -71.3524))) {
+      if (!routeRef.current && (!start || (start.lat === 43.1305 && start.lon === -71.3524))) {
         if ('geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
-              if (mapRef.current && !route) {
+              if (mapRef.current && !routeRef.current) {
                 mapRef.current.flyTo({
                   center: [pos.coords.longitude, pos.coords.latitude],
                   zoom: 13,
@@ -233,7 +505,7 @@ export const MapView: React.FC<MapViewProps> = ({
           map.setLayoutProperty('carto-dark-layer', 'visibility', isDarkMode ? 'visible' : 'none');
         }
         if (map.getLayer('route-casing')) {
-          map.setPaintProperty('route-casing', 'line-color', isDarkMode ? '#0E1D19' : '#1D3B34');
+          map.setPaintProperty('route-casing', 'line-color', isDarkMode ? '#050D0A' : '#0B1D18');
         }
       } catch (err) {
         console.warn('Error applying map theme:', err);
@@ -247,49 +519,43 @@ export const MapView: React.FC<MapViewProps> = ({
     }
   }, [isDarkMode]);
 
-  // Auto center on route when route changes; fit bounds to route geometry
+  // Sync Heatmap layer visibility
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
 
-    const source = map.getSource('route-line-source') as GeoJSONSource;
-    if (!source) return;
-
-    if (route && route.coordinates && route.coordinates.length > 0) {
-      source.setData({
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: route.coordinates.map(pt => [pt[0], pt[1]])
-        }
-      });
-
-      // Auto center on the route
-      if (route.bbox && route.bbox.length === 4) {
-        map.fitBounds(
-          [
-            [route.bbox[0], route.bbox[1]],
-            [route.bbox[2], route.bbox[3]]
-          ],
-          { padding: { top: 60, bottom: 240, left: 60, right: 60 }, maxZoom: 15.5, duration: 800 }
-        );
-      } else {
-        const first = route.coordinates[0];
-        map.flyTo({ center: [first[0], first[1]], zoom: 13, duration: 600 });
+    try {
+      const vis = showHeatmap ? 'visible' : 'none';
+      if (map.getLayer('heat-trails-glow')) {
+        map.setLayoutProperty('heat-trails-glow', 'visibility', vis);
       }
-    } else {
-      source.setData({
-        type: 'FeatureCollection',
-        features: []
-      });
-
-      // When route is cleared, auto center back to route start or GPS
-      if (start && start.lon && start.lat) {
-        map.flyTo({ center: [start.lon, start.lat], zoom: 13, duration: 600 });
+      if (map.getLayer('heat-trails-line')) {
+        map.setLayoutProperty('heat-trails-line', 'visibility', vis);
       }
+    } catch (err) {
+      console.warn('Error toggling heatmap layer visibility:', err);
     }
-  }, [route]);
+  }, [showHeatmap]);
+
+  // Sync OpenTrailMap layer visibility
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    try {
+      const vis = showOtmTrails ? 'visible' : 'none';
+      if (map.getLayer('otm-trails-line')) {
+        map.setLayoutProperty('otm-trails-line', 'visibility', vis);
+      }
+    } catch (err) {
+      console.warn('Error toggling OTM trail layer visibility:', err);
+    }
+  }, [showOtmTrails]);
+
+  // Update Route GeoJSON when route changes
+  useEffect(() => {
+    applyRoute(route);
+  }, [route, applyRoute]);
 
   // Auto center on route start when start position changes and no route is active
   useEffect(() => {
@@ -311,28 +577,8 @@ export const MapView: React.FC<MapViewProps> = ({
 
   // Update Hover Preview Route GeoJSON
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
-
-    const hoverSource = map.getSource('hover-route-source') as GeoJSONSource;
-    if (!hoverSource) return;
-
-    if (hoverRoute && hoverRoute.coordinates && hoverRoute.coordinates.length > 0 && hoverRoute.name !== route?.name) {
-      hoverSource.setData({
-        type: 'Feature',
-        properties: {},
-        geometry: {
-          type: 'LineString',
-          coordinates: hoverRoute.coordinates.map(pt => [pt[0], pt[1]])
-        }
-      });
-    } else {
-      hoverSource.setData({
-        type: 'FeatureCollection',
-        features: []
-      });
-    }
-  }, [hoverRoute, route]);
+    applyHoverRoute(hoverRoute || null);
+  }, [hoverRoute, applyHoverRoute]);
 
   // Update Start & End Markers
   useEffect(() => {
@@ -404,6 +650,96 @@ export const MapView: React.FC<MapViewProps> = ({
     <div style={{ position: 'relative', width: '100%', height: '100%' }}>
       <div ref={mapContainer} className="maplibre-container" />
       
+      {/* Heatmap Layer Toggle Badge */}
+      <div
+        style={{
+          position: 'absolute',
+          top: 16,
+          left: 16,
+          zIndex: 15,
+          display: 'flex',
+          alignItems: 'center',
+          gap: 6
+        }}
+      >
+        <button
+          type="button"
+          onClick={() => setShowHeatmap(!showHeatmap)}
+          style={{
+            backgroundColor: showHeatmap ? 'var(--color-header-bg, #1D3B34)' : 'rgba(255, 255, 255, 0.92)',
+            color: showHeatmap ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
+            border: showHeatmap ? '1px solid var(--color-blaze, #FF5B14)' : '1px solid var(--color-divider, #D1D8D8)',
+            borderRadius: 20,
+            padding: '6px 14px',
+            fontSize: 12,
+            fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+          title={showHeatmap ? 'Hide trail heatmap' : 'Show trail heatmap'}
+        >
+          <span>🔥</span>
+          <span>{showHeatmap ? 'Heatmap ON' : 'Heatmap OFF'}</span>
+          {heatTrailCount > 0 && (
+            <span
+              style={{
+                backgroundColor: showHeatmap ? 'var(--color-blaze, #FF5B14)' : '#E2E8F0',
+                color: showHeatmap ? '#FFFFFF' : '#475569',
+                padding: '1px 6px',
+                borderRadius: 10,
+                fontSize: 10,
+                fontWeight: 700
+              }}
+            >
+              {heatTrailCount}
+            </span>
+          )}
+        </button>
+
+        {/* OpenTrailMap Layer Toggle Badge */}
+        <button
+          type="button"
+          onClick={() => setShowOtmTrails(!showOtmTrails)}
+          style={{
+            backgroundColor: showOtmTrails ? 'var(--color-header-bg, #1D3B34)' : 'rgba(255, 255, 255, 0.92)',
+            color: showOtmTrails ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
+            border: showOtmTrails ? '1px solid #0288D1' : '1px solid var(--color-divider, #D1D8D8)',
+            borderRadius: 20,
+            padding: '6px 14px',
+            fontSize: 12,
+            fontWeight: 700,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            cursor: 'pointer',
+            transition: 'all 0.2s ease'
+          }}
+          title={showOtmTrails ? 'Hide OpenTrailMap trails' : 'Show OpenTrailMap trails'}
+        >
+          <span>🌲</span>
+          <span>{showOtmTrails ? 'OTM Trails ON' : 'OTM Trails OFF'}</span>
+          {otmTrailCount > 0 && (
+            <span
+              style={{
+                backgroundColor: showOtmTrails ? '#0288D1' : '#E2E8F0',
+                color: showOtmTrails ? '#FFFFFF' : '#475569',
+                padding: '1px 6px',
+                borderRadius: 10,
+                fontSize: 10,
+                fontWeight: 700
+              }}
+            >
+              {otmTrailCount}
+            </span>
+          )}
+        </button>
+      </div>
+
       {/* Map Attribution Badge: CARTO and OpenStreetMap (Responsive: top on mobile, bottom on desktop) */}
       <div className="map-attribution-badge">
         &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>CARTO</a>

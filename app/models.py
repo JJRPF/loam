@@ -77,6 +77,8 @@ class RouteResponse(BaseModel):
     score_breakdown: Optional[Dict[str, float]] = None
     repetition_ratio: Optional[float] = None
     verbal_summary: Optional[str] = None
+    route_type: Optional[str] = "loop" # 'loop', 'lollipop', 'out_and_back', 'point_to_point'
+    primary_trail_name: Optional[str] = None
     # Stage 6: Find New Trails stats
     is_find_new_trails: bool = False
     unridden_miles: float = 0.0
@@ -347,6 +349,7 @@ class UserDataExportResponse(BaseModel):
     flags: List[Dict[str, Any]]
     activities: List[Dict[str, Any]]
     saved_routes: List[Dict[str, Any]]
+    heat_trail_contributions: Optional[List[Dict[str, Any]]] = None
     exported_at: str
 
 # =========================================================================
@@ -455,6 +458,11 @@ class DevConsoleStatusResponse(BaseModel):
     developer_email: str
     uptime_seconds: float = 0.0
 
+class CubeTrekAuthRequest(BaseModel):
+    username: Optional[str] = None
 
-
-
+class CubeTrekImportRequest(BaseModel):
+    url_or_id: str
+    sport: str = "mtb"
+    name: Optional[str] = None
+    import_to_heat: bool = True
