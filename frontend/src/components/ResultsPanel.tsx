@@ -17,6 +17,8 @@ interface ResultsPanelProps {
   onScrubCoord?: (coord: [number, number] | null, index: number | null) => void;
   onRouteSaved?: () => void;
   isLoading?: boolean;
+  noTrueLoopNearHere?: boolean;
+  nearbyStartSuggestion?: string;
 }
 
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
@@ -27,7 +29,9 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   onBackToPlan,
   onScrubCoord,
   onRouteSaved,
-  isLoading = false
+  isLoading = false,
+  noTrueLoopNearHere = false,
+  nearbyStartSuggestion
 }) => {
   const [isExportingGpx, setIsExportingGpx] = useState(false);
   const [isExportingFit, setIsExportingFit] = useState(false);
@@ -114,6 +118,27 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const activeRoute: RouteResponse | null = route || (options.length > 0 ? options[0] : null);
 
   if (!activeRoute) {
+    if (noTrueLoopNearHere) {
+      return (
+        <div style={{ padding: 24, textAlign: 'center', backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '2px solid #EF4444' }}>
+          <div style={{ fontSize: 32, marginBottom: 8 }}>⚠️</div>
+          <div style={{ fontSize: 16, fontWeight: 700, color: '#DC2626', marginBottom: 4 }}>
+            No true loop near here
+          </div>
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', marginBottom: 16, lineHeight: 1.4 }}>
+            {nearbyStartSuggestion || 'All routes in this network retrace > 10% of their distance. Try disabling "Loops only" or starting from a nearby junction.'}
+          </div>
+          <button
+            type="button"
+            onClick={onBackToPlan}
+            className="btn-primary"
+            style={{ width: '100%' }}
+          >
+            Adjust Plan
+          </button>
+        </div>
+      );
+    }
     return (
       <div style={{ padding: 24, textAlign: 'center', backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)' }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 4 }}>
@@ -246,6 +271,25 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           )}
         </div>
       </div>
+
+      {/* "No true loop near here" warning banner if only out-and-backs were generated */}
+      {noTrueLoopNearHere && (
+        <div style={{ padding: '10px 12px', backgroundColor: '#FEF2F2', border: '1px solid #F87171', borderRadius: 6, marginBottom: 8 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: '#991B1B' }}>
+            No true loop near here
+          </div>
+          <div style={{ fontSize: 12, color: '#7F1D1D', marginTop: 2 }}>
+            {nearbyStartSuggestion || activeRoute?.nearby_start_suggestion || 'All available routes in this network retrace >10% of their distance.'}
+          </div>
+        </div>
+      )}
+
+      {/* Nearby Start Suggestion Banner */}
+      {!noTrueLoopNearHere && (nearbyStartSuggestion || activeRoute?.nearby_start_suggestion) && (
+        <div style={{ padding: '8px 12px', backgroundColor: '#F0FDF4', border: '1px solid #86EFAC', borderRadius: 6, marginBottom: 8, fontSize: 12, color: '#166534', fontWeight: 600 }}>
+          💡 {nearbyStartSuggestion || activeRoute?.nearby_start_suggestion}
+        </div>
+      )}
 
       {/* Candidate Route Cards List (Streamed Cards) */}
       {options.length > 1 && (

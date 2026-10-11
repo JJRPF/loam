@@ -43,6 +43,7 @@ class RouteRequest(BaseModel):
     min_new_trail_miles: Optional[float] = Field(default=None, ge=0.0)
     trail_run_steeper_grades: bool = False
     trail_run_avoid_mtb_flow: bool = True
+    loops_only: bool = False
 
 class SurfaceSegment(BaseModel):
     start_index: int
@@ -76,6 +77,9 @@ class RouteResponse(BaseModel):
     match_score: Optional[int] = 95
     score_breakdown: Optional[Dict[str, float]] = None
     repetition_ratio: Optional[float] = None
+    retraced_miles: float = 0.0
+    retraced_coordinates: List[List[List[float]]] = Field(default_factory=list)
+    nearby_start_suggestion: Optional[str] = None
     verbal_summary: Optional[str] = None
     route_type: Optional[str] = "loop" # 'loop', 'lollipop', 'out_and_back', 'point_to_point'
     primary_trail_name: Optional[str] = None
@@ -94,6 +98,9 @@ class RouteOptionsResponse(BaseModel):
     count: int
     requested_target_miles: Optional[float] = None
     start_name: Optional[str] = None
+    loops_only: bool = False
+    no_true_loop_near_here: bool = False
+    nearby_start_suggestion: Optional[str] = None
 
 class EdgeHeatRecord(BaseModel):
     edge_osm_id: int

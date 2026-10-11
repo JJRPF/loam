@@ -69,6 +69,9 @@ export interface RouteResponse {
   match_score?: number;
   score_breakdown?: ScoreBreakdown;
   repetition_ratio?: number;
+  retraced_miles?: number;
+  retraced_coordinates?: number[][][];
+  nearby_start_suggestion?: string;
   verbal_summary?: string;
   route_type?: string;
   primary_trail_name?: string;
@@ -168,6 +171,9 @@ export interface RouteOptionsResponse {
   count: number;
   requested_target_miles?: number;
   start_name?: string;
+  loops_only?: boolean;
+  no_true_loop_near_here?: boolean;
+  nearby_start_suggestion?: string;
 }
 
 export interface SavedRoute {

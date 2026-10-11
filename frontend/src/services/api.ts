@@ -85,6 +85,7 @@ export async function calculateRouteOptions(params: {
   minNewTrailMiles?: number;
   trailRunSteeperGrades?: boolean;
   trailRunAvoidMtbFlow?: boolean;
+  loopsOnly?: boolean;
 }): Promise<RouteOptionsResponse> {
   const payload = {
     start: { lat: params.start.lat, lon: params.start.lon, name: params.start.name },
@@ -102,7 +103,8 @@ export async function calculateRouteOptions(params: {
     min_new_trail_percent: params.minNewTrailPercent,
     min_new_trail_miles: params.minNewTrailMiles,
     trail_run_steeper_grades: params.trailRunSteeperGrades ?? false,
-    trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true
+    trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true,
+    loops_only: params.loopsOnly ?? false
   };
 
   const res = await fetch(`${API_BASE}/api/route/options`, {
@@ -137,6 +139,7 @@ export function streamRouteOptions(
     minNewTrailMiles?: number;
     trailRunSteeperGrades?: boolean;
     trailRunAvoidMtbFlow?: boolean;
+    loopsOnly?: boolean;
   },
   callbacks: {
     onCandidate: (candidate: RouteResponse) => void;
@@ -162,7 +165,8 @@ export function streamRouteOptions(
     min_new_trail_percent: params.minNewTrailPercent,
     min_new_trail_miles: params.minNewTrailMiles,
     trail_run_steeper_grades: params.trailRunSteeperGrades ?? false,
-    trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true
+    trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true,
+    loops_only: params.loopsOnly ?? false
   };
 
 

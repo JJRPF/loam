@@ -22,7 +22,6 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const distMi = route.distance_miles ?? 0;
   const eleGain = route.elevation_gain_ft ?? 0;
   const stPct = Math.round(route.surface_breakdown?.singletrack || 0);
-  const repPct = route.repetition_ratio !== undefined ? Math.round(route.repetition_ratio * 100) : null;
 
   return (
     <article
@@ -120,18 +119,25 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
 
           <div style={{ fontSize: 11, color: 'var(--color-text-primary, #1D3B34)', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{stPct}% Singletrack</span>
-            {repPct !== null && (
+            {route.route_type && (
               <span
                 style={{
                   fontSize: 10,
                   padding: '1px 5px',
                   borderRadius: 3,
-                  backgroundColor: repPct < 25 ? 'rgba(46, 111, 64, 0.2)' : 'rgba(255, 91, 20, 0.2)',
-                  color: repPct < 25 ? 'var(--color-lichen, #2E6F40)' : 'var(--color-blaze, #C73E00)',
-                  fontWeight: 600
+                  backgroundColor: 
+                    route.route_type === 'loop' ? 'rgba(46, 111, 64, 0.2)' :
+                    route.route_type === 'lollipop' ? 'rgba(63, 108, 143, 0.2)' :
+                    'rgba(255, 91, 20, 0.2)',
+                  color: 
+                    route.route_type === 'loop' ? 'var(--color-lichen, #2E6F40)' :
+                    route.route_type === 'lollipop' ? '#1E40AF' :
+                    'var(--color-blaze, #C73E00)',
+                  fontWeight: 700
                 }}
               >
-                {repPct < 25 ? 'Loop' : `${repPct}% Rep`}
+                {route.route_type === 'loop' ? 'True Loop' : route.route_type === 'lollipop' ? 'Lollipop' : 'Out & Back'}
+                {route.retraced_miles !== undefined && route.retraced_miles > 0 && route.route_type !== 'loop' ? ` (${route.retraced_miles.toFixed(1)} mi retraced)` : ''}
               </span>
             )}
             {((route.unridden_miles !== undefined && route.unridden_miles > 0) || route.is_find_new_trails) && (

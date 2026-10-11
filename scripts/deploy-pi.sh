@@ -44,13 +44,13 @@ rsync -avz \
 
 # 3. Restart Loam API service on Raspberry Pi
 echo -e "${BLUE}[3/4] Restarting loam-api on ${PI_HOST}...${NC}"
-sshpass -p "${PI_USER}" ssh -o IdentityAgent=none -o PubkeyAuthentication=no "${PI_HOST}" \
+sshpass -p "${PI_USER}" ssh -o IdentityAgent=none -o PubkeyAuthentication=no "${PI_USER}@${PI_HOST}" \
     "echo '${PI_USER}' | sudo -S systemctl restart loam-api"
 
 # 4. Verify Health Status
 echo -e "${BLUE}[4/4] Verifying health check...${NC}"
 sleep 2
-HEALTH=$(sshpass -p "${PI_USER}" ssh -o IdentityAgent=none -o PubkeyAuthentication=no "${PI_HOST}" \
+HEALTH=$(sshpass -p "${PI_USER}" ssh -o IdentityAgent=none -o PubkeyAuthentication=no "${PI_USER}@${PI_HOST}" \
     "curl -s http://127.0.0.1:8085/health || echo 'failed'")
 
 echo -e "Health response: ${HEALTH}"

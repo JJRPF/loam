@@ -90,6 +90,9 @@ export const App: React.FC = () => {
   const [minNewTrailPercent, setMinNewTrailPercent] = useState<number>(30);
   const [trailRunSteeperGrades, setTrailRunSteeperGrades] = useState<boolean>(true);
   const [trailRunAvoidMtbFlow, setTrailRunAvoidMtbFlow] = useState<boolean>(true);
+  const [loopsOnly, setLoopsOnly] = useState<boolean>(false);
+  const [noTrueLoopNearHere, setNoTrueLoopNearHere] = useState<boolean>(false);
+  const [nearbyStartSuggestion, setNearbyStartSuggestion] = useState<string | null>(null);
 
   // Route calculation and results
   const [route, setRoute] = useState<RouteResponse | null>(null);
@@ -123,6 +126,8 @@ export const App: React.FC = () => {
     setIsLoading(true);
     setOptions([]);
     setRoute(null);
+    setNoTrueLoopNearHere(false);
+    setNearbyStartSuggestion(null);
     setActiveTab('results');
     if (isMobile) {
       setSheetSnap('half');
@@ -144,7 +149,8 @@ export const App: React.FC = () => {
         findNewTrailsMode,
         minNewTrailPercent,
         trailRunSteeperGrades,
-        trailRunAvoidMtbFlow
+        trailRunAvoidMtbFlow,
+        loopsOnly
       },
       {
         onCandidate: (cand) => {
@@ -158,6 +164,16 @@ export const App: React.FC = () => {
         },
         onComplete: () => {
           setIsLoading(false);
+          setOptions(currentOpts => {
+            const hasLoops = currentOpts.some(o => o.route_type === 'loop' || o.route_type === 'lollipop');
+            if (routeMode === 'loop' && (!hasLoops || currentOpts.length === 0)) {
+              setNoTrueLoopNearHere(true);
+            }
+            if (currentOpts.length > 0 && currentOpts[0].nearby_start_suggestion) {
+              setNearbyStartSuggestion(currentOpts[0].nearby_start_suggestion);
+            }
+            return currentOpts;
+          });
         },
         onError: (err) => {
           console.error('Route options stream error:', err);
@@ -339,6 +355,8 @@ export const App: React.FC = () => {
                   onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
                   trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
                   onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
+                  loopsOnly={loopsOnly}
+                  onLoopsOnlyChange={setLoopsOnly}
                 />
               )}
 
@@ -352,6 +370,8 @@ export const App: React.FC = () => {
                   onScrubCoord={setScrubCoord}
                   onRouteSaved={() => {}}
                   isLoading={isLoading}
+                  noTrueLoopNearHere={noTrueLoopNearHere}
+                  nearbyStartSuggestion={nearbyStartSuggestion || undefined}
                 />
               )}
 
@@ -511,6 +531,8 @@ export const App: React.FC = () => {
                     onTrailRunSteeperGradesChange={setTrailRunSteeperGrades}
                     trailRunAvoidMtbFlow={trailRunAvoidMtbFlow}
                     onTrailRunAvoidMtbFlowChange={setTrailRunAvoidMtbFlow}
+                    loopsOnly={loopsOnly}
+                    onLoopsOnlyChange={setLoopsOnly}
                   />
                 )}
 
@@ -524,6 +546,8 @@ export const App: React.FC = () => {
                     onScrubCoord={setScrubCoord}
                     onRouteSaved={() => {}}
                     isLoading={isLoading}
+                    noTrueLoopNearHere={noTrueLoopNearHere}
+                    nearbyStartSuggestion={nearbyStartSuggestion || undefined}
                   />
                 )}
 
