@@ -60,8 +60,9 @@ class RouteResponse(BaseModel):
     sector: Optional[str] = None
     distance_miles: float
     duration_minutes: float
-    elevation_gain_ft: float
-    elevation_loss_ft: float
+    # None when no DEM sample is available ("Elevation unavailable"); never estimated.
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     surface_breakdown: Dict[str, float] # percentage per category e.g. {"singletrack": 65.2, "gravel": 25.0, ...}
     surface_strip: List[SurfaceSegment]
     coordinates: List[List[float]] # [[lon, lat], ...] GeoJSON style or [[lon, lat, ele]]
@@ -112,8 +113,8 @@ class SavedRouteCreate(BaseModel):
     name: str
     sport: str = "mtb"
     distance_miles: float
-    elevation_gain_ft: float = 0.0
-    elevation_loss_ft: float = 0.0
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     coordinates: List[List[float]]
     surface_breakdown: Dict[str, float] = Field(default_factory=dict)
     surface_strip: List[SurfaceSegment] = Field(default_factory=list)
@@ -126,8 +127,8 @@ class SavedRouteItem(BaseModel):
     name: str
     sport: str
     distance_miles: float
-    elevation_gain_ft: float
-    elevation_loss_ft: float
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     created_at: str
     surface_breakdown: Optional[Dict[str, float]] = None
     surface_strip: Optional[List[SurfaceSegment]] = None
@@ -140,8 +141,8 @@ class ExportRequest(BaseModel):
     sport: Optional[str] = "mtb"
     distance_miles: float
     duration_minutes: float = 60.0
-    elevation_gain_ft: float = 0.0
-    elevation_loss_ft: float = 0.0
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     coordinates: List[List[float]]
     waypoints: Optional[List[Dict[str, Any]]] = None
 
@@ -157,7 +158,7 @@ class ActivityUploadResponse(BaseModel):
     user_id: str
     sport: str
     distance_miles: float
-    duration_minutes: float
+    duration_minutes: Optional[float] = None
     raw_points_count: int
     trimmed_points_count: int
     matched_edges_count: int

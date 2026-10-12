@@ -139,27 +139,18 @@ class CubeTrekConnector(BaseConnector):
 
                         if coords:
                             name = data.get("properties", {}).get("name") or name
-                            for i, pt in enumerate(coords):
-                                lon = float(pt[0])
-                                lat = float(pt[1])
-                                ele = float(pt[2]) if len(pt) > 2 else 200.0
-                                t = now - datetime.timedelta(hours=2) + datetime.timedelta(seconds=i * 5)
-                                trackpoints.append(TrackPoint(lat=lat, lon=lon, ele=ele, time=t))
+                            for pt in coords:
+                                ele = float(pt[2]) if len(pt) > 2 and pt[2] is not None else None
+                                trackpoints.append(TrackPoint(lat=float(pt[1]), lon=float(pt[0]), ele=ele, time=None))
                             break
                 except Exception as ex:
                     logger.debug(f"CubeTrek endpoint {endpoint} failed: {ex}")
 
-        # 3. Realistic fallback demo track in Bear Brook if external API is unreachable or mocked
         if not trackpoints:
-            base_lon, base_lat = -71.3524, 43.1305
-            name = activity_name or f"CubeTrek Track #{track_id} (Bear Brook Explorer)"
-            for i in range(45):
-                frac = i / 44.0
-                lon = base_lon + (frac * 0.02) + math.sin(frac * math.pi) * 0.003
-                lat = base_lat + (frac * 0.015) + math.cos(frac * math.pi) * 0.002
-                ele = 180.0 + (i * 2.0)
-                t = now - datetime.timedelta(hours=3) + datetime.timedelta(seconds=i * 20)
-                trackpoints.append(TrackPoint(lat=lat, lon=lon, ele=ele, time=t))
+            return {
+                "success": False,
+                "error": f"Could not load CubeTrek track {track_id}. Check the link, or try again later.",
+            }
 
         # 4. Apply Section 7 privacy filters (0.2 mi trimming & privacy zones)
         user_zones = get_privacy_zones(user_id)
@@ -168,8 +159,11 @@ class CubeTrekConnector(BaseConnector):
             privacy_zones=user_zones
         )
 
-        if not filtered_points:
-            filtered_points = trackpoints
+        if len(filtered_points) < 2:
+            return {
+                "success": False,
+                "error": "Nothing left to import after trimming 0.2 mi from each end and your privacy zones.",
+            }
 
         # Calculate metrics
         dist_m = 0.0
@@ -179,7 +173,7 @@ class CubeTrekConnector(BaseConnector):
             dlon = (p2.lon - p1.lon) * 111132.0 * math.cos(math.radians(p1.lat))
             dist_m += math.hypot(dlat, dlon)
         dist_miles = round(dist_m / 1609.34, 2)
-        dur_min = round(len(filtered_points) * 0.35, 1)
+        dur_min = None  # CubeTrek GeoJSON carries no timestamps
 
         act_id = f"cubetrek_{track_id}_{uuid.uuid4().hex[:8]}"
 
@@ -190,9 +184,6 @@ class CubeTrekConnector(BaseConnector):
         except Exception as mm_err:
             logger.warning(f"Map matching for CubeTrek activity {act_id} failed: {mm_err}")
 
-        # Fallback edges if matching yields none
-        if not edge_counts:
-            edge_counts = {42743791: 1, 220551352: 1, 247358974: 1}
         edge_osm_ids = list(edge_counts.keys())
 
         # 6. Record activity in database
@@ -204,7 +195,7 @@ class CubeTrekConnector(BaseConnector):
             "distance_miles": dist_miles,
             "duration_minutes": dur_min,
             "file_format": "cubetrek_geojson",
-            "consent_given": True,
+            "consent_given": import_to_heat,
             "activity_date": now.isoformat(),
             "raw_file_retained": False,
             "matched_edge_count": len(edge_osm_ids)

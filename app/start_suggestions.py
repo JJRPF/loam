@@ -47,14 +47,14 @@ def find_nearby_loop_start(
             # Find name of adjacent trail
             adjacent_edges = graph.adjacency.get(best_j.id, [])
             trail_names = [e.name for _, e in adjacent_edges if e.name and not e.name.startswith("Trail #")]
-            j_name = trail_names[0] if trail_names else "Main Trail Junction"
+            j_name = trail_names[0] if trail_names else "an unnamed trail junction"
 
             return {
                 "suggested_lat": best_j.lat,
                 "suggested_lon": best_j.lon,
                 "distance_miles": dist_mi,
                 "junction_name": j_name,
-                "message": f"Start {dist_mi} mi away at {j_name} for a true loop"
+                "message": f"Try starting {dist_mi} mi away at {j_name}"
             }
 
     # 2. Database query for nearby trail nodes if graph not in memory
@@ -80,13 +80,13 @@ def find_nearby_loop_start(
                     d_m = float(r.get("dist_m") or 0.0)
                     if d_m >= 100.0:
                         dist_mi = round(d_m * METERS_TO_MILES, 1)
-                        name = r.get("name") or "Trail Junction"
+                        name = r.get("name") or "an unnamed trail"
                         return {
                             "suggested_lat": float(r["lat"]),
                             "suggested_lon": float(r["lon"]),
                             "distance_miles": dist_mi,
                             "junction_name": name,
-                            "message": f"Start {dist_mi} mi away at {name} for a true loop"
+                            "message": f"Try starting {dist_mi} mi away at {name}"
                         }
     except Exception:
         pass

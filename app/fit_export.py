@@ -41,8 +41,8 @@ def build_fit_course(
     coordinates: List[List[float]], # [[lon, lat], ...] or [[lon, lat, ele], ...]
     distance_miles: float,
     duration_minutes: float,
-    elevation_gain_ft: float = 0.0,
-    elevation_loss_ft: float = 0.0,
+    elevation_gain_ft: Optional[float] = None,
+    elevation_loss_ft: Optional[float] = None,
     start_time: Optional[datetime.datetime] = None
 ) -> bytes:
     """
@@ -61,8 +61,9 @@ def build_fit_course(
 
     total_dist_m = distance_miles * 1609.344
     total_time_s = max(duration_minutes * 60.0, 1.0)
-    ascent_m = int(round(elevation_gain_ft * 0.3048))
-    descent_m = int(round(elevation_loss_ft * 0.3048))
+    # 0xFFFF is the FIT "invalid" value for uint16: unknown elevation is left unset, not guessed.
+    ascent_m = int(round(elevation_gain_ft * 0.3048)) if elevation_gain_ft is not None else 0xFFFF
+    descent_m = int(round(elevation_loss_ft * 0.3048)) if elevation_loss_ft is not None else 0xFFFF
 
     body = bytearray()
 
@@ -164,15 +165,17 @@ def build_fit_course(
     for i, pt in enumerate(coordinates):
         lon = pt[0]
         lat = pt[1]
-        ele = pt[2] if len(pt) > 2 else 150.0 # meters
+        ele = pt[2] if len(pt) > 2 and pt[2] is not None else None  # meters
 
         # Interpolate timestamp and distance
         dist_m = cum_distances[i] * scale_dist
         progress = dist_m / max(total_dist_m, 1.0)
         pt_ts = fit_start_ts + int(progress * total_time_s)
 
-        alt_raw = int(round((ele + 500.0) * 5.0))
-        alt_raw = max(0, min(alt_raw, 65535))
+        if ele is None:
+            alt_raw = 0xFFFF
+        else:
+            alt_raw = max(0, min(int(round((ele + 500.0) * 5.0)), 65534))
 
         body.append(3) # Local 3
         body.extend(struct.pack('<I', pt_ts))

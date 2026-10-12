@@ -1,6 +1,5 @@
 import datetime
 import uuid
-import math
 import asyncio
 from typing import Dict, Any, List, Optional
 from app.config import settings
@@ -133,9 +132,7 @@ class GarminConnector(BaseConnector):
                 client = sess.get("client")
                 flow = sess.get("flow", "garth")
 
-                if sess.get("is_mock"):
-                    session_payload = f"garmin_session_{uuid.uuid4().hex}_{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}"
-                elif flow == "garminconnect":
+                if flow == "garminconnect":
                     client.resume_login(None, mfa_code.strip())
                     session_payload = client.client.dumps()
                 else:
@@ -143,12 +140,11 @@ class GarminConnector(BaseConnector):
                     mfa_method = sess.get("mfa_method", "email")
                     try:
                         import garth.sso
-                        if client and login_params:
-                            ticket = garth.sso.handle_mfa(client, login_params, lambda: mfa_code.strip(), mfa_method=mfa_method)
-                            oauth1_tok, oauth2_tok = garth.sso._complete_login(ticket, client)
-                            session_payload = client.dumps() if hasattr(client, "dumps") else f"garmin_oauth_{oauth2_tok.token_type}_{oauth2_tok.access_token[:20]}_{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}"
-                        else:
-                            session_payload = f"garmin_session_{uuid.uuid4().hex}_{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}"
+                        if not (client and login_params):
+                            return {"success": False, "error": "2FA verification session is incomplete. Please log in again."}
+                        ticket = garth.sso.handle_mfa(client, login_params, lambda: mfa_code.strip(), mfa_method=mfa_method)
+                        garth.sso._complete_login(ticket, client)
+                        session_payload = client.dumps()
                     except Exception as ex:
                         return {"success": False, "error": f"Garmin 2FA code verification failed: {str(ex)}"}
 
@@ -180,180 +176,97 @@ class GarminConnector(BaseConnector):
         if not username or not password:
             return {"success": False, "error": "Username and password are required."}
 
-        # Mock 2FA trigger for automated testing
-        if username == "test_mfa_user@example.com":
-            sess_id = f"mfa_{uuid.uuid4().hex}"
-            mfa_sessions[sess_id] = {
-                "user_id": user_id,
-                "client": None,
-                "login_params": None,
-                "mfa_method": "sms",
-                "flow": "mock",
-                "is_mock": True,
-                "expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
-            }
-            return {
-                "success": False,
-                "connected": False,
-                "needs_mfa": True,
-                "mfa_session_id": sess_id,
-                "mfa_method": "sms",
-                "message": "Garmin Two-Factor Authentication required (SMS). Please enter verification code."
-            }
-
-        # Live SSO login if real credentials provided
-        is_mock_user = (
-            username.startswith("mock_") or
-            username.startswith("test_") or
-            username.endswith("@example.com") or
-            username.endswith("@garmin.com")
-        ) and username != "test_mfa_user@example.com"
-
-        if not is_mock_user:
-            try:
-                # Primary modern strategy: garminconnect (uses curl_cffi TLS impersonation against Cloudflare 429)
-                try:
-                    from garminconnect import Garmin
-                    garmin_client = Garmin(username, password, return_on_mfa=True)
-                    mfa_status, _ = garmin_client.login()
-                    del password
-
-                    if mfa_status == "needs_mfa":
-                        sess_id = f"mfa_{uuid.uuid4().hex}"
-                        mfa_sessions[sess_id] = {
-                            "user_id": user_id,
-                            "client": garmin_client,
-                            "flow": "garminconnect",
-                            "mfa_method": "email",
-                            "is_mock": False,
-                            "expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
-                        }
-                        return {
-                            "success": False,
-                            "connected": False,
-                            "needs_mfa": True,
-                            "mfa_session_id": sess_id,
-                            "mfa_method": "email",
-                            "message": "Garmin Two-Factor Authentication required (email). Please enter verification code."
-                        }
-                    else:
-                        session_payload = garmin_client.client.dumps()
-                        encrypted_token = encrypt_token(session_payload)
-                        expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
-                        save_user_connected_service(
-                            user_id=user_id,
-                            provider=self.name,
-                            encrypted_token=encrypted_token,
-                            expires_at=expires_at
-                        )
-                        return {
-                            "success": True,
-                            "connected": True,
-                            "needs_mfa": False,
-                            "message": "Connected to Garmin Connect. Session token encrypted at rest."
-                        }
-                except ImportError:
-                    # Fallback to Garth SSO for environments without garminconnect
-                    import garth
-                    import garth.sso
-                    client = garth.http.Client()
-                    res = garth.sso.login(username, password, client=client, return_on_mfa=True)
-                    if "password" in locals():
-                        del password
-
-                    if res[0] == "needs_mfa":
-                        sess_id = f"mfa_{uuid.uuid4().hex}"
-                        mfa_data = res[1]
-                        mfa_sessions[sess_id] = {
-                            "user_id": user_id,
-                            "client": mfa_data.get("client"),
-                            "login_params": mfa_data.get("login_params"),
-                            "mfa_method": mfa_data.get("mfa_method", "email"),
-                            "flow": "garth",
-                            "is_mock": False,
-                            "expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
-                        }
-                        return {
-                            "success": False,
-                            "connected": False,
-                            "needs_mfa": True,
-                            "mfa_session_id": sess_id,
-                            "mfa_method": mfa_data.get("mfa_method", "email"),
-                            "message": f"Garmin Two-Factor Authentication required ({mfa_data.get('mfa_method', 'email')}). Please enter verification code."
-                        }
-                    else:
-                        oauth1_tok, oauth2_tok = res
-                        session_payload = client.dumps() if hasattr(client, "dumps") else f"garmin_oauth_{oauth2_tok.token_type}_{oauth2_tok.access_token[:20]}_{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}"
-                        encrypted_token = encrypt_token(session_payload)
-                        expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
-                        save_user_connected_service(
-                            user_id=user_id,
-                            provider=self.name,
-                            encrypted_token=encrypted_token,
-                            expires_at=expires_at
-                        )
-                        return {
-                            "success": True,
-                            "connected": True,
-                            "needs_mfa": False,
-                            "message": "Connected to Garmin Connect. Session token encrypted at rest."
-                        }
-                except Exception as gc_err:
-                    return {"success": False, "error": f"Garmin authentication failed: {str(gc_err)}"}
-            except Exception as e:
-                return {"success": False, "error": f"Garmin authentication failed: {str(e)}"}
-
-        # Mock / Test Fallback for unit testing suites
+        # Live SSO login. There is no offline or test login path in production code.
         try:
-            session_payload = f"garmin_session_{uuid.uuid4().hex}_{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}"
-            if "password" in locals():
+            # Primary modern strategy: garminconnect (uses curl_cffi TLS impersonation against Cloudflare 429)
+            try:
+                from garminconnect import Garmin
+                garmin_client = Garmin(username, password, return_on_mfa=True)
+                mfa_status, _ = garmin_client.login()
                 del password
 
-            encrypted_token = encrypt_token(session_payload)
-            expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
+                if mfa_status == "needs_mfa":
+                    sess_id = f"mfa_{uuid.uuid4().hex}"
+                    mfa_sessions[sess_id] = {
+                        "user_id": user_id,
+                        "client": garmin_client,
+                        "flow": "garminconnect",
+                        "mfa_method": "email",
+                        "expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
+                    }
+                    return {
+                        "success": False,
+                        "connected": False,
+                        "needs_mfa": True,
+                        "mfa_session_id": sess_id,
+                        "mfa_method": "email",
+                        "message": "Garmin Two-Factor Authentication required (email). Please enter verification code."
+                    }
+                else:
+                    session_payload = garmin_client.client.dumps()
+                    encrypted_token = encrypt_token(session_payload)
+                    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
+                    save_user_connected_service(
+                        user_id=user_id,
+                        provider=self.name,
+                        encrypted_token=encrypted_token,
+                        expires_at=expires_at
+                    )
+                    return {
+                        "success": True,
+                        "connected": True,
+                        "needs_mfa": False,
+                        "message": "Connected to Garmin Connect. Session token encrypted at rest."
+                    }
+            except ImportError:
+                # Fallback to Garth SSO for environments without garminconnect
+                import garth
+                import garth.sso
+                client = garth.http.Client()
+                res = garth.sso.login(username, password, client=client, return_on_mfa=True)
+                if "password" in locals():
+                    del password
 
-            save_user_connected_service(
-                user_id=user_id,
-                provider=self.name,
-                encrypted_token=encrypted_token,
-                expires_at=expires_at
-            )
-
-            return {
-                "success": True,
-                "connected": True,
-                "needs_mfa": False,
-                "message": "Connected to Garmin Connect. Session token encrypted at rest."
-            }
+                if res[0] == "needs_mfa":
+                    sess_id = f"mfa_{uuid.uuid4().hex}"
+                    mfa_data = res[1]
+                    mfa_sessions[sess_id] = {
+                        "user_id": user_id,
+                        "client": mfa_data.get("client"),
+                        "login_params": mfa_data.get("login_params"),
+                        "mfa_method": mfa_data.get("mfa_method", "email"),
+                        "flow": "garth",
+                        "expires_at": datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(minutes=10)
+                    }
+                    return {
+                        "success": False,
+                        "connected": False,
+                        "needs_mfa": True,
+                        "mfa_session_id": sess_id,
+                        "mfa_method": mfa_data.get("mfa_method", "email"),
+                        "message": f"Garmin Two-Factor Authentication required ({mfa_data.get('mfa_method', 'email')}). Please enter verification code."
+                    }
+                else:
+                    oauth1_tok, oauth2_tok = res
+                    session_payload = client.dumps() if hasattr(client, "dumps") else f"garmin_oauth_{oauth2_tok.token_type}_{oauth2_tok.access_token[:20]}_{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}"
+                    encrypted_token = encrypt_token(session_payload)
+                    expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=30)
+                    save_user_connected_service(
+                        user_id=user_id,
+                        provider=self.name,
+                        encrypted_token=encrypted_token,
+                        expires_at=expires_at
+                    )
+                    return {
+                        "success": True,
+                        "connected": True,
+                        "needs_mfa": False,
+                        "message": "Connected to Garmin Connect. Session token encrypted at rest."
+                    }
+            except Exception as gc_err:
+                return {"success": False, "error": f"Garmin authentication failed: {str(gc_err)}"}
         except Exception as e:
             return {"success": False, "error": f"Garmin authentication failed: {str(e)}"}
-
-    def _generate_realistic_trackpoints(
-        self,
-        base_lon: float,
-        base_lat: float,
-        end_lon: Optional[float] = None,
-        end_lat: Optional[float] = None,
-        count: int = 40,
-        start_time: Optional[datetime.datetime] = None,
-        elevation: float = 200.0
-    ) -> List[TrackPoint]:
-        """Generates realistic GPS trackpoints anchored to the activity's true geographic location."""
-        now = start_time or datetime.datetime.now(datetime.timezone.utc)
-        pts = []
-        target_lon = end_lon if (end_lon is not None and abs(end_lon - base_lon) > 0.0001) else (base_lon + 0.015)
-        target_lat = end_lat if (end_lat is not None and abs(end_lat - base_lat) > 0.0001) else (base_lat + 0.012)
-
-        for i in range(count):
-            t = now + datetime.timedelta(seconds=i * 20)
-            frac = i / max(count - 1, 1)
-            # Smooth loop / route arc
-            arc = math.sin(frac * math.pi) * 0.002
-            lon = base_lon + frac * (target_lon - base_lon) + arc
-            lat = base_lat + frac * (target_lat - base_lat) + (arc * 0.5)
-            ele = elevation + (i * 1.5)
-            pts.append(TrackPoint(lat=lat, lon=lon, ele=ele, time=t))
-        return pts
 
     async def fetch_activities(self, user_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
         if not self.is_enabled():
@@ -412,14 +325,6 @@ class GarminConnector(BaseConnector):
                         dur_min = round(dur_sec / 60.0, 1)
                         act_date = act.get("startTimeLocal") or act.get("startTimeGMT") or now.isoformat()
 
-                        end_lat = act.get("endLatitude")
-                        end_lon = act.get("endLongitude")
-                        act_dt = None
-                        try:
-                            act_dt = datetime.datetime.fromisoformat(act_date)
-                        except Exception:
-                            act_dt = now
-
                         pts = []
                         try:
                             gpx_bytes = g.download_activity(act_id, dl_fmt=g.ActivityDownloadFormat.GPX)
@@ -432,14 +337,8 @@ class GarminConnector(BaseConnector):
                             logger.debug(f"GPX download for Garmin activity {act_id} failed: {dl_err}")
 
                         if not pts:
-                            pts = self._generate_realistic_trackpoints(
-                                base_lon=float(start_lon),
-                                base_lat=float(start_lat),
-                                end_lon=float(end_lon) if end_lon is not None else None,
-                                end_lat=float(end_lat) if end_lat is not None else None,
-                                count=40,
-                                start_time=act_dt
-                            )
+                            # No GPS file: the activity is skipped, never approximated.
+                            continue
 
                         parsed.append({
                             "external_id": f"garmin_act_{act_id}",
@@ -456,65 +355,7 @@ class GarminConnector(BaseConnector):
             except Exception:
                 pass
 
-        # Multi-sport Garmin activities (MTB rides and trail runs) including Bow Town Forest Knox area
-        activities = [
-            {
-                "external_id": f"garmin_act_{user_id}_1",
-                "name": "Bear Brook Singletrack Loop",
-                "sport": "mtb",
-                "distance_miles": 8.5,
-                "duration_minutes": 52.0,
-                "date": (now - datetime.timedelta(days=2)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.3524, 43.1305, count=40, start_time=now - datetime.timedelta(days=2))
-            },
-            {
-                "external_id": f"garmin_act_{user_id}_2",
-                "name": "Hall Mountain Trail Run",
-                "sport": "trail_run",
-                "distance_miles": 5.2,
-                "duration_minutes": 42.0,
-                "date": (now - datetime.timedelta(days=5)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.3450, 43.1350, count=40, start_time=now - datetime.timedelta(days=5))
-            },
-            {
-                "external_id": f"garmin_act_{user_id}_3",
-                "name": "Podunk Gravel & Singletrack Explorer",
-                "sport": "mtb",
-                "distance_miles": 11.4,
-                "duration_minutes": 68.0,
-                "date": (now - datetime.timedelta(days=9)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.3600, 43.1250, count=40, start_time=now - datetime.timedelta(days=9))
-            },
-            {
-                "external_id": f"garmin_act_{user_id}_4",
-                "name": "Bow Town Forest Knox Single Circuit Loop",
-                "sport": "mtb",
-                "distance_miles": 9.8,
-                "duration_minutes": 58.0,
-                "date": (now - datetime.timedelta(days=3)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.5173, 43.1363, count=40, start_time=now - datetime.timedelta(days=3))
-            },
-            {
-                "external_id": f"garmin_act_{user_id}_5",
-                "name": "Bow Town Forest Knox Robinson's Crest & Mossy Trail",
-                "sport": "mtb",
-                "distance_miles": 7.4,
-                "duration_minutes": 48.0,
-                "date": (now - datetime.timedelta(days=6)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.5183, 43.1368, count=40, start_time=now - datetime.timedelta(days=6))
-            },
-            {
-                "external_id": f"garmin_act_{user_id}_6",
-                "name": "Bow Town Forest Robertson & Nottingcook Trail Run",
-                "sport": "trail_run",
-                "distance_miles": 5.8,
-                "duration_minutes": 44.0,
-                "date": (now - datetime.timedelta(days=8)).isoformat(),
-                "points": self._generate_realistic_trackpoints(-71.5035, 43.1278, count=40, start_time=now - datetime.timedelta(days=8))
-            }
-        ]
-        mock_limit = limit if limit is not None else (3 if "test_gh22" in user_id else len(activities))
-        return activities[:mock_limit]
+        return []
 
     async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:
         if not self.is_enabled():
@@ -556,8 +397,9 @@ class GarminConnector(BaseConnector):
                 "user_id": user_id,
                 "sport": act_sport,
                 "name": act.get("name", "Garmin Activity"),
-                "distance_miles": act.get("distance_miles", 5.0),
-                "duration_minutes": act.get("duration_minutes", 30.0),
+                "distance_miles": act.get("distance_miles"),
+                "duration_minutes": act.get("duration_minutes"),
+                "consent_given": import_to_heat,
                 "source": "garmin",
                 "activity_date": act_time,
                 "created_at": act_time

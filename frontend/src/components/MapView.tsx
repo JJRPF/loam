@@ -12,6 +12,9 @@ import {
 } from 'maplibre-gl';
 import type { RouteResponse, LatLon } from '../types';
 import { fetchHeatTrails, fetchOtmTrails } from '../services/api';
+import trailheadData from '../data/trailheads.json';
+
+const DEFAULT_TRAILHEAD = trailheadData.trailheads[0];
 
 // Explicitly register worker URL to guarantee local worker loading in dev & prod
 setWorkerUrl('/assets/maplibre-gl-worker.mjs');
@@ -233,31 +236,30 @@ export const MapView: React.FC<MapViewProps> = ({
       });
   }, []);
 
-  // Fetch OpenTrailMap (OTM) trails
-  useEffect(() => {
-    fetchOtmTrails()
+  // OSM trails for the visible area, refreshed when the map stops moving (zoom 12+).
+  const loadTrailsForView = (map: Map) => {
+    if (map.getZoom() < 12) return;
+    const b = map.getBounds();
+    fetchOtmTrails({ minLat: b.getSouth(), minLon: b.getWest(), maxLat: b.getNorth(), maxLon: b.getEast() })
       .then((geojson) => {
         if (!geojson || !geojson.features) return;
         setOtmTrailCount(geojson.features.length);
         otmDataRef.current = geojson;
-        const map = mapRef.current;
-        if (map) {
-          const src = map.getSource('otm-trails-source') as GeoJSONSource;
-          if (src) {
-            src.setData(geojson);
-          }
+        const src = map.getSource('otm-trails-source') as GeoJSONSource;
+        if (src) {
+          src.setData(geojson);
         }
       })
       .catch((err) => {
-        console.warn('Failed to load OpenTrailMap trails:', err);
+        console.warn('Failed to load OSM trails:', err);
       });
-  }, []);
+  };
 
   // Initialize MapLibre
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
 
-    const initialCenter: [number, number] = [start?.lon ?? -71.3524, start?.lat ?? 43.1305];
+    const initialCenter: [number, number] = [start?.lon ?? DEFAULT_TRAILHEAD.lon, start?.lat ?? DEFAULT_TRAILHEAD.lat];
 
     const map = new Map({
       container: mapContainer.current,
@@ -279,6 +281,7 @@ export const MapView: React.FC<MapViewProps> = ({
     map.addControl(new ScaleControl({ unit: 'imperial' }), 'bottom-left');
 
     map.on('load', () => {
+      loadTrailsForView(map);
       // 1. Heat trail GeoJSON source & layers (rendered below active route)
       map.addSource('heat-trails-source', {
         type: 'geojson',
@@ -512,7 +515,7 @@ export const MapView: React.FC<MapViewProps> = ({
       applyHoverRoute(hoverRouteRef.current);
 
       // Auto center on GPS if no route and default/no start selected
-      if (!routeRef.current && (!start || (start.lat === 43.1305 && start.lon === -71.3524))) {
+      if (!routeRef.current && (!start || (start.lat === DEFAULT_TRAILHEAD.lat && start.lon === DEFAULT_TRAILHEAD.lon))) {
         if ('geolocation' in navigator) {
           navigator.geolocation.getCurrentPosition(
             (pos) => {
@@ -538,6 +541,7 @@ export const MapView: React.FC<MapViewProps> = ({
     });
 
     (window as any).__loamMap = map;
+    map.on('moveend', () => loadTrailsForView(map));
     mapRef.current = map;
 
     return () => {

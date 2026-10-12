@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import type { RouteResponse } from '../types';
 import { CandidateCard } from './CandidateCard';
 import { ElevationProfile } from './ElevationProfile';
+import { formatGain } from '../format';
 import { 
   downloadGpx, downloadFit, shareRouteGarmin, saveRouteApi,
   submitTrailCheckin, createFlag
@@ -346,7 +347,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               {(activeRoute.distance_miles ?? 0).toFixed(1)} <span style={{ fontSize: 14 }}>mi</span>
             </div>
             <div className="num-tabular" style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
-              +{Math.round(activeRoute.elevation_gain_ft ?? 0)} ft • {durationText}
+              {formatGain(activeRoute.elevation_gain_ft)} • {durationText}
             </div>
           </div>
         </div>
@@ -553,8 +554,8 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         surfaceStrip={activeRoute.surface_strip || []}
         surfaceBreakdown={activeRoute.surface_breakdown || {}}
         distanceMiles={activeRoute.distance_miles ?? 0}
-        elevationGainFt={activeRoute.elevation_gain_ft ?? 0}
-        elevationLossFt={activeRoute.elevation_loss_ft ?? 0}
+        elevationGainFt={activeRoute.elevation_gain_ft}
+        elevationLossFt={activeRoute.elevation_loss_ft}
         onScrub={onScrubCoord}
       />
 

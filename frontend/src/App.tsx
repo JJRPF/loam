@@ -17,6 +17,7 @@ import { ExplorePanel } from './components/ExplorePanel';
 import { YouPanel } from './components/YouPanel';
 import { DevToolsPage } from './components/DevToolsPage';
 import { EmailLinkFinish } from './components/EmailLinkFinish';
+import trailheadData from './data/trailheads.json';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const App: React.FC = () => {
@@ -54,10 +55,10 @@ export const App: React.FC = () => {
 
   // Router Input State
   const [sport, setSport] = useState<SportProfile>('mtb');
-  const [start, setStart] = useState<LatLon>({
-    lat: 43.1305,
-    lon: -71.3524,
-    name: "Bear Brook State Park"
+  // Until the browser reports a position, start at the first OSM-derived trailhead.
+  const [start, setStart] = useState<LatLon>(() => {
+    const th = trailheadData.trailheads[0];
+    return { lat: th.lat, lon: th.lon, name: th.name };
   });
 
   // Default Starting Location to GPS (browser geolocation)
@@ -72,8 +73,8 @@ export const App: React.FC = () => {
           });
         },
         (err) => {
-          // Log softly and keep fallback if permission denied or unavailable
-          console.debug("Browser geolocation unavailable, keeping fallback:", err.message);
+          // Permission denied or unavailable: keep the OSM trailhead start
+          console.debug("Browser geolocation unavailable, keeping the trailhead start:", err.message);
         },
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
       );
@@ -377,7 +378,7 @@ export const App: React.FC = () => {
                 />
               )}
 
-              {activeTab === 'explore' && <ExplorePanel />}
+              {activeTab === 'explore' && <ExplorePanel onPlanFrom={(s) => { setStart(s); setActiveTab('plan'); }} />}
               {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
               {activeTab === 'you' && (
                 <YouPanel isDarkMode={isDarkMode} />
@@ -553,7 +554,7 @@ export const App: React.FC = () => {
                   />
                 )}
 
-                {activeTab === 'explore' && <ExplorePanel />}
+                {activeTab === 'explore' && <ExplorePanel onPlanFrom={(s) => { setStart(s); setActiveTab('plan'); }} />}
                 {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
                 {activeTab === 'you' && (
                   <YouPanel isDarkMode={isDarkMode} />

@@ -9,30 +9,32 @@ from tests.conftest import as_user
 from app.db import get_connection
 
 @pytest.mark.asyncio
-async def test_geocode_endpoint_matching():
-    """Verifies location search geocoding endpoint for NH trailheads and hubs."""
+async def test_geocode_endpoint_matching(monkeypatch):
+    """Geocoding: OSM-derived trailhead parking first; no hand-typed coordinates."""
+    import app.main as main_module
+    from app.main import load_trailheads
+
+    async def offline(query):
+        return []
+
+    monkeypatch.setattr(main_module, "photon_search", offline)  # Photon unreachable in this test
+    bow = next(t for t in load_trailheads() if t["area"] == "Bow Town Forest")
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # Search Bear Brook
-        bb_resp = await client.get("/api/geocode?q=Bear%20Brook")
-        assert bb_resp.status_code == 200
-        results = bb_resp.json()["results"]
-        assert len(results) > 0
-        assert any("Bear Brook" in r["name"] for r in results)
-        first = results[0]
-        assert abs(first["lat"] - 43.1305) < 0.01
-        assert abs(first["lon"] - (-71.3524)) < 0.01
+        resp = await client.get("/api/geocode?q=Bow%20Town")
+        assert resp.status_code == 200
+        first = resp.json()["results"][0]
+        assert first["name"] == "Bow Town Forest parking"
+        assert (first["lat"], first["lon"]) == (bow["lat"], bow["lon"])
 
-        # Search Highland
-        hl_resp = await client.get("/api/geocode?q=Highland")
-        assert hl_resp.status_code == 200
-        hl_results = hl_resp.json()["results"]
-        assert any("Highland Mountain Bike Park" in r["name"] for r in hl_results)
+        # Nothing matches and Photon is unreachable: no results, not a guess.
+        none_resp = await client.get("/api/geocode?q=Highland%20Mountain%20Bike%20Park")
+        assert none_resp.json()["results"] == []
 
-        # Empty search
         empty_resp = await client.get("/api/geocode?q=")
         assert empty_resp.status_code == 200
         assert empty_resp.json()["results"] == []
+
 
 @pytest.mark.asyncio
 async def test_authenticated_saved_route_crud_in_postgres():

@@ -380,8 +380,6 @@ class ContractedTrailGraph:
             )
         ]
 
-        # Calculate elevation gain (NH average ~85 ft/mi)
-        gain_ft = round(dist_miles * 85.0, 0)
         est_duration_min = round((dist_miles / 10.0) * 60.0, 1)
 
         # Find primary trail name
@@ -423,8 +421,8 @@ class ContractedTrailGraph:
             sector="LOOP",
             distance_miles=dist_miles,
             duration_minutes=est_duration_min,
-            elevation_gain_ft=gain_ft,
-            elevation_loss_ft=gain_ft,
+            elevation_gain_ft=None,
+            elevation_loss_ft=None,
             surface_breakdown=breakdown,
             surface_strip=surface_strip,
             coordinates=points,

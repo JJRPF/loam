@@ -1,3 +1,4 @@
+import os
 import time
 import uuid
 import datetime
@@ -51,8 +52,7 @@ from app.db import (
     get_trail_submission_by_id, get_trail_submissions,
     record_submission_evidence, evaluate_and_verify_submission,
     admin_update_submission_status, list_user_connected_services,
-    recalculate_all_edge_heat, get_heat_trail_geojson, resolve_osm_trail_name,
-    ingest_bow_ride_data_and_trails
+    recalculate_all_edge_heat, get_heat_trail_geojson
 )
 from app.connectors import connector_manager
 from app.gpx_export import build_gpx_track
@@ -348,31 +348,44 @@ async def get_me(
 
 # --- Geocoding / Location Search Endpoint ---
 
-NH_TRAILHEAD_GEOCODE_DATA = [
-    {"name": "Bear Brook State Park", "display_name": "Bear Brook State Park (Podunk Rd, Allenstown, NH)", "lat": 43.1305, "lon": -71.3524},
-    {"name": "Franklin Falls Dam", "display_name": "Franklin Falls Dam Trails (Franklin, NH)", "lat": 43.4650, "lon": -71.6520},
-    {"name": "Highland Mountain Bike Park", "display_name": "Highland Mountain Bike Park (Northfield, NH)", "lat": 43.4682, "lon": -71.5976},
-    {"name": "Green Woodlands", "display_name": "Green Woodlands Foundation Trails (Dorchester, NH)", "lat": 43.8340, "lon": -71.9540},
-    {"name": "Fort Rock / Henderson Swasey", "display_name": "Fort Rock / Henderson Swasey Town Forest (Exeter, NH)", "lat": 42.9860, "lon": -70.9630},
-    {"name": "Ahern State Park", "display_name": "Ahern State Park (Laconia, NH)", "lat": 43.5410, "lon": -71.4980},
-    {"name": "Page Hill", "display_name": "Page Hill Trails (Hill, NH)", "lat": 43.5820, "lon": -71.6720},
-    {"name": "White Mountain National Forest", "display_name": "White Mountain National Forest, NH", "lat": 44.2700, "lon": -71.3030},
-    {"name": "Mount Washington", "display_name": "Mount Washington, NH", "lat": 44.2705, "lon": -71.3033},
-    {"name": "Franconia Notch", "display_name": "Franconia Notch State Park, NH", "lat": 44.1420, "lon": -71.6820},
-    {"name": "Concord", "display_name": "Concord, NH", "lat": 43.2081, "lon": -71.5376},
-    {"name": "Manchester", "display_name": "Manchester, NH", "lat": 42.9956, "lon": -71.4548},
-    {"name": "Portsmouth", "display_name": "Portsmouth, NH", "lat": 43.0718, "lon": -70.7626},
-    {"name": "Hanover", "display_name": "Hanover / Dartmouth, NH", "lat": 43.7022, "lon": -72.2896},
-    {"name": "North Conway", "display_name": "North Conway, NH", "lat": 44.0537, "lon": -71.1284},
-    {"name": "Keene", "display_name": "Keene, NH", "lat": 42.9337, "lon": -72.2781},
-    {"name": "Mine Falls Park", "display_name": "Mine Falls Park (Nashua, NH)", "lat": 42.7654, "lon": -71.4676},
-]
+# OSM-derived trailhead parking (scripts/build_trailheads.py), shared with the frontend.
+TRAILHEADS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "frontend", "src", "data", "trailheads.json")
+
+
+def load_trailheads() -> List[Dict[str, Any]]:
+    try:
+        with open(TRAILHEADS_PATH) as f:
+            return json.load(f).get("trailheads", [])
+    except (OSError, ValueError):
+        return []
+
+async def photon_search(query: str) -> List[Dict[str, Any]]:
+    """Photon (komoot, OSM data) search; [] when it can't be reached."""
+    out = []
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get("https://photon.komoot.io/api/", params={"q": query, "limit": 5})
+        if resp.status_code != 200:
+            return []
+        for feat in resp.json().get("features", []):
+            props = feat.get("properties", {})
+            coords = feat.get("geometry", {}).get("coordinates", [])
+            if len(coords) >= 2:
+                name = props.get("name") or props.get("street") or query
+                city = props.get("city") or props.get("town") or props.get("state") or ""
+                out.append({"name": name, "display_name": f"{name}, {city}".strip(", "),
+                            "lat": coords[1], "lon": coords[0]})
+    except Exception:
+        return []
+    return out
+
 
 @app.get("/api/geocode")
 async def geocode_location(q: str):
     """
-    Geocodes a search string to coordinates for trailheads, towns, and outdoor spots.
-    Matches locally first, then queries OSM Photon/Nominatim with fast timeout.
+    Geocodes a search string: OSM-derived trailhead parking first, then the Photon
+    (OpenStreetMap) geocoder. Returns no results rather than guessed coordinates.
     """
     query = (q or "").strip()
     if not query:
@@ -381,41 +394,20 @@ async def geocode_location(q: str):
     results = []
     q_lower = query.lower()
 
-    # 1. Check curated NH trailheads and hubs
-    for item in NH_TRAILHEAD_GEOCODE_DATA:
-        if q_lower in item["name"].lower() or q_lower in item["display_name"].lower():
+    # 1. OSM-derived trailhead parking
+    for item in load_trailheads():
+        if q_lower in item["area"].lower() or q_lower in item["name"].lower():
             results.append({
                 "name": item["name"],
-                "display_name": item["display_name"],
+                "display_name": f"{item['name']} ({item['town']}, NH)",
                 "lat": item["lat"],
                 "lon": item["lon"]
             })
 
-    # 2. Try OSM Photon geocoder (designed for live search autocomplete)
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(
-                "https://photon.komoot.io/api/",
-                params={"q": query, "limit": 5}
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                for feat in data.get("features", []):
-                    props = feat.get("properties", {})
-                    coords = feat.get("geometry", {}).get("coordinates", [])
-                    if len(coords) >= 2:
-                        name = props.get("name") or props.get("street") or query
-                        city = props.get("city") or props.get("town") or props.get("state") or ""
-                        display = f"{name}, {city}".strip(", ")
-                        if not any(abs(r["lat"] - coords[1]) < 0.001 and abs(r["lon"] - coords[0]) < 0.001 for r in results):
-                            results.append({
-                                "name": name,
-                                "display_name": display,
-                                "lat": coords[1],
-                                "lon": coords[0]
-                            })
-    except Exception:
-        pass
+    # 2. Photon (OpenStreetMap geocoder) for everything else
+    for r in await photon_search(query):
+        if not any(abs(x["lat"] - r["lat"]) < 0.001 and abs(x["lon"] - r["lon"]) < 0.001 for x in results):
+            results.append(r)
 
     return {"results": results[:8]}
 
@@ -460,11 +452,10 @@ async def upload_activity(
         raw_dist_m += haversine_m(raw_pts[i].lon, raw_pts[i].lat, raw_pts[i+1].lon, raw_pts[i+1].lat)
     raw_dist_mi = round(raw_dist_m * 0.000621371, 2)
 
-    # Estimate duration in minutes
+    # Duration only from the file's own timestamps; unknown otherwise.
+    duration_min = None
     if act_time and raw_pts[-1].time and raw_pts[-1].time > act_time:
         duration_min = round((raw_pts[-1].time - act_time).total_seconds() / 60.0, 1)
-    else:
-        duration_min = round((raw_dist_mi / 10.0) * 60.0, 1)
 
     # Fetch user privacy zones
     user_zones = get_privacy_zones(uid)
@@ -491,7 +482,7 @@ async def upload_activity(
         "sport": chosen_sport,
         "activity_date": act_time,
         "distance_miles": raw_dist_mi,
-        "duration_minutes": max(duration_min, 1.0),
+        "duration_minutes": duration_min,
         "file_format": "fit" if (file.filename or "").lower().endswith(".fit") else "gpx",
         "raw_file_retained": retain_file,
         "raw_file_path": None,  # Deleted per privacy rules unless retain_file requested
@@ -580,10 +571,10 @@ from app.otm import fetch_otm_trails_by_bbox, get_otm_trail_details
 
 @app.get("/api/otm/trails")
 async def get_otm_trails(
-    min_lat: float = Query(43.05, description="South bounding latitude"),
-    min_lon: float = Query(-71.45, description="West bounding longitude"),
-    max_lat: float = Query(43.20, description="North bounding latitude"),
-    max_lon: float = Query(-71.25, description="East bounding longitude"),
+    min_lat: float = Query(..., description="South bounding latitude"),
+    min_lon: float = Query(..., description="West bounding longitude"),
+    max_lat: float = Query(..., description="North bounding latitude"),
+    max_lon: float = Query(..., description="East bounding longitude"),
     sport: Optional[str] = Query("mtb", description="Sport preference"),
     limit: int = Query(150, description="Max trail segments")
 ):
@@ -602,9 +593,12 @@ async def get_otm_trails(
 @app.get("/api/otm/trail/{osm_way_id}")
 async def get_otm_trail(osm_way_id: int):
     """
-    Returns detailed OpenTrailMap metadata for a specific trail way.
+    Returns OSM metadata for a specific trail way from the local import.
     """
-    return get_otm_trail_details(osm_way_id)
+    details = get_otm_trail_details(osm_way_id)
+    if details is None:
+        raise HTTPException(status_code=404, detail="Trail not in the local OSM import")
+    return details
 
 # --- Privacy Zones & Consent Management ---
 
@@ -973,8 +967,8 @@ async def delete_my_account(
 
 @app.get("/api/trails/new-to-me", response_model=List[UnriddenTrailItem])
 async def get_unridden_trails(
-    lat: float = 43.1305,
-    lon: float = -71.3524,
+    lat: float,
+    lon: float,
     radius_miles: float = 15.0,
     sport: str = "mtb",
     user: AuthUser = Depends(get_current_user)
@@ -1349,16 +1343,6 @@ async def recalculate_dev_heat(
     """Developer action: Triggers recalculation of the trail heat layer."""
     res = recalculate_all_edge_heat()
     return {"status": "success", "updated_edges": res.get("updated_edges", 0), "message": "Heat layer recalculation complete."}
-
-@app.post("/api/dev/bow/ingest")
-async def ingest_dev_bow_data(
-    admin: AuthUser = Depends(get_admin_user)
-):
-    """Developer action: Ingests Bow Town Forest trails, ride data, and sets public heat."""
-    res = ingest_bow_ride_data_and_trails()
-    return res
-
-
 
 
 # --- Static Files / Frontend PWA ---

@@ -359,7 +359,8 @@ def record_activity(activity: Dict[str, Any]) -> bool:
                     )
                     VALUES (%s, %s, %s, %s, NOW(), %s, %s, %s, %s, %s, %s, %s)
                     ON CONFLICT (id) DO UPDATE
-                    SET matched_edge_count = EXCLUDED.matched_edge_count;
+                    SET matched_edge_count = EXCLUDED.matched_edge_count
+                    WHERE activities.user_id = EXCLUDED.user_id;
                     """,
                     (
                         activity["id"],
@@ -776,15 +777,20 @@ def recalculate_all_edge_heat(ref_date: Optional[datetime.datetime] = None) -> D
                     else:
                         stats["private_edges_count"] += 1
 
-                # 3. Edges with no visits in last 365 days -> reset to 0
+                # 3. Heat is derived from visits only: any row without a visit in the window
+                #    (aged out, or its activity was deleted) is reset to 0.
                 cur.execute(
                     """
-                    UPDATE edge_heat
+                    UPDATE edge_heat h
                     SET unique_riders_12mo = 0,
                         total_passes_12mo = 0,
                         weighted_score = 0.0,
-                        is_public = FALSE
-                    WHERE last_ridden_date < %s::date;
+                        is_public = FALSE,
+                        contributor_ids = '{}'
+                    WHERE NOT EXISTS (
+                        SELECT 1 FROM activity_edge_visits v
+                        WHERE v.edge_osm_id = h.edge_osm_id AND v.sport = h.sport AND v.visited_at >= %s
+                    );
                     """,
                     (window_start,)
                 )
@@ -1767,22 +1773,9 @@ def export_user_data(user_id: str) -> Dict[str, Any]:
                 act_id = row["activity_id"]
                 geom = json.loads(row["geom_json"]) if row.get("geom_json") else None
                 coords = geom.get("coordinates") if geom else []
-                if not coords:
-                    eid = row["edge_osm_id"]
-                    from app.otm import FALLBACK_OTM_TRAILS
-                    for fb in FALLBACK_OTM_TRAILS:
-                        if fb["osm_id"] == eid:
-                            coords = fb["geometry"]
-                            break
-                    if not coords:
-                        coords = [
-                            [-71.3524 + ((eid % 100) * 0.0005), 43.1305 + ((eid % 100) * 0.0005)],
-                            [-71.3550 + ((eid % 100) * 0.0005), 43.1320 + ((eid % 100) * 0.0005)]
-                        ]
-
                 edge_info = {
                     "edge_osm_id": row["edge_osm_id"],
-                    "trail_name": row.get("trail_name") or f"Trail #{row['edge_osm_id']}",
+                    "trail_name": row.get("trail_name"),
                     "pass_count": row.get("pass_count", 1),
                     "coordinates": coords
                 }
@@ -1961,133 +1954,36 @@ def get_user_ridden_edge_ids(user_id: str, sport: Optional[str] = None) -> set:
     except Exception:
         return set()
 
+# Names checked against the `name` tag of the same way id in data/osm/new-hampshire-latest.osm.pbf
+# (Round 7 audit). The OSM import fills edges.name for everything else.
 KNOWN_OSM_TRAIL_NAMES: Dict[int, str] = {
     42743791: "Grandview Road",
     220551352: "Bobcat Trail",
     741060716: "Podunk Road",
     247358976: "Little Bear Trail",
     247358974: "Little Bear Trail",
-    220551343: "Pitch Pine Connector",
     220551345: "Salt Lick Trail",
-    997568724: "Pitch Pine Trail",
     247358962: "Pitch Pine Trail",
-    999101: "Boundary Trail",
-    999202: "Boulder Trail",
-    247358965: "Broken Ground Trail",
-    247358967: "Hall Mountain Trail",
-    220551350: "Bear Brook Trail",
-    220551354: "Catamount Hill Trail",
-    220551356: "Hedgehog Ledge Trail",
-    220551348: "One Mile Trail",
-    220551360: "Lane Trail",
-    220551362: "Lost Trail",
-    220551364: "Sentinel Pine Trail",
-    220551366: "Chipmunk Trail",
-    220551368: "Ferret Trail",
-    220551370: "Cascade Trail",
-    # Bow Town Forest Curated Trail Registry
-    289829667: "Robertson Trail",
-    289829681: "Single Circuit Trail",
-    289829857: "Boulder Trail",
-    302693899: "Robinson's Crest Trail",
-    339654248: "Mossy Trail",
     18854090: "Branch Londonderry Turnpike East",
     313179483: "Powerlines Trail",
-    304316555: "Nottingcook Path",
-    304316556: "Knox Mountain Trail",
-    304316557: "Tower Trail",
-    304316558: "Walker Forest Connector",
-    304316559: "Beaver Pond Trail",
-    304316560: "Page Road Trail",
-    320899800: "Single Circuit Connector",
-    339852473: "Single Circuit South",
 }
 
-def resolve_osm_trail_name(osm_way_id: int) -> str:
-    """
-    Resolves an OSM way ID into an authentic trail name.
-    1. Checks curated OpenTrailMap/OSM registry.
-    2. Checks edges table in database.
-    3. Queries OpenStreetMap / OpenTrailMap API: https://api.openstreetmap.org/api/0.6/way/{osm_way_id}.json
-    4. Updates database edges.name, highway, surface, tracktype for permanent caching.
-    """
+
+def resolve_osm_trail_name(osm_way_id: int) -> Optional[str]:
+    """The OSM `name` of a way: audited registry, then the imported edges table. None if unnamed."""
     if osm_way_id in KNOWN_OSM_TRAIL_NAMES:
         return KNOWN_OSM_TRAIL_NAMES[osm_way_id]
-
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("SELECT name FROM edges WHERE osm_id = %s;", (osm_way_id,))
                 row = cur.fetchone()
-                if row and row[0] and not row[0].startswith("Trail #"):
-                    KNOWN_OSM_TRAIL_NAMES[osm_way_id] = row[0]
+                if row and row[0]:
                     return row[0]
     except Exception:
         pass
+    return None
 
-    # Try OSM API with short timeout
-    try:
-        import httpx
-        url = f"https://api.openstreetmap.org/api/0.6/way/{osm_way_id}.json"
-        with httpx.Client(timeout=2.0) as client:
-            resp = client.get(url, headers={"User-Agent": "LoamTrailApp/1.0"})
-            if resp.status_code == 200:
-                data = resp.json()
-                elements = data.get("elements", [])
-                if elements and "tags" in elements[0]:
-                    tags = elements[0]["tags"]
-                    name = tags.get("name") or tags.get("name:en") or tags.get("ref")
-                    hw = tags.get("highway")
-                    raw_surf = tags.get("surface")
-                    tracktype = tags.get("tracktype")
-                    bicycle = tags.get("bicycle")
-                    ROAD_CLASSES = {"primary", "secondary", "tertiary", "residential", "service", "unclassified", "living_street", "motorway", "trunk", "road"}
-                    if hw in ROAD_CLASSES:
-                        surf = "paved" if not raw_surf or raw_surf in ("asphalt", "paved", "concrete") else "gravel"
-                    elif raw_surf:
-                        surf = raw_surf
-                    elif hw in ("path", "bridleway"):
-                        surf = "singletrack"
-                    elif hw == "track":
-                        surf = "doubletrack"
-                    else:
-                        surf = "singletrack"
-
-                    if name:
-                        try:
-                            with get_connection() as conn:
-                                with conn.cursor() as cur:
-                                    cur.execute(
-                                        """
-                                        INSERT INTO edges (osm_id, name, highway, surface, tracktype, bicycle)
-                                        VALUES (%s, %s, %s, %s, %s, %s)
-                                        ON CONFLICT (osm_id) DO UPDATE SET
-                                            name = COALESCE(EXCLUDED.name, edges.name),
-                                            highway = COALESCE(EXCLUDED.highway, edges.highway),
-                                            surface = COALESCE(EXCLUDED.surface, edges.surface),
-                                            tracktype = COALESCE(EXCLUDED.tracktype, edges.tracktype),
-                                            bicycle = COALESCE(EXCLUDED.bicycle, edges.bicycle);
-                                        """,
-                                        (osm_way_id, name, hw, surf, tracktype, bicycle)
-                                    )
-                                    conn.commit()
-                        except Exception:
-                            pass
-                        KNOWN_OSM_TRAIL_NAMES[osm_way_id] = name
-                        return name
-    except Exception:
-        pass
-        pass
-
-    # High-quality fallback named trails (never synthetic 'Trail #...')
-    named_fallbacks = [
-        "Boulder Trail", "Boundary Trail", "Little Bear Trail", "Bobcat Trail",
-        "Salt Lick Trail", "Pitch Pine Trail", "Broken Ground Trail",
-        "Hall Mountain Trail", "Bear Brook Trail", "Catamount Hill Trail", "Cascade Trail"
-    ]
-    name = named_fallbacks[abs(osm_way_id) % len(named_fallbacks)]
-    KNOWN_OSM_TRAIL_NAMES[osm_way_id] = name
-    return name
 
 def get_unridden_high_heat_trails(
     user_id: str,
@@ -2097,48 +1993,33 @@ def get_unridden_high_heat_trails(
     sport: str = "mtb"
 ) -> List[Dict[str, Any]]:
     """
-    Finds trails with strong recent heat that the user has NOT yet ridden or run within the search radius.
-    Highlights new trails with heat score >= 1.0 or unique_riders_12mo >= 1.
-    Strictly filters out paved/residential roads (e.g. Grandview Rd, Bettys Ln, Ridgewood Dr).
-    Resolves synthetic numbers into real trail names via OSM / OpenTrailMap.
+    Trails (not roads, by OSM highway class) with recent heat that the user has not ridden,
+    within the radius. Empty when there is no heat data there.
     """
-    radius_m = radius_miles * 1609.344
-    ROAD_CLASSES = {"primary", "secondary", "tertiary", "residential", "service", "unclassified", "living_street", "motorway", "trunk", "road"}
-    ROAD_NAME_REGEX = re.compile(r'\b(Road|Rd|Drive|Dr|Lane|Ln|Street|St|Avenue|Ave|Boulevard|Blvd|Court|Ct|Way|Circle|Cir|Highway|Hwy|Turnpike|Tpke)\b', re.IGNORECASE)
-    TRAIL_KEYWORDS = {"trail", "path", "singletrack", "loop", "crest", "turnpike", "woods", "circuit"}
-    KNOWN_ROAD_NAMES = {
-        "Grandview Road", "Ridgewood Drive", "Bettys Lane", "Tyler Drive",
-        "Garvins Falls Road", "Route 3-A", "Hall Street", "Knox Road",
-        "Black Hill Road", "Manchester Street", "South Main Street",
-        "Valley Road", "Everett Avenue", "Jonathan Lane", "Poor Richards Drive",
-        "Basin Street"
-    }
+    from app.routing import classify_surface
 
+    radius_m = radius_miles * 1609.344
     try:
         with get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
                 cur.execute(
                     """
-                    SELECT e.osm_id as edge_osm_id, e.name, e.highway, h.sport,
-                           ROUND((COALESCE(e.length_m, 500.0) * 0.000621371)::numeric, 2) as distance_miles,
+                    SELECT e.osm_id as edge_osm_id, e.name, e.highway, e.surface, e.tracktype, h.sport,
+                           ROUND((e.length_m * 0.000621371)::numeric, 2) as distance_miles,
                            h.weighted_score as heat_score,
-                           e.surface,
                            ST_AsGeoJSON(e.geom) as geom_json
                     FROM edges e
                     JOIN edge_heat h ON e.osm_id = h.edge_osm_id AND h.sport = %s
                     WHERE (h.unique_riders_12mo >= 1 OR h.weighted_score >= 1.0)
-                      AND (e.highway IS NULL OR e.highway NOT IN ('residential', 'service', 'unclassified', 'primary', 'secondary', 'tertiary', 'motorway', 'trunk', 'living_street', 'road'))
-                      AND (e.surface IS NULL OR e.surface NOT IN ('paved', 'asphalt', 'concrete'))
+                      AND e.geom IS NOT NULL
+                      AND e.highway IN ('path', 'track', 'footway', 'bridleway', 'cycleway')
                       AND e.osm_id NOT IN (
                           SELECT edge_osm_id FROM activity_edge_visits WHERE user_id = %s
                       )
-                      AND (
-                          e.geom IS NULL OR
-                          ST_DWithin(
-                              e.geom::geography,
-                              ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
-                              %s
-                          )
+                      AND ST_DWithin(
+                          e.geom::geography,
+                          ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography,
+                          %s
                       )
                     ORDER BY h.weighted_score DESC
                     LIMIT 50;
@@ -2148,106 +2029,24 @@ def get_unridden_high_heat_trails(
                 items = []
                 for row in cur.fetchall():
                     item = dict(row)
-                    edge_id = int(item["edge_osm_id"])
-                    trail_name = item.get("name") or resolve_osm_trail_name(edge_id)
-                    hw = (item.get("highway") or "").lower()
-                    surf = (item.get("surface") or "").lower()
-
-                    # Road exclusion check: strictly exclude paved and residential roads
-                    if hw in ROAD_CLASSES or surf in ("paved", "asphalt", "concrete"):
+                    category = classify_surface(item.get("highway") or "", item.get("surface") or "",
+                                                item.get("tracktype") or "", item.get("name") or "")
+                    if category == "paved":
                         continue
-                    if trail_name in KNOWN_ROAD_NAMES:
-                        continue
-                    if ROAD_NAME_REGEX.search(trail_name) and not any(kw in trail_name.lower() for kw in TRAIL_KEYWORDS):
-                        continue
-
-                    item["name"] = trail_name
-                    if not surf or surf in ("null", "none"):
-                        if hw == "track":
-                            item["surface"] = "doubletrack"
-                        elif hw in ("path", "bridleway", "footway"):
-                            item["surface"] = "singletrack"
-                        else:
-                            item["surface"] = "singletrack"
-                    else:
-                        item["surface"] = surf
-
-                    geom_data = json.loads(item["geom_json"]) if item.get("geom_json") else {"type": "LineString", "coordinates": []}
-                    item["coordinates"] = geom_data.get("coordinates", [])
-                    item.pop("geom_json", None)
-                    item.pop("highway", None)
-                    items.append(item)
-                if items:
-                    return items
-    except Exception:
-        pass
-
-    # Curated authentic unridden trails fallback for regional preview (Bear Brook & Bow Town Forest)
-    return [
-        {
-            "edge_osm_id": 999101,
-            "name": "Boundary Trail",
-            "sport": sport,
-            "distance_miles": 1.45,
-            "heat_score": 4.2,
-            "surface": "singletrack",
-            "coordinates": [[-71.3658, 43.1380], [-71.3700, 43.1420], [-71.3720, 43.1470], [-71.3680, 43.1500]]
-        },
-        {
-            "edge_osm_id": 289829667,
-            "name": "Robertson Trail",
-            "sport": sport,
-            "distance_miles": 0.78,
-            "heat_score": 4.6,
-            "surface": "singletrack",
-            "coordinates": [[-71.50346, 43.12781], [-71.50361, 43.12773], [-71.50379, 43.12762], [-71.5042, 43.1274], [-71.5050, 43.1271], [-71.5065, 43.1265]]
-        },
-        {
-            "edge_osm_id": 289829681,
-            "name": "Single Circuit Trail",
-            "sport": sport,
-            "distance_miles": 1.07,
-            "heat_score": 4.9,
-            "surface": "singletrack",
-            "coordinates": [[-71.51733, 43.13627], [-71.5175, 43.1361], [-71.5180, 43.1355], [-71.51832, 43.13684], [-71.5188, 43.1375]]
-        },
-        {
-            "edge_osm_id": 999202,
-            "name": "Boulder Trail",
-            "sport": sport,
-            "distance_miles": 1.10,
-            "heat_score": 3.8,
-            "surface": "singletrack",
-            "coordinates": [[-71.3500, 43.1350], [-71.3480, 43.1330], [-71.3490, 43.1310], [-71.3524, 43.1305]]
-        },
-        {
-            "edge_osm_id": 339654248,
-            "name": "Mossy Trail",
-            "sport": sport,
-            "distance_miles": 1.35,
-            "heat_score": 4.1,
-            "surface": "singletrack",
-            "coordinates": [[-71.52417, 43.14533], [-71.52407, 43.14533], [-71.52396, 43.14536], [-71.5235, 43.1455], [-71.5230, 43.1458]]
-        },
-        {
-            "edge_osm_id": 220551370,
-            "name": "Cascade Trail",
-            "sport": sport,
-            "distance_miles": 0.85,
-            "heat_score": 3.5,
-            "surface": "singletrack",
-            "coordinates": [[-71.3540, 43.1420], [-71.3560, 43.1460], [-71.3590, 43.1490], [-71.3620, 43.1510]]
-        },
-        {
-            "edge_osm_id": 220551345,
-            "name": "Salt Lick Trail",
-            "sport": sport,
-            "distance_miles": 1.25,
-            "heat_score": 3.1,
-            "surface": "singletrack",
-            "coordinates": [[-71.3662, 43.1410], [-71.3645, 43.1435], [-71.3610, 43.1450], [-71.3570, 43.1440]]
-        }
-    ]
+                    geom_data = json.loads(item.pop("geom_json"))
+                    items.append({
+                        "edge_osm_id": item["edge_osm_id"],
+                        "name": item.get("name") or "Unnamed trail",
+                        "sport": item["sport"],
+                        "distance_miles": float(item["distance_miles"]) if item.get("distance_miles") is not None else None,
+                        "heat_score": item["heat_score"],
+                        "surface": category,
+                        "coordinates": geom_data.get("coordinates", []),
+                    })
+                return items
+    except Exception as e:
+        print(f"Error loading unridden trails: {e}")
+        return []
 
 def upsert_edge_geometries(geoms: Dict[int, Dict[str, Any]]) -> int:
     """Store geometry (and name/class/surface if known) for edges that don't have any yet.
@@ -2302,7 +2101,7 @@ def get_heat_trail_geojson(sport: Optional[str] = None, limit: int = 5000) -> Di
                                ST_AsGeoJSON(e.geom) as geom_json
                         FROM edges e
                         JOIN edge_heat h ON e.osm_id = h.edge_osm_id
-                        WHERE e.geom IS NOT NULL AND h.sport = %s AND (h.is_public = TRUE OR h.weighted_score > 0)
+                        WHERE e.geom IS NOT NULL AND h.sport = %s AND h.is_public = TRUE
                         ORDER BY h.weighted_score DESC, e.osm_id
                         LIMIT %s;
                         """,
@@ -2315,7 +2114,7 @@ def get_heat_trail_geojson(sport: Optional[str] = None, limit: int = 5000) -> Di
                                ST_AsGeoJSON(e.geom) as geom_json
                         FROM edges e
                         JOIN edge_heat h ON e.osm_id = h.edge_osm_id
-                        WHERE e.geom IS NOT NULL AND (h.is_public = TRUE OR h.weighted_score > 0)
+                        WHERE e.geom IS NOT NULL AND h.is_public = TRUE
                         ORDER BY h.weighted_score DESC, e.osm_id
                         LIMIT %s;
                         """,
@@ -2325,320 +2124,27 @@ def get_heat_trail_geojson(sport: Optional[str] = None, limit: int = 5000) -> Di
                     g_json = row.get("geom_json")
                     if g_json:
                         geom = json.loads(g_json)
-                        trail_name = row["name"] or resolve_osm_trail_name(row["osm_id"])
+                        trail_name = row["name"]
                         features.append({
                             "type": "Feature",
                             "properties": {
                                 "osm_id": row["osm_id"],
                                 "name": trail_name,
                                 "sport": row["sport"],
-                                "heat_score": float(row.get("weighted_score", 1.0)),
-                                "passes": int(row.get("total_passes_12mo", 1)),
-                                "ride_count": int(row.get("total_passes_12mo", 1)),
-                                "riders": int(row.get("unique_riders_12mo", 1))
+                                "heat_score": float(row["weighted_score"] or 0.0),
+                                "passes": int(row["total_passes_12mo"] or 0),
+                                "ride_count": int(row["total_passes_12mo"] or 0),
+                                "riders": int(row["unique_riders_12mo"] or 0)
                             },
                             "geometry": geom
                         })
     except Exception:
         pass
 
-    # If database has no features yet, supply authentic Bear Brook & Bow Town Forest heat trail network
-    if not features:
-        sample_heat_trails = [
-            (220551352, "Bobcat Trail", 4.8, 18, [[-71.3524, 43.1305], [-71.3558, 43.1296], [-71.3583, 43.1308], [-71.3618, 43.1321]]),
-            (247358974, "Little Bear Trail", 4.5, 15, [[-71.3618, 43.1321], [-71.3640, 43.1350], [-71.3658, 43.1380], [-71.3662, 43.1410]]),
-            (220551345, "Salt Lick Trail", 3.9, 12, [[-71.3662, 43.1410], [-71.3645, 43.1435], [-71.3610, 43.1450], [-71.3570, 43.1440]]),
-            (247358962, "Pitch Pine Trail", 4.1, 14, [[-71.3570, 43.1440], [-71.3540, 43.1420], [-71.3510, 43.1390], [-71.3500, 43.1350]]),
-            (999202, "Boulder Trail", 3.7, 11, [[-71.3500, 43.1350], [-71.3480, 43.1330], [-71.3490, 43.1310], [-71.3524, 43.1305]]),
-            (999101, "Boundary Trail", 4.3, 16, [[-71.3658, 43.1380], [-71.3700, 43.1420], [-71.3720, 43.1470], [-71.3680, 43.1500]]),
-            (220551370, "Cascade Trail", 3.4, 9, [[-71.3540, 43.1420], [-71.3560, 43.1460], [-71.3590, 43.1490], [-71.3620, 43.1510]]),
-            (247358965, "Broken Ground Trail", 3.6, 10, [[-71.3510, 43.1390], [-71.3470, 43.1410], [-71.3430, 43.1430], [-71.3400, 43.1420]]),
-            (247358967, "Hall Mountain Trail", 3.2, 8, [[-71.3583, 43.1308], [-71.3620, 43.1270], [-71.3650, 43.1240], [-71.3690, 43.1220]]),
-            # Bow Town Forest Curated Heat Trails
-            (289829667, "Robertson Trail", 4.6, 17, [[-71.50346, 43.12781], [-71.50361, 43.12773], [-71.50379, 43.12762], [-71.5042, 43.1274], [-71.5050, 43.1271], [-71.5065, 43.1265]]),
-            (289829681, "Single Circuit Trail", 4.9, 24, [[-71.51733, 43.13627], [-71.5175, 43.1361], [-71.5180, 43.1355], [-71.51832, 43.13684], [-71.5188, 43.1375]]),
-            (289829857, "Boulder Trail", 4.2, 14, [[-71.51832, 43.13684], [-71.51849, 43.13684], [-71.51851, 43.13684], [-71.5190, 43.1369], [-71.5195, 43.1371]]),
-            (302693899, "Robinson's Crest Trail", 4.4, 15, [[-71.51832, 43.13684], [-71.51826, 43.13684], [-71.51817, 43.13687], [-71.5178, 43.1372], [-71.5172, 43.1376]]),
-            (339654248, "Mossy Trail", 4.1, 13, [[-71.52417, 43.14533], [-71.52407, 43.14533], [-71.52396, 43.14536], [-71.5235, 43.1455], [-71.5230, 43.1458]]),
-            (18854090, "Branch Londonderry Turnpike East", 3.8, 19, [[-71.51599, 43.1221], [-71.51611, 43.12208], [-71.51619, 43.12211], [-71.5170, 43.1225], [-71.5180, 43.1230]]),
-            (304316556, "Knox Mountain Trail", 4.6, 24, [[-71.5120, 43.1410], [-71.5135, 43.1420], [-71.5150, 43.1430], [-71.5160, 43.1440]]),
-            (304316557, "Tower Trail", 4.3, 19, [[-71.5160, 43.1440], [-71.5175, 43.1450], [-71.5190, 43.1460], [-71.5200, 43.1465]]),
-            (304316558, "Walker Forest Connector", 4.4, 21, [[-71.5100, 43.1350], [-71.5115, 43.1365], [-71.5130, 43.1385], [-71.5140, 43.1400]]),
-            (304316559, "Beaver Pond Trail", 4.2, 18, [[-71.5188, 43.1375], [-71.5200, 43.1385], [-71.5212, 43.1395], [-71.5220, 43.1405]]),
-            (304316560, "Page Road Trail", 4.5, 22, [[-71.5080, 43.1320], [-71.5095, 43.1340], [-71.5110, 43.1360], [-71.5120, 43.1380]])
-        ]
-        for osm_id, name, score, passes, coords in sample_heat_trails:
-            features.append({
-                "type": "Feature",
-                "properties": {
-                    "osm_id": osm_id,
-                    "name": name,
-                    "sport": sport or "mtb",
-                    "heat_score": score,
-                    "passes": passes,
-                    "ride_count": passes,
-                    "riders": max(1, passes // 2)
-                },
-                "geometry": {
-                    "type": "LineString",
-                    "coordinates": coords
-                }
-            })
-
     return {
         "type": "FeatureCollection",
         "features": features
     }
-
-def ingest_bow_ride_data_and_trails(user_id: str = "102385574010410465390", sport: str = "mtb") -> Dict[str, Any]:
-    """
-    Ingests Bow Town Forest curated trails with geometries into PostGIS edges table,
-    creates activity and activity_edge_visits records, and kickstarts the edge_heat layer
-    with is_public = TRUE (overriding the 3-different-user restriction).
-    Also classifies known residential roads in the database as 'residential' / 'paved'.
-    """
-    ensure_user_exists(user_id)
-    bow_trails = [
-        {
-            "osm_id": 289829667,
-            "name": "Robertson Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1250.0,
-            "coords": [[-71.50346, 43.12781], [-71.50361, 43.12773], [-71.50379, 43.12762], [-71.5042, 43.1274], [-71.5050, 43.1271], [-71.5065, 43.1265]],
-            "passes": 22,
-            "heat_score": 4.7
-        },
-        {
-            "osm_id": 289829681,
-            "name": "Single Circuit Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1720.0,
-            "coords": [[-71.51733, 43.13627], [-71.5175, 43.1361], [-71.5180, 43.1355], [-71.51832, 43.13684], [-71.5188, 43.1375]],
-            "passes": 28,
-            "heat_score": 4.9
-        },
-        {
-            "osm_id": 289829857,
-            "name": "Boulder Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1450.0,
-            "coords": [[-71.51832, 43.13684], [-71.51849, 43.13684], [-71.51851, 43.13684], [-71.5190, 43.1369], [-71.5195, 43.1371]],
-            "passes": 18,
-            "heat_score": 4.2
-        },
-        {
-            "osm_id": 302693899,
-            "name": "Robinson's Crest Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 2010.0,
-            "coords": [[-71.51832, 43.13684], [-71.51826, 43.13684], [-71.51817, 43.13687], [-71.5178, 43.1372], [-71.5172, 43.1376]],
-            "passes": 19,
-            "heat_score": 4.4
-        },
-        {
-            "osm_id": 339654248,
-            "name": "Mossy Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 2170.0,
-            "coords": [[-71.52417, 43.14533], [-71.52407, 43.14533], [-71.52396, 43.14536], [-71.5235, 43.1455], [-71.5230, 43.1458]],
-            "passes": 16,
-            "heat_score": 4.1
-        },
-        {
-            "osm_id": 18854090,
-            "name": "Branch Londonderry Turnpike East",
-            "highway": "track",
-            "surface": "doubletrack",
-            "length_m": 2900.0,
-            "coords": [[-71.51599, 43.1221], [-71.51611, 43.12208], [-71.51619, 43.12211], [-71.5170, 43.1225], [-71.5180, 43.1230]],
-            "passes": 25,
-            "heat_score": 4.5
-        },
-        {
-            "osm_id": 313179483,
-            "name": "Powerlines Trail",
-            "highway": "track",
-            "surface": "doubletrack",
-            "length_m": 1800.0,
-            "coords": [[-71.5120, 43.1300], [-71.5140, 43.1320], [-71.5160, 43.1340]],
-            "passes": 14,
-            "heat_score": 3.7
-        },
-        {
-            "osm_id": 304316555,
-            "name": "Nottingcook Path",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1600.0,
-            "coords": [[-71.5210, 43.1380], [-71.5230, 43.1400], [-71.5250, 43.1420]],
-            "passes": 15,
-            "heat_score": 3.9
-        },
-        {
-            "osm_id": 304316556,
-            "name": "Knox Mountain Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1550.0,
-            "coords": [[-71.5120, 43.1410], [-71.5135, 43.1420], [-71.5150, 43.1430], [-71.5160, 43.1440]],
-            "passes": 24,
-            "heat_score": 4.6
-        },
-        {
-            "osm_id": 304316557,
-            "name": "Tower Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1400.0,
-            "coords": [[-71.5160, 43.1440], [-71.5175, 43.1450], [-71.5190, 43.1460], [-71.5200, 43.1465]],
-            "passes": 19,
-            "heat_score": 4.3
-        },
-        {
-            "osm_id": 304316558,
-            "name": "Walker Forest Connector",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1550.0,
-            "coords": [[-71.5100, 43.1350], [-71.5115, 43.1365], [-71.5130, 43.1385], [-71.5140, 43.1400]],
-            "passes": 21,
-            "heat_score": 4.4
-        },
-        {
-            "osm_id": 304316559,
-            "name": "Beaver Pond Trail",
-            "highway": "path",
-            "surface": "singletrack",
-            "length_m": 1350.0,
-            "coords": [[-71.5188, 43.1375], [-71.5200, 43.1385], [-71.5212, 43.1395], [-71.5220, 43.1405]],
-            "passes": 18,
-            "heat_score": 4.2
-        },
-        {
-            "osm_id": 304316560,
-            "name": "Page Road Trail",
-            "highway": "track",
-            "surface": "doubletrack",
-            "length_m": 1650.0,
-            "coords": [[-71.5080, 43.1320], [-71.5095, 43.1340], [-71.5110, 43.1360], [-71.5120, 43.1380]],
-            "passes": 22,
-            "heat_score": 4.5
-        }
-    ]
-
-    edges_ingested = 0
-    activity_id = "bow-town-forest-kickstart-001"
-    try:
-        with get_connection() as conn:
-            with conn.cursor() as cur:
-                # 1. Update/Classify existing residential and paved roads in the DB
-                cur.execute(
-                    """
-                    UPDATE edges
-                    SET highway = 'residential', surface = 'paved', name = COALESCE(name, 'Grandview Road')
-                    WHERE osm_id = 42743791;
-
-                    UPDATE edges
-                    SET highway = 'residential', surface = 'paved'
-                    WHERE name IN (
-                        'Grandview Road', 'Ridgewood Drive', 'Bettys Lane', 'Tyler Drive',
-                        'Garvins Falls Road', 'Route 3-A', 'Hall Street', 'Knox Road',
-                        'Black Hill Road', 'Manchester Street', 'South Main Street',
-                        'Valley Road', 'Everett Avenue', 'Jonathan Lane', 'Poor Richards Drive',
-                        'Basin Street'
-                    ) OR (
-                        name ~* '\\y(Road|Rd|Drive|Dr|Lane|Ln|Street|St|Avenue|Ave|Boulevard|Blvd|Court|Ct|Way)\\y'
-                        AND name NOT IN (
-                            'Robertson Trail', 'Single Circuit Trail', 'Boulder Trail',
-                            'Robinson''s Crest Trail', 'Mossy Trail', 'Branch Londonderry Turnpike East',
-                            'Boundary Trail', 'Bobcat Trail', 'Little Bear Trail', 'Salt Lick Trail',
-                            'Pitch Pine Trail', 'Cascade Trail', 'Broken Ground Trail', 'Hall Mountain Trail'
-                        )
-                    );
-                    """
-                )
-
-                # 2. Insert/Update Bow Town Forest trails into edges
-                for t in bow_trails:
-                    geom_json = json.dumps({"type": "LineString", "coordinates": t["coords"]})
-                    cur.execute(
-                        """
-                        INSERT INTO edges (osm_id, name, highway, surface, length_m, geom)
-                        VALUES (%s, %s, %s, %s, %s, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))
-                        ON CONFLICT (osm_id) DO UPDATE SET
-                            name = EXCLUDED.name,
-                            highway = EXCLUDED.highway,
-                            surface = EXCLUDED.surface,
-                            length_m = EXCLUDED.length_m,
-                            geom = EXCLUDED.geom;
-                        """,
-                        (t["osm_id"], t["name"], t["highway"], t["surface"], t["length_m"], geom_json)
-                    )
-                    edges_ingested += 1
-
-                # 3. Create Bow Town Forest activity record
-                cur.execute(
-                    """
-                    INSERT INTO activities (id, user_id, sport, activity_date, created_at, distance_miles, duration_minutes, file_format, matched_edge_count, consent_given)
-                    VALUES (%s, %s, %s, NOW() - INTERVAL '2 days', NOW(), 9.2, 54.0, 'gpx', %s, TRUE)
-                    ON CONFLICT (id) DO NOTHING;
-                    """,
-                    (activity_id, user_id, sport, len(bow_trails))
-                )
-
-                # 4. Insert activity_edge_visits and kickstart edge_heat with is_public = TRUE
-                for t in bow_trails:
-                    cur.execute(
-                        """
-                        INSERT INTO activity_edge_visits (activity_id, edge_osm_id, user_id, sport, visited_at, pass_count)
-                        VALUES (%s, %s, %s, %s, NOW() - INTERVAL '2 days', %s)
-                        ON CONFLICT DO NOTHING;
-                        """,
-                        (activity_id, t["osm_id"], user_id, sport, t["passes"])
-                    )
-
-                    cur.execute(
-                        """
-                        INSERT INTO edge_heat (
-                            edge_osm_id, sport, unique_riders_12mo, total_passes_12mo,
-                            weighted_score, last_ridden_date, is_public, contributor_ids
-                        )
-                        VALUES (%s, %s, 1, %s, %s, NOW()::date, TRUE, ARRAY[%s])
-                        ON CONFLICT (edge_osm_id, sport) DO UPDATE SET
-                            unique_riders_12mo = GREATEST(edge_heat.unique_riders_12mo, 1),
-                            total_passes_12mo = edge_heat.total_passes_12mo + EXCLUDED.total_passes_12mo,
-                            weighted_score = GREATEST(edge_heat.weighted_score, EXCLUDED.weighted_score),
-                            last_ridden_date = EXCLUDED.last_ridden_date,
-                            is_public = TRUE,
-                            contributor_ids = CASE
-                                WHEN NOT (%s = ANY(edge_heat.contributor_ids))
-                                THEN array_append(edge_heat.contributor_ids, %s)
-                                ELSE edge_heat.contributor_ids
-                            END;
-                        """,
-                        (t["osm_id"], sport, t["passes"], t["heat_score"], user_id, user_id, user_id)
-                    )
-
-                # 5. Kickstart all existing edge_heat where riders >= 1 or passes >= 1
-                cur.execute(
-                    """
-                    UPDATE edge_heat
-                    SET is_public = TRUE
-                    WHERE unique_riders_12mo >= 1 OR total_passes_12mo >= 1;
-                    """
-                )
-
-                conn.commit()
-    except Exception as e:
-        print(f"Error ingesting Bow ride data: {e}")
-        return {"status": "error", "error": str(e), "edges_ingested": edges_ingested}
-
-    return {"status": "success", "edges_ingested": edges_ingested, "trails": [t["name"] for t in bow_trails]}
 
 def create_trail_submission(
     user_id: str,

@@ -20,10 +20,8 @@ from app.db import (
     resolve_osm_trail_name
 )
 from app.corridor_generator import generate_corridor_loop_candidate, find_retraced_segments
-from app.distance_fitting import fit_loop_distance
 from app.start_suggestions import find_nearby_loop_start
 from app.contracted_graph import ContractedTrailGraph
-from app.garmin_seeds import seed_catalog
 
 METERS_TO_MILES = 0.000621371192
 METERS_TO_FEET = 3.280839895
@@ -120,6 +118,14 @@ def classify_surface(road_class: Optional[str] = None, surface: Optional[str] = 
         return "paved"
 
     return "unpaved"
+
+def _bbox_of(points: List[List[float]]) -> List[float]:
+    if not points:
+        return []
+    lons = [p[0] for p in points]
+    lats = [p[1] for p in points]
+    return [min(lons), min(lats), max(lons), max(lats)]
+
 
 def decode_points(points_data: Any) -> List[List[float]]:
     """Decodes coordinates returned from GraphHopper (GeoJSON or polyline)."""
@@ -265,30 +271,20 @@ def process_graphhopper_path(
     user_ridden_ways: Optional[Set[int]] = None
 ) -> RouteResponse:
     distance_m = path.get("distance", 0.0)
-    ascend_m = path.get("ascend", 0.0)
-    descend_m = path.get("descend", 0.0)
-    bbox = path.get("bbox", [-72.0, 43.0, -71.0, 44.0])
     points = decode_points(path.get("points", {}))
+    bbox = path.get("bbox") or _bbox_of(points)
 
-    # Calculate elevation from 3D points if ascend/descend are zero
-    if (ascend_m == 0.0 and descend_m == 0.0) and points and len(points[0]) > 2:
-        calc_ascend = 0.0
-        calc_descend = 0.0
+    # Elevation only from a real DEM sample (3D points); otherwise unknown, never estimated.
+    ascend_m: Optional[float] = None
+    descend_m: Optional[float] = None
+    if points and all(len(p) > 2 and p[2] is not None for p in points):
+        ascend_m, descend_m = 0.0, 0.0
         for i in range(1, len(points)):
             ele_diff = points[i][2] - points[i - 1][2]
             if ele_diff > 0:
-                calc_ascend += ele_diff
+                ascend_m += ele_diff
             else:
-                calc_descend += abs(ele_diff)
-        ascend_m = calc_ascend
-        descend_m = calc_descend
-
-    # Synthetic realistic elevation profile fallback for New Hampshire hills (~65-100 ft/mi)
-    if ascend_m == 0.0 and distance_m > 0:
-        dist_mi_temp = distance_m * METERS_TO_MILES
-        synth_gain_ft = dist_mi_temp * 85.0
-        ascend_m = synth_gain_ft / METERS_TO_FEET
-        descend_m = ascend_m
+                descend_m += abs(ele_diff)
 
     # Process surface details
     details = path.get("details", {})
@@ -436,13 +432,6 @@ def process_graphhopper_path(
                 if wid not in user_ridden_ways:
                     for p_i in range(w_start, min(w_end, total_pts)):
                         unridden_point_indices.add(p_i)
-    elif req.find_new_trails_mode and osm_way_details and user_ridden_ways is None:
-        # Default fallback: alternate edges if user history is empty
-        for item in osm_way_details:
-            if len(item) >= 3:
-                w_start, w_end = item[0], item[1]
-                for p_i in range(w_start, min(w_end, total_pts)):
-                    unridden_point_indices.add(p_i)
 
     # Mark is_unridden on surface segments
     for seg in surface_strip:
@@ -530,8 +519,8 @@ def process_graphhopper_path(
         sector=sector_code,
         distance_miles=dist_miles,
         duration_minutes=est_duration_min,
-        elevation_gain_ft=round(ascend_m * METERS_TO_FEET, 0),
-        elevation_loss_ft=round(descend_m * METERS_TO_FEET, 0),
+        elevation_gain_ft=round(ascend_m * METERS_TO_FEET, 0) if ascend_m is not None else None,
+        elevation_loss_ft=round(descend_m * METERS_TO_FEET, 0) if descend_m is not None else None,
         surface_breakdown=breakdown,
         surface_strip=surface_strip,
         coordinates=points,
@@ -683,7 +672,7 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
 
     covered = is_region_covered(req.start.lat, req.start.lon)
     heat_cache = get_edges_heat(list(set(osm_ways)), req.profile.value, user_id=user_id)
-    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else set()
+    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else None
 
     return process_graphhopper_path(
         path=path,
@@ -963,29 +952,6 @@ async def generate_route_options(
     finally:
         await client.aclose()
 
-    # Append Garmin seed loops if available
-    matching_seeds = seed_catalog.get_matching_seeds(start_lat, start_lon, target_miles, sport=req.profile.value) if is_loop else []
-    for seed in matching_seeds:
-        _, sec_code, _ = get_sector_info(45.0)
-        seed_path = {
-            "distance": seed.distance_miles / METERS_TO_MILES,
-            "ascend": 150.0,
-            "descend": 150.0,
-            "points": {"coordinates": seed.coordinates},
-            "details": {
-                "surface": [[0, len(seed.coordinates) - 1, "singletrack"]],
-                "road_class": [[0, len(seed.coordinates) - 1, "path"]],
-                "track_type": [[0, len(seed.coordinates) - 1, "grade1"]],
-                "osm_way_id": [[0, len(seed.coordinates) - 1, wid] for wid in seed.osm_way_ids],
-                "street_name": [[0, len(seed.coordinates) - 1, seed.name]]
-            },
-            "repetition_ratio": seed.repetition_ratio,
-            "retraced_miles": round(seed.distance_miles * seed.repetition_ratio, 2),
-            "retraced_coordinates": []
-        }
-        results.append(seed_path)
-        task_metadata.append({"sector_name": f"{seed.name} (Garmin Seed)", "sector_code": sec_code, "deg": 45.0, "var": "SEED"})
-
     # Evaluate nearby start suggestions if in loop mode
     nearby_suggestion_text = None
     if is_loop:
@@ -1012,8 +978,6 @@ async def generate_route_options(
                 path = data["paths"][0]
 
             meta = task_metadata[idx]
-            if is_loop and req.target_distance_miles and "CORRIDOR" in meta.get("var", ""):
-                path = fit_loop_distance(path, req.target_distance_miles)
 
             points = decode_points(path.get("points", {}))
             if len(points) < 2:
@@ -1042,7 +1006,7 @@ async def generate_route_options(
     # Batch query edge heat from database
     covered = is_region_covered(req.start.lat, req.start.lon)
     heat_cache = get_edges_heat(list(all_traversed_ways), req.profile.value, user_id=user_id)
-    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else set()
+    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else None
 
     # Score and build RouteResponse for all valid candidates
     scored_candidates: List[Tuple[RouteResponse, Set[int]]] = []
@@ -1071,7 +1035,7 @@ async def generate_route_options(
         route_resp.nearby_start_suggestion = nearby_suggestion_text
 
         # Trailhead name prefix with real trail names
-        start_prefix = req.start.name.split('(')[0].strip() if req.start.name else "Bear Brook"
+        start_prefix = req.start.name.split('(')[0].strip() if req.start.name else "Start"
         if route_resp.primary_trail_name:
             if route_resp.route_type == "lollipop":
                 type_label = "Lollipop Loop"

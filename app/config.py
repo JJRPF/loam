@@ -37,9 +37,10 @@ class Settings(BaseModel):
     ))
 
     # Feature Flags & Connector Configuration
-    enable_strava_connector: bool = os.getenv("ENABLE_STRAVA_CONNECTOR", "true").lower() in ("true", "1")
+    # Strava and Trailforks stay off until their current terms are confirmed (plan section 10.7).
+    enable_strava_connector: bool = os.getenv("ENABLE_STRAVA_CONNECTOR", "false").lower() in ("true", "1")
     enable_garmin_connector: bool = os.getenv("ENABLE_GARMIN_LOGIN_CONNECTOR", "true").lower() in ("true", "1")
-    enable_trailforks_connector: bool = os.getenv("ENABLE_TRAILFORKS_CONNECTOR", "true").lower() in ("true", "1")
+    enable_trailforks_connector: bool = os.getenv("ENABLE_TRAILFORKS_CONNECTOR", "false").lower() in ("true", "1")
     enable_cubetrek_connector: bool = os.getenv("ENABLE_CUBETREK_CONNECTOR", "true").lower() in ("true", "1")
     connector_secret_key: str = os.getenv("CONNECTOR_SECRET_KEY", DEFAULT_CONNECTOR_SECRET_KEY)
 

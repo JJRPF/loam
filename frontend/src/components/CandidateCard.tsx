@@ -1,5 +1,6 @@
 import React from 'react';
 import type { RouteResponse } from '../types';
+import { formatGain } from '../format';
 
 interface CandidateCardProps {
   route: RouteResponse;
@@ -20,7 +21,6 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
   const durationText = hours > 0 ? `${hours}h ${mins}m` : `${mins}m`;
 
   const distMi = route.distance_miles ?? 0;
-  const eleGain = route.elevation_gain_ft ?? 0;
   const stPct = Math.round(route.surface_breakdown?.singletrack || 0);
 
   return (
@@ -114,7 +114,7 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           </div>
 
           <div className="num-tabular" style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
-            +{Math.round(eleGain)} ft • {durationText}
+            {formatGain(route.elevation_gain_ft)} • {durationText}
           </div>
 
           <div style={{ fontSize: 11, color: 'var(--color-text-primary, #1D3B34)', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>

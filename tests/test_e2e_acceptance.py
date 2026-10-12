@@ -203,11 +203,11 @@ async def test_full_e2e_acceptance_lifecycle():
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO edges (osm_id, name, length_m, geom, surface)
-                    VALUES (%s, 'TEST_Acceptance_Singletrack', 1500.0,
+                    INSERT INTO edges (osm_id, name, highway, length_m, geom, surface)
+                    VALUES (%s, 'TEST_Acceptance_Singletrack', 'path', 1500.0,
                             ST_SetSRID(ST_MakeLine(ST_MakePoint(-71.3520, 43.1300), ST_MakePoint(-71.3530, 43.1310)), 4326),
                             'dirt')
-                    ON CONFLICT (osm_id) DO NOTHING;
+                    ON CONFLICT (osm_id) DO UPDATE SET highway = 'path';
                     """,
                     (edge_id,)
                 )
@@ -268,8 +268,8 @@ async def test_full_e2e_acceptance_lifecycle():
         assert len(connectors_list) >= 3
         conn_map = {c["name"]: c for c in connectors_list}
         assert conn_map["garmin"]["enabled"] is True
-        assert conn_map["trailforks"]["enabled"] is True
-        assert conn_map["strava"]["enabled"] is True
+        assert conn_map["trailforks"]["enabled"] is False
+        assert conn_map["strava"]["enabled"] is False
         assert "cubetrek" in conn_map
         for c in connectors_list:
             assert c["connected"] is False

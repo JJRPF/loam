@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import type { SavedRoute, RouteResponse } from '../types';
 import { fetchSavedRoutes, deleteSavedRoute } from '../services/api';
 import { useAuth } from '../services/auth';
+import { formatGain } from '../format';
 
 interface SavedRoutesPanelProps {
   onLoadRoute: (route: RouteResponse) => void;
@@ -147,7 +148,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
                 {(r.distance_miles ?? 0).toFixed(1)} mi
               </span>
               <div className="num-tabular" style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
-                +{Math.round(r.elevation_gain_ft ?? 0)} ft
+                {formatGain(r.elevation_gain_ft)}
               </div>
             </div>
           </div>

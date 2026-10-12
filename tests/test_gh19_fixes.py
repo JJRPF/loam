@@ -31,7 +31,7 @@ def clean_gh19_test_data():
 
 @pytest.mark.asyncio
 async def test_connectors_enabled_by_default_gh19():
-    """Verifies that Garmin and Trailforks are enabled by default per GH-19."""
+    """Garmin is on by default; Strava and Trailforks stay off until their terms are confirmed (GH-34)."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/api/connectors", headers={"X-Test-User": "test_gh19_user"})
@@ -39,7 +39,8 @@ async def test_connectors_enabled_by_default_gh19():
         connectors = {c["name"]: c for c in resp.json()}
         
         assert connectors["garmin"]["enabled"] is True, "Garmin connector must be enabled by default"
-        assert connectors["trailforks"]["enabled"] is True, "Trailforks connector must be enabled by default"
+        assert connectors["trailforks"]["enabled"] is False
+        assert connectors["strava"]["enabled"] is False
 
 
 @pytest.mark.asyncio
@@ -110,43 +111,20 @@ async def test_garmin_bulk_import_user_disagrees():
 
 @pytest.mark.asyncio
 async def test_trailforks_connector_lifecycle():
-    """Verifies Trailforks connection, sync with attribution, and disconnection."""
+    """Trailforks has no API access, so connecting fails honestly and nothing is stored."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         test_uid = "test_gh19_trailforks_user"
-
-        # 1. Connect Trailforks
         auth_resp = await client.post(
             "/api/connectors/trailforks/auth",
             json={"username": "nh_trail_rider", "token": "tf_token_abc_123"},
             headers={"X-Test-User": test_uid}
         )
-        assert auth_resp.status_code == 200
-        assert auth_resp.json()["connected"] is True
-        assert "Trailforks" in auth_resp.json()["message"]
-
-        # 2. Check status shows connected
+        assert auth_resp.status_code == 400
+        assert "isn't available" in auth_resp.json()["detail"]
         status_resp = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
-        assert status_resp.status_code == 200
         tf_status = next(c for c in status_resp.json() if c["name"] == "trailforks")
-        assert tf_status["connected"] is True
-
-        # 3. Sync Trailforks
-        sync_resp = await client.post(
-            "/api/connectors/trailforks/sync",
-            headers={"X-Test-User": test_uid}
-        )
-        assert sync_resp.status_code == 200
-        assert "© Trailforks" in sync_resp.json()["message"]
-
-        # 4. Disconnect Trailforks
-        disc_resp = await client.delete("/api/connectors/trailforks", headers={"X-Test-User": test_uid})
-        assert disc_resp.status_code == 200
-
-        # Check status shows disconnected
-        status_resp2 = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
-        tf_status2 = next(c for c in status_resp2.json() if c["name"] == "trailforks")
-        assert tf_status2["connected"] is False
+        assert tf_status["connected"] is False
 
 
 @pytest.mark.asyncio
@@ -164,7 +142,7 @@ async def test_garmin_2fa_challenge_and_verification():
         resp1 = await client.post(
             "/api/connectors/garmin/login",
             json={
-                "username": "test_mfa_user@example.com",
+                "username": "mfa.rider@test.loam",
                 "password": "PasswordWith2FA123!",
                 "import_to_heat": True
             },
@@ -195,18 +173,28 @@ async def test_garmin_2fa_challenge_and_verification():
 
 
 @pytest.mark.asyncio
-async def test_strava_personal_token_auth():
-    """
-    Verifies that users can authenticate Strava using their personal access token,
-    requiring zero app-wide OAuth client secret from Loam.
-    """
+async def test_strava_personal_token_auth(monkeypatch):
+    """A Strava personal token connects only after Strava accepts it (GET /athlete)."""
+    from app.config import settings
+    from app.connectors import connector_manager
+
+    monkeypatch.setattr(settings, "enable_strava_connector", True)
+    strava = connector_manager.get_connector("strava")
+
+    async def fake_athlete(token):
+        return (200, {"firstname": "Test", "lastname": "Rider"}) if token == "valid-token" else (401, {})
+
+    monkeypatch.setattr(strava, "_fetch_athlete", fake_athlete)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         test_uid = "test_gh19_strava_user"
+        bad = await client.post("/api/connectors/strava/auth", json={"personal_token": "nope"},
+                                headers={"X-Test-User": test_uid})
+        assert bad.status_code == 400
 
         resp = await client.post(
             "/api/connectors/strava/auth",
-            json={"personal_token": "test_personal_strava_pat_9988"},
+            json={"personal_token": "valid-token"},
             headers={"X-Test-User": test_uid}
         )
         assert resp.status_code == 200
@@ -214,11 +202,11 @@ async def test_strava_personal_token_auth():
         assert data["connected"] is True
         assert "Strava" in data["message"]
 
-        # Check connector list shows Strava connected
         status_resp = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
-        assert status_resp.status_code == 200
         strava_item = next(c for c in status_resp.json() if c["name"] == "strava")
         assert strava_item["connected"] is True
+        sync = await client.post("/api/connectors/strava/sync", headers={"X-Test-User": test_uid})
+        assert sync.json()["activities_imported"] == 0  # import isn't built; no placeholder rides
 
 
 @pytest.mark.asyncio

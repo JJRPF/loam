@@ -82,11 +82,11 @@ async def test_find_new_trails_api_and_exploration_endpoint():
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO edges (osm_id, name, length_m, geom, surface)
-                    VALUES (%s, 'TEST_Podunk_Singletrack', 1200.0,
+                    INSERT INTO edges (osm_id, name, highway, length_m, geom, surface)
+                    VALUES (%s, 'TEST_Podunk_Singletrack', 'path', 1200.0,
                             ST_SetSRID(ST_MakeLine(ST_MakePoint(-71.3520, 43.1300), ST_MakePoint(-71.3530, 43.1310)), 4326),
                             'dirt')
-                    ON CONFLICT (osm_id) DO NOTHING;
+                    ON CONFLICT (osm_id) DO UPDATE SET highway = 'path';
                     """,
                     (edge_id,)
                 )
@@ -385,7 +385,7 @@ async def test_garmin_encrypted_token_invariant_and_password_non_retention(monke
 
         # Decrypt session token to verify validity
         decrypted = decrypt_token(encrypted_token)
-        assert "garmin_session" in decrypted
+        assert "di_token" in decrypted
 
         # Disconnect connector
         disc_resp = await client.delete("/api/connectors/garmin", headers={"X-Test-User": test_uid})
@@ -395,30 +395,17 @@ async def test_garmin_encrypted_token_invariant_and_password_non_retention(monke
 
 @pytest.mark.asyncio
 async def test_strava_connector_flow(monkeypatch):
-    """Validates Strava connector OAuth authorization, sync, and disconnection."""
+    """Strava has no OAuth client: an authorization code alone never connects anything."""
     monkeypatch.setattr(settings, "enable_strava_connector", True)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         test_uid = "test_user_strava_1"
-        
-        # Connect
         auth_resp = await client.post(
             "/api/connectors/strava/auth",
             json={"code": "sample_auth_code_xyz"},
             headers={"X-Test-User": test_uid}
         )
-        assert auth_resp.status_code == 200
-        assert auth_resp.json()["connected"] is True
-
-        # Sync activities
-        sync_resp = await client.post(
-            "/api/connectors/strava/sync",
-            headers={"X-Test-User": test_uid}
-        )
-        assert sync_resp.status_code == 200
-        assert sync_resp.json()["status"] == "success"
-
-        # Disconnect
+        assert auth_resp.status_code == 400
         disc_resp = await client.delete("/api/connectors/strava", headers={"X-Test-User": test_uid})
         assert disc_resp.status_code == 200

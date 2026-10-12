@@ -52,8 +52,8 @@ export interface RouteResponse {
   sector?: string;
   distance_miles: number;
   duration_minutes: number;
-  elevation_gain_ft: number;
-  elevation_loss_ft: number;
+  elevation_gain_ft: number | null;
+  elevation_loss_ft: number | null;
   surface_breakdown: Record<string, number>; // percentages e.g. { singletrack: 65.2, ... }
   surface_strip: SurfaceSegment[];
   coordinates: number[][]; // [[lon, lat], ...] or [[lon, lat, ele], ...]
@@ -182,8 +182,8 @@ export interface SavedRoute {
   name: string;
   sport: string;
   distance_miles: number;
-  elevation_gain_ft: number;
-  elevation_loss_ft: number;
+  elevation_gain_ft: number | null;
+  elevation_loss_ft: number | null;
   created_at: string;
   surface_breakdown?: Record<string, number>;
   surface_strip?: SurfaceSegment[];
@@ -192,65 +192,18 @@ export interface SavedRoute {
   verbal_summary?: string;
 }
 
-export interface TrailheadPreset {
+/** A public trail-area parking lot, extracted from OSM by scripts/build_trailheads.py. */
+export interface Trailhead {
   name: string;
-  region: string;
+  area: string;
+  town: string;
   lat: number;
   lon: number;
-  description: string;
+  parking_osm: string;
+  parking_name: string | null;
+  area_osm: string;
+  distance_to_area_m: number;
 }
-
-export const NH_TRAILHEAD_PRESETS: TrailheadPreset[] = [
-  {
-    name: "Bear Brook State Park (Podunk Rd)",
-    region: "Allenstown, NH",
-    lat: 43.1305,
-    lon: -71.3524,
-    description: "Hub of 40+ miles of prime singletrack, Little Bear, Bobcat, and Hedgehog."
-  },
-  {
-    name: "Bow Town Forest (Knox Rd)",
-    region: "Bow, NH",
-    lat: 43.1343,
-    lon: -71.4972,
-    description: "Diverse town forest network with technical singletrack, Robinson's Crest, and Nottingcook connections."
-  },
-  {
-    name: "Highland Mountain Bike Park",
-    region: "Northfield, NH",
-    lat: 43.4357,
-    lon: -71.6111,
-    description: "World-class dedicated downhill and cross-country mountain bike network."
-  },
-  {
-    name: "Fort Mountain Trailhead",
-    region: "Epsom, NH",
-    lat: 43.2091,
-    lon: -71.3289,
-    description: "Rugged granite outcrops, doubletrack connectors, and scenic fire tower ridge."
-  },
-  {
-    name: "Oak Hill Trailhead",
-    region: "Concord, NH",
-    lat: 43.2562,
-    lon: -71.5031,
-    description: "Flowy, undulating forest singletrack loops with scenic tower overlook."
-  },
-  {
-    name: "Franklin Falls Dam",
-    region: "Franklin, NH",
-    lat: 43.4721,
-    lon: -71.6508,
-    description: "Fast, swoopy bermed singletrack along the Pemigewasset river basin."
-  },
-  {
-    name: "Stratham Hill Park",
-    region: "Stratham, NH",
-    lat: 43.0185,
-    lon: -70.9254,
-    description: "Seacoast favorite with technical rock gardens and fast connector trails."
-  }
-];
 
 export interface AuthUser {
   id: string;

@@ -72,6 +72,16 @@ def _test_auth_overrides():
     app.dependency_overrides.pop(get_optional_user, None)
 
 
+@pytest.fixture(autouse=True)
+def _no_live_garmin(monkeypatch):
+    """Garmin Connect is never contacted from tests; the connector talks to tests.fakes.FakeGarmin."""
+    import garminconnect
+
+    from tests.fakes import FakeGarmin
+
+    monkeypatch.setattr(garminconnect, "Garmin", FakeGarmin)
+
+
 @pytest.fixture
 def real_auth():
     """Runs a test against the production auth dependencies (no overrides)."""

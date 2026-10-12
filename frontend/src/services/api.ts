@@ -17,6 +17,7 @@ import type {
 
 
 import { getIdToken } from './auth';
+import { formatGain } from '../format';
 
 const API_BASE = ''; // proxied via vite in dev, relative in production
 
@@ -334,7 +335,7 @@ export async function shareRouteGarmin(route: RouteResponse): Promise<{ shared: 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             title: route.name || 'Loam Route',
-            text: `Open in Garmin Connect (Route Import): ${route.distance_miles.toFixed(1)} mi • +${Math.round(route.elevation_gain_ft)} ft`,
+            text: `Open in Garmin Connect (Route Import): ${route.distance_miles.toFixed(1)} mi • ${formatGain(route.elevation_gain_ft)}`,
             files: [file]
           });
           return { shared: true, message: 'Phone share modal opened! Select Garmin Connect to import course.' };
@@ -350,7 +351,7 @@ export async function shareRouteGarmin(route: RouteResponse): Promise<{ shared: 
     try {
       await navigator.share({
         title: `${route.name || 'Loam Route'} (Garmin Course)`,
-        text: `Open in Garmin Connect to import course: ${route.distance_miles.toFixed(1)} mi • +${Math.round(route.elevation_gain_ft)} ft`,
+        text: `Open in Garmin Connect to import course: ${route.distance_miles.toFixed(1)} mi • ${formatGain(route.elevation_gain_ft)}`,
         url: window.location.href
       });
       return { shared: true, message: 'Phone share modal opened! Select Garmin Connect to import course.' };
@@ -436,7 +437,7 @@ function generateClientGpx(route: RouteResponse): string {
   const trkpts = route.coordinates.map((pt) => {
     const lon = pt[0];
     const lat = pt[1];
-    const ele = pt.length > 2 ? `<ele>${pt[2].toFixed(1)}</ele>` : '';
+    const ele = pt.length > 2 && pt[2] !== null ? `<ele>${pt[2].toFixed(1)}</ele>` : '';
     return `      <trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}">${ele}</trkpt>`;
   }).join('\n');
 
@@ -583,7 +584,7 @@ export async function getTrailStatus(
 
 export async function listUserDNR(
 ): Promise<UserDNR[]> {
-  const res = await authedFetch(`${API_BASE}/api/user/dnr`, {});
+  const res = await authedFetch(`${API_BASE}/api/user/dnr`);
   if (!res.ok) return [];
   return await res.json();
 }
@@ -651,21 +652,19 @@ export async function deleteMyAccount(
 // Stage 6: Differentiators API Client Methods
 // =========================================================================
 
-export async function getUnriddenTrails(params?: {
-  lat?: number;
-  lon?: number;
+export async function getUnriddenTrails(params: {
+  lat: number;
+  lon: number;
   radiusMiles?: number;
   sport?: string;
 }): Promise<UnriddenTrailItem[]> {
-  const lat = params?.lat ?? 44.0536;
-  const lon = params?.lon ?? -71.1285;
   const query = new URLSearchParams({
-    lat: lat.toString(),
-    lon: lon.toString(),
-    radius_miles: (params?.radiusMiles ?? 15).toString(),
-    sport: params?.sport ?? 'mtb'
+    lat: params.lat.toString(),
+    lon: params.lon.toString(),
+    radius_miles: (params.radiusMiles ?? 15).toString(),
+    sport: params.sport ?? 'mtb'
   });
-  const res = await authedFetch(`${API_BASE}/api/trails/new-to-me?${query.toString()}`, {});
+  const res = await authedFetch(`${API_BASE}/api/trails/new-to-me?${query.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to load unridden trails: ${await res.text()}`);
   }
@@ -932,22 +931,18 @@ export async function fetchHeatTrails(sport?: string): Promise<{ type: string; f
   return await res.json();
 }
 
-export async function fetchOtmTrails(params?: {
-  minLat?: number;
-  minLon?: number;
-  maxLat?: number;
-  maxLon?: number;
+export async function fetchOtmTrails(params: {
+  minLat: number;
+  minLon: number;
+  maxLat: number;
+  maxLon: number;
   sport?: string;
 }): Promise<{ type: string; features: any[] }> {
-  const minLat = params?.minLat ?? 43.05;
-  const minLon = params?.minLon ?? -71.45;
-  const maxLat = params?.maxLat ?? 43.20;
-  const maxLon = params?.maxLon ?? -71.25;
-  const sport = params?.sport ?? 'mtb';
-  const url = `${API_BASE}/api/otm/trails?min_lat=${minLat}&min_lon=${minLon}&max_lat=${maxLat}&max_lon=${maxLon}&sport=${encodeURIComponent(sport)}`;
+  const sport = params.sport ?? 'mtb';
+  const url = `${API_BASE}/api/otm/trails?min_lat=${params.minLat}&min_lon=${params.minLon}&max_lat=${params.maxLat}&max_lon=${params.maxLon}&sport=${encodeURIComponent(sport)}`;
   const res = await authedFetch(url);
   if (!res.ok) {
-    throw new Error(`Failed to load OpenTrailMap trails (${res.status}): ${await res.text()}`);
+    throw new Error(`Failed to load trails (${res.status}): ${await res.text()}`);
   }
   return await res.json();
 }
