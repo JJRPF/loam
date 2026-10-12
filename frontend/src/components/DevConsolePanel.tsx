@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { getDevStatus, clearDevCache, recalculateDevHeat, ingestBowDevData } from '../services/api';
+import { getDevStatus, clearDevCache, recalculateDevHeat } from '../services/api';
 
 interface DevConsolePanelProps {
   userEmail?: string;
-  idToken?: string;
-  devKey?: string;
   onClose?: () => void;
   isDarkMode?: boolean;
 }
@@ -32,8 +30,6 @@ interface DevStatusData {
 
 export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
   userEmail,
-  idToken,
-  devKey,
   onClose,
   isDarkMode = true
 }) => {
@@ -52,7 +48,7 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
     setLoading(true);
     setError(null);
     try {
-      const data = await getDevStatus(devKey, idToken, userEmail);
+      const data = await getDevStatus();
       setStatusData(data);
       addLog(`Status refreshed: ${data.status.toUpperCase()} (${data.edge_count} edges, ${data.activity_count} activities)`, 'info');
     } catch (err: any) {
@@ -65,12 +61,12 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
 
   useEffect(() => {
     loadStatus();
-  }, [devKey, idToken, userEmail]);
+  }, []);
 
   const handleClearCache = async () => {
     setActionInProgress('clearCache');
     try {
-      const res = await clearDevCache(devKey, idToken, userEmail);
+      const res = await clearDevCache();
       addLog(res.message || 'Cache successfully cleared.', 'success');
       await loadStatus();
     } catch (err: any) {
@@ -83,24 +79,11 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
   const handleRecalculateHeat = async () => {
     setActionInProgress('recalculateHeat');
     try {
-      const res = await recalculateDevHeat(devKey, idToken, userEmail);
+      const res = await recalculateDevHeat();
       addLog(`Heat recalculation completed: ${res.updated_edges ?? 0} edges updated.`, 'success');
       await loadStatus();
     } catch (err: any) {
       addLog(`Failed to recalculate heat: ${err.message}`, 'error');
-    } finally {
-      setActionInProgress(null);
-    }
-  };
-
-  const handleIngestBowData = async () => {
-    setActionInProgress('ingestBow');
-    try {
-      const res = await ingestBowDevData(devKey, idToken, userEmail);
-      addLog(`Bow Town Forest data ingested: ${res.edges_ingested ?? 0} edges added/updated with public heat.`, 'success');
-      await loadStatus();
-    } catch (err: any) {
-      addLog(`Failed to ingest Bow data: ${err.message}`, 'error');
     } finally {
       setActionInProgress(null);
     }
@@ -140,7 +123,7 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
               Developer Console
             </h2>
             <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
-              Authorized Session ({userEmail || 'Developer Key'})
+              Admin session ({userEmail})
             </div>
           </div>
         </div>
@@ -327,15 +310,6 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
             {actionInProgress === 'recalculateHeat' ? '⏳ Recalculating...' : '🔥 Recalculate Heat Layer'}
           </button>
 
-          <button
-            type="button"
-            onClick={handleIngestBowData}
-            disabled={actionInProgress !== null}
-            className="btn-outline"
-            style={{ fontSize: 12, padding: '6px 12px', minHeight: 32, borderColor: '#16A34A', color: '#16A34A' }}
-          >
-            {actionInProgress === 'ingestBow' ? '⏳ Ingesting...' : '🌲 Ingest Bow Town Forest Data & Heat'}
-          </button>
         </div>
       </div>
 

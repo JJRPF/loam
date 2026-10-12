@@ -48,7 +48,7 @@ async def test_community_flags_creation_and_voting():
             "flag_type": "blocked",
             "details": "Large pine tree across trail"
         }
-        resp = await client.post("/api/flags", json=flag_payload, headers={"X-User-Id": "test_user_flag1"})
+        resp = await client.post("/api/flags", json=flag_payload, headers={"X-Test-User": "test_user_flag1"})
         assert resp.status_code == 200
         data = resp.json()
         flag_id = data["id"]
@@ -58,22 +58,22 @@ async def test_community_flags_creation_and_voting():
         assert data["status"] == "active"
 
         # User 2 confirms the flag -> confirmed_count becomes 2, status becomes verified
-        vote_resp = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "confirm"}, headers={"X-User-Id": "test_user_flag2"})
+        vote_resp = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "confirm"}, headers={"X-Test-User": "test_user_flag2"})
         assert vote_resp.status_code == 200
         vote_data = vote_resp.json()
         assert vote_data["confirmed_count"] == 2
         assert vote_data["status"] == "verified"
 
         # User 2 tries to vote confirm again -> rejected (abuse resistance: 1 vote per user)
-        dup_resp = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "confirm"}, headers={"X-User-Id": "test_user_flag2"})
+        dup_resp = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "confirm"}, headers={"X-Test-User": "test_user_flag2"})
         assert dup_resp.status_code == 400
 
         # User 3 and User 4 dispute the flag
-        disp1 = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "dispute"}, headers={"X-User-Id": "test_user_flag3"})
+        disp1 = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "dispute"}, headers={"X-Test-User": "test_user_flag3"})
         assert disp1.status_code == 200
-        disp2 = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "dispute"}, headers={"X-User-Id": "test_user_flag4"})
+        disp2 = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "dispute"}, headers={"X-Test-User": "test_user_flag4"})
         assert disp2.status_code == 200
-        disp3 = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "dispute"}, headers={"X-User-Id": "test_user_flag5"})
+        disp3 = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "dispute"}, headers={"X-Test-User": "test_user_flag5"})
         assert disp3.status_code == 200
 
         # With 3 disputes vs 2 confirms, check list flags
@@ -99,7 +99,7 @@ async def test_rider_checkin_refreshes_confidence_and_recency():
 
         # 1. Submit check-in
         checkin_payload = {"status": "still_open", "note": "Rode today, trail is running fast and clear!"}
-        resp = await client.post(f"/api/trails/{edge_id}/checkin", json=checkin_payload, headers={"X-User-Id": "test_user_checkin1"})
+        resp = await client.post(f"/api/trails/{edge_id}/checkin", json=checkin_payload, headers={"X-Test-User": "test_user_checkin1"})
         assert resp.status_code == 200
         c_data = resp.json()
         assert c_data["edge_osm_id"] == edge_id
@@ -141,7 +141,7 @@ async def test_user_dnr_crud_and_override_logging():
             "is_soft": True,
             "reason": "Excessive loose shale and downed trees"
         }
-        res_trail = await client.post("/api/user/dnr", json=dnr_trail_payload, headers={"X-User-Id": uid})
+        res_trail = await client.post("/api/user/dnr", json=dnr_trail_payload, headers={"X-Test-User": uid})
         assert res_trail.status_code == 200
         t_data = res_trail.json()
         dnr_trail_id = t_data["id"]
@@ -165,13 +165,13 @@ async def test_user_dnr_crud_and_override_logging():
             "is_soft": True,
             "reason": "Heavy machinery and closed forest roads"
         }
-        res_area = await client.post("/api/user/dnr", json=dnr_area_payload, headers={"X-User-Id": uid})
+        res_area = await client.post("/api/user/dnr", json=dnr_area_payload, headers={"X-Test-User": uid})
         assert res_area.status_code == 200
         a_data = res_area.json()
         assert a_data["dnr_type"] == "area"
 
         # 3. List DNR entries
-        list_res = await client.get("/api/user/dnr", headers={"X-User-Id": uid})
+        list_res = await client.get("/api/user/dnr", headers={"X-Test-User": uid})
         assert list_res.status_code == 200
         items = list_res.json()
         assert len(items) == 2
@@ -193,18 +193,18 @@ async def test_user_dnr_crud_and_override_logging():
             "profile": "mtb",
             "override_dnr": True
         }
-        route_resp = await client.post("/api/route", json=route_req, headers={"X-User-Id": uid})
+        route_resp = await client.post("/api/route", json=route_req, headers={"X-Test-User": uid})
         # If GraphHopper routes between points, verify response
         if route_resp.status_code == 200:
             r_data = route_resp.json()
             assert "warnings" in r_data
 
         # 6. Delete DNR entry
-        del_resp = await client.delete(f"/api/user/dnr/{dnr_trail_id}", headers={"X-User-Id": uid})
+        del_resp = await client.delete(f"/api/user/dnr/{dnr_trail_id}", headers={"X-Test-User": uid})
         assert del_resp.status_code == 200
 
         # Verify deletion
-        list_after = await client.get("/api/user/dnr", headers={"X-User-Id": uid})
+        list_after = await client.get("/api/user/dnr", headers={"X-Test-User": uid})
         assert len(list_after.json()) == 1
 
 
@@ -342,7 +342,7 @@ async def test_admin_restrictions_and_land_manager_takedowns():
             "reason": "Landowner requested removal due to private driveway impact",
             "requested_by": "Bear Brook Land Trust"
         }
-        resp = await client.post("/api/admin/takedowns", json=takedown_payload)
+        resp = await client.post("/api/admin/takedowns", json=takedown_payload, headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert resp.status_code == 200
         t_data = resp.json()
         restr_id = t_data["id"]
@@ -351,7 +351,7 @@ async def test_admin_restrictions_and_land_manager_takedowns():
         assert "Bear Brook Land Trust" in t_data["source"]
 
         # 2. List admin restrictions
-        list_resp = await client.get("/api/admin/restrictions")
+        list_resp = await client.get("/api/admin/restrictions", headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert list_resp.status_code == 200
         restrs = list_resp.json()
         assert any(r["id"] == restr_id for r in restrs)
@@ -359,12 +359,12 @@ async def test_admin_restrictions_and_land_manager_takedowns():
         # 3. Update restriction
         update_resp = await client.put(f"/api/admin/restrictions/{restr_id}", json={
             "description": "Updated landowner contact: manager@landtrust.org"
-        })
+        }, headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert update_resp.status_code == 200
         assert update_resp.json()["description"] == "Updated landowner contact: manager@landtrust.org"
 
         # 4. Delete restriction
-        del_resp = await client.delete(f"/api/admin/restrictions/{restr_id}")
+        del_resp = await client.delete(f"/api/admin/restrictions/{restr_id}", headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert del_resp.status_code == 200
 
 
@@ -378,7 +378,7 @@ async def test_privacy_opt_out_export_and_account_deletion():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         uid = "test_user_privacy_complete"
-        headers = {"X-User-Id": uid}
+        headers = {"X-Test-User": uid}
 
         # 1. Create user, DNR, check-in, and privacy zone
         await client.post("/api/user/dnr", json={"name": "TEST DNR", "dnr_type": "trail", "edge_osm_id": 999701}, headers=headers)
@@ -424,7 +424,7 @@ async def test_route_options_soft_dnr_and_override():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         uid = "test_user_route_dnr"
-        headers = {"X-User-Id": uid}
+        headers = {"X-Test-User": uid}
 
         # User sets DNR on an area in Bear Brook
         await client.post("/api/user/dnr", json={
@@ -505,7 +505,7 @@ async def test_route_options_hard_block_filtering():
         }
 
         # For stranger: routes traversing the closure are rejected
-        resp_stranger = await client.post("/api/route/options", json=opt_req, headers={"X-User-Id": uid_stranger})
+        resp_stranger = await client.post("/api/route/options", json=opt_req, headers={"X-Test-User": uid_stranger})
         assert resp_stranger.status_code == 200
         opts_stranger = resp_stranger.json()["options"]
         # Stranger options should NOT have North quadrant routes or must not violate hard block

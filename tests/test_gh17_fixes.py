@@ -4,59 +4,9 @@ import json
 import datetime
 import pytest
 from httpx import AsyncClient, ASGITransport
-from app.main import app, verify_google_id_token
+from app.main import app
+from tests.conftest import as_user
 from app.db import get_connection
-
-def create_mock_jwt(uid: str, email: str, name: str, exp_offset_sec: int = 3600) -> str:
-    """Generates an unencrypted 3-part base64url JWT structure for testing."""
-    header = {"alg": "RS256", "typ": "JWT"}
-    payload = {
-        "sub": uid,
-        "email": email,
-        "name": name,
-        "iat": int(time.time()),
-        "exp": int(time.time()) + exp_offset_sec,
-        "iss": "https://accounts.google.com"
-    }
-    
-    def b64url(data: dict) -> str:
-        b = json.dumps(data).encode("utf-8")
-        return base64.urlsafe_b64encode(b).decode("utf-8").rstrip("=")
-
-    h_b64 = b64url(header)
-    p_b64 = b64url(payload)
-    sig_b64 = "mock_signature_bytes_for_test"
-    return f"{h_b64}.{p_b64}.{sig_b64}"
-
-@pytest.mark.asyncio
-async def test_google_id_token_verification_valid():
-    """Verifies that a valid Google ID token is successfully decoded and authenticated."""
-    token = create_mock_jwt("google_justin_123", "justin.pfister@test.com", "Justin Pfister", exp_offset_sec=3600)
-    
-    user_info = verify_google_id_token(token)
-    assert user_info["uid"] == "google_justin_123"
-    assert user_info["email"] == "justin.pfister@test.com"
-    assert user_info["display_name"] == "Justin Pfister"
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/auth/verify", json={"token": token})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "authenticated"
-        assert data["user"]["id"] == "google_justin_123"
-        assert data["user"]["email"] == "justin.pfister@test.com"
-
-@pytest.mark.asyncio
-async def test_google_id_token_verification_expired():
-    """Verifies that an expired Google ID token is rejected with 401."""
-    expired_token = create_mock_jwt("google_expired_user", "expired@test.com", "Expired User", exp_offset_sec=-100)
-    
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/auth/verify", json={"token": expired_token})
-        assert resp.status_code == 401
-        assert "expired" in resp.json()["detail"].lower()
 
 @pytest.mark.asyncio
 async def test_geocode_endpoint_matching():
@@ -88,8 +38,7 @@ async def test_geocode_endpoint_matching():
 async def test_authenticated_saved_route_crud_in_postgres():
     """Verifies that an authenticated Google user can save, list, and delete routes in PostgreSQL saved_routes table."""
     auth_user_id = f"test_user_{int(time.time())}"
-    token = create_mock_jwt(auth_user_id, f"{auth_user_id}@test.com", "Test Rider", exp_offset_sec=3600)
-    headers = {"Authorization": f"Bearer {token}"}
+    headers = as_user(auth_user_id)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

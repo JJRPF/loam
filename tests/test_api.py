@@ -65,7 +65,7 @@ async def test_heat_record_and_query():
             "unique_riders": 1,
             "weighted_score": 1.5
         }
-        resp = await client.post("/api/heat/record", json=record_payload)
+        resp = await client.post("/api/heat/record", json=record_payload, headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert resp.status_code == 200
         
         # Query edge

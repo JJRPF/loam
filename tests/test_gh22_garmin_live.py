@@ -31,7 +31,7 @@ async def test_garmin_connector_status_and_defaults():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         test_uid = "test_gh22_user_init"
-        resp = await client.get("/api/connectors", headers={"X-User-Id": test_uid})
+        resp = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
         assert resp.status_code == 200
         data = resp.json()
         garmin = next((c for c in data if c["name"] == "garmin"), None)
@@ -62,7 +62,7 @@ async def test_garmin_mfa_challenge_and_verification():
                 "password": raw_pw,
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert login_resp.status_code == 200
         login_data = login_resp.json()
@@ -79,7 +79,7 @@ async def test_garmin_mfa_challenge_and_verification():
                 "mfa_code": "842109",
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert verify_resp.status_code == 200
         verify_data = verify_resp.json()
@@ -108,7 +108,7 @@ async def test_garmin_mfa_challenge_and_verification():
         assert "garmin_session" in dec or "di_token" in dec
 
         # Step 4: Disconnect purges tokens
-        disc_resp = await client.delete("/api/connectors/garmin", headers={"X-User-Id": test_uid})
+        disc_resp = await client.delete("/api/connectors/garmin", headers={"X-Test-User": test_uid})
         assert disc_resp.status_code == 200
         post_disc_record = get_user_connected_service(test_uid, "garmin")
         assert post_disc_record is None, "Disconnect must purge stored encrypted token"
@@ -129,7 +129,7 @@ async def test_garmin_mfa_error_handling():
                 "mfa_code": "123456",
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert bad_sess_resp.status_code == 400
         assert "expired or invalid" in bad_sess_resp.json()["detail"].lower()

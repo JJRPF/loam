@@ -42,7 +42,7 @@ async def test_gpx_upload_and_ingestion():
             "consent_given": "true",
             "retain_file": "false"
         }
-        headers = {"X-User-Id": "rider_justin_1"}
+        headers = {"X-Test-User": "rider_justin_1"}
 
         resp = await client.post("/api/activities/upload", files=files, data=data, headers=headers)
         assert resp.status_code == 200
@@ -81,7 +81,7 @@ async def test_fit_upload_and_ingestion():
             "consent_given": "true",
             "retain_file": "false"
         }
-        headers = {"X-User-Id": "rider_justin_2"}
+        headers = {"X-Test-User": "rider_justin_2"}
 
         resp = await client.post("/api/activities/upload", files=files, data=data, headers=headers)
         assert resp.status_code == 200
@@ -106,7 +106,7 @@ async def test_defensive_xxe_attack_rejection():
         </gpx>"""
 
         files = {"file": ("malicious.gpx", malicious_gpx, "application/gpx+xml")}
-        resp = await client.post("/api/activities/upload", files=files, headers={"X-User-Id": "attacker"})
+        resp = await client.post("/api/activities/upload", files=files, headers={"X-Test-User": "attacker"})
         # Should be rejected with 400 Bad Request
         assert resp.status_code == 400
         assert "malformed" in resp.text.lower() or "entitiesforbidden" in resp.text.lower()
@@ -119,7 +119,7 @@ async def test_oversized_file_rejection():
         # Create a dummy payload exceeding 25 MB
         oversized = b"A" * (MAX_FILE_SIZE + 1024)
         files = {"file": ("huge.gpx", oversized, "application/gpx+xml")}
-        resp = await client.post("/api/activities/upload", files=files)
+        resp = await client.post("/api/activities/upload", files=files, headers={"X-Test-User": "oversize_uploader"})
         assert resp.status_code == 413
 
 # =========================================================================
@@ -163,7 +163,7 @@ async def test_privacy_zone_crud_and_consent_api():
     """Tests privacy zone creation, listing, deletion, and consent toggle."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        headers = {"X-User-Id": "rider_privacy_tester"}
+        headers = {"X-Test-User": "rider_privacy_tester"}
 
         # 1. Create privacy zone
         zone_payload = {"name": "Home Base", "lat": 43.1305, "lon": -71.3524, "radius_m": 350.0}
@@ -392,7 +392,7 @@ async def test_nightly_worker_api_endpoint():
     """Validates trigger of nightly job via POST /api/jobs/recalculate-heat."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/jobs/recalculate-heat")
+        resp = await client.post("/api/jobs/recalculate-heat", headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "success"

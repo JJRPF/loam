@@ -1,6 +1,7 @@
 import pytest
 from httpx import AsyncClient, ASGITransport
 from app.main import app
+from tests.conftest import as_user
 from app.scoring import classify_route_geometry, calculate_composite_score, score_penalties
 from app.db import resolve_osm_trail_name, get_heat_trail_geojson, KNOWN_OSM_TRAIL_NAMES
 from app.models import SportProfile
@@ -115,34 +116,19 @@ async def test_api_heat_trails_endpoint():
 async def test_api_dev_status_auth_and_anonymous_rejection():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # Unauthorized request
-        res_unauth = await client.get("/api/dev/status")
-        assert res_unauth.status_code == 403
+        res_anon = await client.get("/api/dev/status")
+        assert res_anon.status_code == 401
 
-        # Authorized with Developer Key
-        res_auth = await client.get(
-            "/api/dev/status",
-            headers={"X-Dev-Key": "loam_dev_admin_2026"}
-        )
-        assert res_auth.status_code == 200
-        data = res_auth.json()
+        res_rider = await client.get("/api/dev/status", headers=as_user("plain_rider"))
+        assert res_rider.status_code == 403
+
+        res_admin = await client.get("/api/dev/status", headers=as_user("round3_admin", admin=True))
+        assert res_admin.status_code == 200
+        data = res_admin.json()
         assert data["status"] in ("healthy", "degraded")
+        assert data["database_connected"] is True
         assert "uptime_seconds" in data
         assert "connectors" in data
-
-
-@pytest.mark.asyncio
-async def test_api_dev_status_google_sso_auth():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # Authorized with jjrpfister@gmail.com
-        res = await client.get(
-            "/api/dev/status",
-            headers={"X-User-Id": "jjrpfister@gmail.com"}
-        )
-        assert res.status_code == 200
-        data = res.json()
-        assert data["database_connected"] is True
 
 
 @pytest.mark.asyncio
@@ -172,7 +158,7 @@ async def test_api_cubetrek_import_endpoint():
         res = await client.post(
             "/api/connectors/cubetrek/import",
             json=payload,
-            headers={"X-User-Id": "test_cubetrek_user"}
+            headers={"X-Test-User": "test_cubetrek_user"}
         )
         assert res.status_code == 200
         data = res.json()
@@ -190,12 +176,12 @@ async def test_user_export_gps_data():
         await client.post(
             "/api/connectors/cubetrek/import",
             json={"url_or_id": "99282", "sport": "mtb", "name": "Export GPS Test", "import_to_heat": True},
-            headers={"X-User-Id": "test_export_user"}
+            headers={"X-Test-User": "test_export_user"}
         )
         # Export user data
         exp_res = await client.get(
             "/api/privacy/export",
-            headers={"X-User-Id": "test_export_user"}
+            headers={"X-Test-User": "test_export_user"}
         )
         assert exp_res.status_code == 200
         data = exp_res.json()

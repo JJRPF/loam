@@ -16,6 +16,7 @@ import { SavedRoutesPanel } from './components/SavedRoutesPanel';
 import { ExplorePanel } from './components/ExplorePanel';
 import { YouPanel } from './components/YouPanel';
 import { DevToolsPage } from './components/DevToolsPage';
+import { EmailLinkFinish } from './components/EmailLinkFinish';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 export const App: React.FC = () => {
@@ -242,6 +243,7 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+      <EmailLinkFinish />
       
       {/* =========================================================================
           DESKTOP SIDEBAR PANEL (400px fixed width on >= 800px)

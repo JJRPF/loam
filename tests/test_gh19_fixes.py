@@ -4,13 +4,13 @@ import base64
 import datetime
 import pytest
 from httpx import AsyncClient, ASGITransport
-from app.main import app, verify_google_id_token
+from app.main import app
+from tests.conftest import as_user
 from app.config import settings
 from app.db import (
     get_connection, ensure_user_exists, get_user_connected_service,
     create_privacy_zone
 )
-from tests.test_gh17_fixes import create_mock_jwt
 
 @pytest.fixture(autouse=True)
 def clean_gh19_test_data():
@@ -34,7 +34,7 @@ async def test_connectors_enabled_by_default_gh19():
     """Verifies that Garmin and Trailforks are enabled by default per GH-19."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/connectors", headers={"X-User-Id": "test_gh19_user"})
+        resp = await client.get("/api/connectors", headers={"X-Test-User": "test_gh19_user"})
         assert resp.status_code == 200
         connectors = {c["name"]: c for c in resp.json()}
         
@@ -63,7 +63,7 @@ async def test_garmin_connect_and_bulk_import_to_heat():
                 "password": "SecretGarminPassword123!",
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert login_resp.status_code == 200
         data = login_resp.json()
@@ -76,7 +76,7 @@ async def test_garmin_connect_and_bulk_import_to_heat():
         bulk_resp = await client.post(
             "/api/connectors/garmin/bulk-import",
             json={"import_to_heat": True},
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert bulk_resp.status_code == 200
         bulk_data = bulk_resp.json()
@@ -99,7 +99,7 @@ async def test_garmin_bulk_import_user_disagrees():
                 "password": "Password789!",
                 "import_to_heat": False
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert login_resp.status_code == 200
         data = login_resp.json()
@@ -119,14 +119,14 @@ async def test_trailforks_connector_lifecycle():
         auth_resp = await client.post(
             "/api/connectors/trailforks/auth",
             json={"username": "nh_trail_rider", "token": "tf_token_abc_123"},
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert auth_resp.status_code == 200
         assert auth_resp.json()["connected"] is True
         assert "Trailforks" in auth_resp.json()["message"]
 
         # 2. Check status shows connected
-        status_resp = await client.get("/api/connectors", headers={"X-User-Id": test_uid})
+        status_resp = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
         assert status_resp.status_code == 200
         tf_status = next(c for c in status_resp.json() if c["name"] == "trailforks")
         assert tf_status["connected"] is True
@@ -134,41 +134,19 @@ async def test_trailforks_connector_lifecycle():
         # 3. Sync Trailforks
         sync_resp = await client.post(
             "/api/connectors/trailforks/sync",
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert sync_resp.status_code == 200
         assert "© Trailforks" in sync_resp.json()["message"]
 
         # 4. Disconnect Trailforks
-        disc_resp = await client.delete("/api/connectors/trailforks", headers={"X-User-Id": test_uid})
+        disc_resp = await client.delete("/api/connectors/trailforks", headers={"X-Test-User": test_uid})
         assert disc_resp.status_code == 200
 
         # Check status shows disconnected
-        status_resp2 = await client.get("/api/connectors", headers={"X-User-Id": test_uid})
+        status_resp2 = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
         tf_status2 = next(c for c in status_resp2.json() if c["name"] == "trailforks")
         assert tf_status2["connected"] is False
-
-
-@pytest.mark.asyncio
-async def test_real_google_sso_authentication():
-    """Verifies real Google SSO token verification with user profile claims."""
-    # Create realistic Google token for a unique user
-    real_email = "carolyn.mountaineer@gmail.com"
-    real_name = "Carolyn Mountaineer"
-    real_uid = "google_user_99887766"
-    token = create_mock_jwt(real_uid, real_email, real_name, exp_offset_sec=3600)
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.post("/api/auth/verify", json={"token": token})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "authenticated"
-        assert data["user"]["id"] == real_uid
-        assert data["user"]["email"] == real_email
-        assert data["user"]["display_name"] == real_name
-        # Not the hardcoded demo account
-        assert data["user"]["email"] != "justin@example.com"
 
 
 @pytest.mark.asyncio
@@ -190,7 +168,7 @@ async def test_garmin_2fa_challenge_and_verification():
                 "password": "PasswordWith2FA123!",
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert resp1.status_code == 200
         data1 = resp1.json()
@@ -207,7 +185,7 @@ async def test_garmin_2fa_challenge_and_verification():
                 "mfa_code": "654321",
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert resp2.status_code == 200
         data2 = resp2.json()
@@ -229,7 +207,7 @@ async def test_strava_personal_token_auth():
         resp = await client.post(
             "/api/connectors/strava/auth",
             json={"personal_token": "test_personal_strava_pat_9988"},
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -237,7 +215,7 @@ async def test_strava_personal_token_auth():
         assert "Strava" in data["message"]
 
         # Check connector list shows Strava connected
-        status_resp = await client.get("/api/connectors", headers={"X-User-Id": test_uid})
+        status_resp = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
         assert status_resp.status_code == 200
         strava_item = next(c for c in status_resp.json() if c["name"] == "strava")
         assert strava_item["connected"] is True
@@ -246,32 +224,32 @@ async def test_strava_personal_token_auth():
 @pytest.mark.asyncio
 async def test_developer_console_access_and_actions():
     """
-    Verifies that the Developer Console endpoints require authentication (Justin or dev key),
+    Verifies that the Developer Console endpoints require an admin (verified email in ADMIN_EMAILS),
     reject unauthorized requests with 403, and execute cache/heat maintenance actions.
     """
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         # 1. Unauthorized request is rejected
-        unauth_resp = await client.get("/api/dev/status", headers={"X-User-Id": "random_unauth_user"})
+        unauth_resp = await client.get("/api/dev/status", headers={"X-Test-User": "random_unauth_user"})
         assert unauth_resp.status_code == 403
 
         # 2. Authorized via dev key
-        dev_key = settings.developer_admin_key
-        auth_resp = await client.get("/api/dev/status", headers={"X-Dev-Key": dev_key})
+        admin_headers = as_user("round7_admin", admin=True)
+        auth_resp = await client.get("/api/dev/status", headers=admin_headers)
         assert auth_resp.status_code == 200
         status_data = auth_resp.json()
         assert status_data["status"] == "healthy"
-        assert status_data["developer_email"] == settings.developer_admin_email
+        assert status_data["developer_email"] == "round7_admin@test.loam"
         assert "connectors" in status_data
         assert isinstance(status_data["uptime_seconds"], (int, float))
 
         # 3. Clear transient cache
-        cache_resp = await client.post("/api/dev/cache/clear", headers={"X-Dev-Key": dev_key})
+        cache_resp = await client.post("/api/dev/cache/clear", headers=admin_headers)
         assert cache_resp.status_code == 200
         assert cache_resp.json()["status"] == "success"
 
         # 4. Recalculate heat layer
-        heat_resp = await client.post("/api/dev/heat/recalculate", headers={"X-Dev-Key": dev_key})
+        heat_resp = await client.post("/api/dev/heat/recalculate", headers=admin_headers)
         assert heat_resp.status_code == 200
         assert heat_resp.json()["status"] == "success"
         assert "updated_edges" in heat_resp.json()

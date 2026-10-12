@@ -345,7 +345,7 @@ def delete_saved_route_from_db(route_id: str, user_id: Optional[str] = None) -> 
 def record_activity(activity: Dict[str, Any]) -> bool:
     """Inserts a processed activity into the activities table."""
     try:
-        user_id = activity.get("user_id", "justin_default_user")
+        user_id = activity["user_id"]
         ensure_user_exists(user_id)
         with get_connection() as conn:
             with conn.cursor() as cur:

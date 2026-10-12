@@ -11,6 +11,7 @@
     "test:browser": "node test_interactive_browser.cjs"
   },
   "dependencies": {
+    "firebase": "12.19.0",
     "maplibre-gl": "^6.13.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"

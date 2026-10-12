@@ -6,7 +6,6 @@ import {
   downloadGpx, downloadFit, shareRouteGarmin, saveRouteApi,
   submitTrailCheckin, createFlag
 } from '../services/api';
-import { getStoredUser } from '../services/auth';
 
 interface ResultsPanelProps {
   route?: RouteResponse | null;
@@ -226,11 +225,8 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const handleSaveRoute = async () => {
     setIsSaving(true);
     try {
-      const user = getStoredUser();
-      const userId = user?.id || 'justin_user';
-      const token = user?.idToken;
-      await saveRouteApi(activeRoute, userId, token);
-      setSavedStatus('Saved to Profile & Database!');
+      await saveRouteApi(activeRoute);
+      setSavedStatus('Saved to your routes.');
       onRouteSaved?.();
       setTimeout(() => setSavedStatus(null), 3000);
     } catch (e: any) {

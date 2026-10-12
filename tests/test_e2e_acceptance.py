@@ -63,16 +63,10 @@ async def test_full_e2e_acceptance_lifecycle():
         # -------------------------------------------------------------
         # STEP 2: Authentication Skeleton & User Profile
         # -------------------------------------------------------------
-        login_resp = await client.post(
-            "/api/auth/verify",
-            json={"uid": "e2e_justin_rider", "display_name": "Justin Pfister", "email": "jjrpfister@gmail.com"}
-        )
-        assert login_resp.status_code == 200
-        auth_data = login_resp.json()
-        assert auth_data["user"]["id"] == "e2e_justin_rider"
-        assert auth_data["user"]["display_name"] == "Justin Pfister"
+        anon_me = await client.get("/api/auth/me")
+        assert anon_me.status_code == 401
 
-        headers = {"X-User-Id": "e2e_justin_rider"}
+        headers = {"X-Test-User": "e2e_justin_rider"}
         me_resp = await client.get("/api/auth/me", headers=headers)
         assert me_resp.status_code == 200
         assert me_resp.json()["id"] == "e2e_justin_rider"
@@ -241,7 +235,7 @@ async def test_full_e2e_acceptance_lifecycle():
         assert flg_data["status"] == "active"
 
         # Upvote flag confirmation
-        vote_resp = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "confirm"}, headers={"X-User-Id": "rider_voter_2"})
+        vote_resp = await client.post(f"/api/flags/{flag_id}/vote", json={"vote_type": "confirm"}, headers={"X-Test-User": "rider_voter_2"})
         assert vote_resp.status_code == 200
         assert vote_resp.json()["confirmed_count"] == 2
         assert vote_resp.json()["status"] == "verified"

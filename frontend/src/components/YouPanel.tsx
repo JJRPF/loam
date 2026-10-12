@@ -1,17 +1,13 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
   exportMyData, deleteMyAccount,
   getConnectors, connectGarmin, verifyGarminMfa, connectStrava, connectTrailforks, bulkImportGarmin,
   syncConnector, disconnectConnector, importCubeTrekActivity
 } from '../services/api';
-import { 
-  getStoredUser, 
-  loginWithRealCredentials, 
-  renderGoogleButton,
-  logoutUser 
-} from '../services/auth';
-import type { UserDNR, ConnectorStatus, AuthUser } from '../types';
+import { signOut, useAuth } from '../services/auth';
+import { SignInCard } from './SignInCard';
+import type { UserDNR, ConnectorStatus } from '../types';
 
 interface YouPanelProps {
   isDarkMode?: boolean;
@@ -19,12 +15,8 @@ interface YouPanelProps {
 }
 
 export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getStoredUser());
+  const { user: currentUser } = useAuth();
   const isSignedIn = !!currentUser;
-  const user = {
-    name: currentUser?.displayName || (isSignedIn ? 'User' : 'Guest'),
-    email: currentUser?.email || ''
-  };
   const [privacyZoneEnabled, setPrivacyZoneEnabled] = useState(true);
   const [dnrList, setDnrList] = useState<UserDNR[]>([]);
   const [showAddDnr, setShowAddDnr] = useState(false);
@@ -35,16 +27,9 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
   const [isExporting, setIsExporting] = useState(false);
   const [exportMessage, setExportMessage] = useState<string | null>(null);
 
-  // Google SSO Modal State
-  const [showGoogleModal, setShowGoogleModal] = useState(false);
-  const [googleEmail, setGoogleEmail] = useState('');
-  const [googleName, setGoogleName] = useState('');
-  const [googleSubmitting, setGoogleSubmitting] = useState(false);
-  const googleBtnContainerRef = useRef<HTMLDivElement>(null);
-
   const loadDnr = async () => {
     try {
-      const items = await listUserDNR(currentUser?.id || 'justin_default_user');
+      const items = await listUserDNR();
       setDnrList(items);
     } catch (e) {
       console.error('Failed to load DNR', e);
@@ -53,7 +38,11 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
 
   useEffect(() => {
     let ignore = false;
-    listUserDNR(currentUser?.id || 'justin_default_user')
+    if (!currentUser) {
+      setDnrList([]);
+      return;
+    }
+    listUserDNR()
       .then((items) => {
         if (!ignore) setDnrList(items);
       })
@@ -62,20 +51,6 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
       ignore = true;
     };
   }, [currentUser]);
-
-  // Attempt Google GIS button render when modal opens or on mount
-  useEffect(() => {
-    if (!isSignedIn && googleBtnContainerRef.current) {
-      renderGoogleButton(
-        googleBtnContainerRef.current,
-        (authedUser) => {
-          setCurrentUser(authedUser);
-          setShowGoogleModal(false);
-        },
-        (err) => console.warn('GIS error:', err)
-      );
-    }
-  }, [isSignedIn, showGoogleModal]);
 
   const handleCreateDnr = async () => {
     if (!newDnrName.trim()) return;
@@ -110,7 +85,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
     setIsExporting(true);
     setExportMessage(null);
     try {
-      const data = await exportMyData(currentUser?.id || 'justin_default_user');
+      const data = await exportMyData();
       const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -136,35 +111,12 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
     if (!confirmed) return;
 
     try {
-      await deleteMyAccount(currentUser?.id || 'justin_default_user');
-      logoutUser();
-      setCurrentUser(null);
+      await deleteMyAccount();
+      await signOut();
       alert('Account and all personal data permanently deleted.');
     } catch (e: any) {
       alert(`Deletion failed: ${e.message}`);
     }
-  };
-
-  const handleGoogleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!googleEmail.trim()) return;
-    setGoogleSubmitting(true);
-    try {
-      const authedUser = await loginWithRealCredentials(googleEmail, googleName);
-      setCurrentUser(authedUser);
-      setShowGoogleModal(false);
-      setGoogleEmail('');
-      setGoogleName('');
-    } catch (err: any) {
-      alert(`Google Sign-In failed: ${err.message}`);
-    } finally {
-      setGoogleSubmitting(false);
-    }
-  };
-
-  const handleSignOut = () => {
-    logoutUser();
-    setCurrentUser(null);
   };
 
   return (
@@ -173,188 +125,9 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
         Profile & Settings
       </h2>
 
-      {/* Auth Card */}
-      <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
-        {isSignedIn ? (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-              <div
-                style={{
-                  width: 44,
-                  height: 44,
-                  borderRadius: '50%',
-                  backgroundColor: 'var(--color-header-bg, #1D3B34)',
-                  color: 'var(--color-header-text, #FFFFFF)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: 18,
-                  fontWeight: 700
-                }}
-              >
-                {user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() || 'U'}
-              </div>
-              <div>
-                <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{user.name}</div>
-                <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)' }}>{user.email}</div>
-              </div>
-            </div>
+      <SignInCard />
 
-            <button
-              type="button"
-              onClick={handleSignOut}
-              className="btn-outline"
-              style={{ width: '100%', fontSize: 13, minHeight: 36 }}
-            >
-              Sign Out
-            </button>
-          </div>
-        ) : (
-          <div style={{ textAlign: 'center', padding: '10px 0' }}>
-            <p style={{ fontSize: 14, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 12 }}>
-              Sign in with your Google account to sync routes across devices, backup to PostgreSQL, and export to Garmin Connect.
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowGoogleModal(true)}
-              className="btn-primary"
-              style={{ width: '100%' }}
-            >
-              Sign In with Google
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* Google Sign-In Modal */}
-      {showGoogleModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: 'rgba(0,0,0,0.65)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: 16
-          }}
-          onClick={() => setShowGoogleModal(false)}
-        >
-          <div
-            style={{
-              backgroundColor: 'var(--color-card-bg, #FFFFFF)',
-              color: 'var(--color-text-primary, #1D3B34)',
-              borderRadius: 10,
-              maxWidth: 400,
-              width: '100%',
-              padding: 20,
-              boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 14,
-              border: '1px solid var(--color-divider, #D1D8D8)'
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: 16, fontWeight: 700, margin: 0, color: 'var(--color-text-primary, #1D3B34)' }}>
-                Sign In with Google
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowGoogleModal(false)}
-                style={{ border: 'none', background: 'transparent', fontSize: 18, cursor: 'pointer', color: 'var(--color-text-secondary, #888)' }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: 0 }}>
-              Authenticate with your Google account. We authenticate directly with Google SSO to secure your profile and routes.
-            </p>
-
-            {/* Container for GIS rendered button if loaded */}
-            <div ref={googleBtnContainerRef} style={{ display: 'flex', justifyContent: 'center', minHeight: 40 }} />
-
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '2px 0' }}>
-              <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-divider, #D1D8D8)' }} />
-              <span style={{ fontSize: 11, color: 'var(--color-text-secondary, #888)' }}>or sign in with email</span>
-              <div style={{ flex: 1, height: 1, backgroundColor: 'var(--color-divider, #D1D8D8)' }} />
-            </div>
-
-            <form onSubmit={handleGoogleFormSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--color-text-primary, #1D3B34)' }}>
-                  Google Email Address
-                </label>
-                <input
-                  type="email"
-                  value={googleEmail}
-                  onChange={(e) => setGoogleEmail(e.target.value)}
-                  placeholder="your.email@gmail.com"
-                  required
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    border: '1px solid var(--color-input-border, #D1D8D8)',
-                    backgroundColor: 'var(--color-input-bg, #FFFFFF)',
-                    color: 'var(--color-text-primary, #1D3B34)',
-                    fontSize: 13,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div>
-                <label style={{ fontSize: 12, fontWeight: 700, display: 'block', marginBottom: 4, color: 'var(--color-text-primary, #1D3B34)' }}>
-                  Display Name (Optional)
-                </label>
-                <input
-                  type="text"
-                  value={googleName}
-                  onChange={(e) => setGoogleName(e.target.value)}
-                  placeholder="e.g. Justin Pfister"
-                  style={{
-                    width: '100%',
-                    padding: '8px 10px',
-                    borderRadius: 6,
-                    border: '1px solid var(--color-input-border, #D1D8D8)',
-                    backgroundColor: 'var(--color-input-bg, #FFFFFF)',
-                    color: 'var(--color-text-primary, #1D3B34)',
-                    fontSize: 13,
-                    boxSizing: 'border-box'
-                  }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 6 }}>
-                <button
-                  type="button"
-                  onClick={() => setShowGoogleModal(false)}
-                  className="btn-outline"
-                  style={{ fontSize: 12, minHeight: 32, padding: '4px 12px' }}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={googleSubmitting}
-                  className="btn-primary"
-                  style={{ fontSize: 12, minHeight: 32, padding: '4px 16px' }}
-                >
-                  {googleSubmitting ? 'Signing In...' : 'Continue'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
+      {isSignedIn && (<>
       {/* Heat v1 Activity Upload Card */}
       <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
@@ -588,6 +361,8 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
         </div>
       </div>
 
+      </>)}
+
       {/* About & Stack & Dev Tools Link */}
       <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.6, marginTop: 16 }}>
         <div>loam Trail Route Builder • Stage 4 Heat v1</div>
@@ -624,7 +399,7 @@ const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
     setResult(null);
 
     try {
-      const res = await uploadActivityFile(file, sport, consent, false, 'justin_default_user');
+      const res = await uploadActivityFile(file, sport, consent, false);
       setResult(res);
       setFile(null);
     } catch (err: any) {
@@ -734,8 +509,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const [cubetrekResult, setCubetrekResult] = useState<any>(null);
   const [cubetrekError, setCubetrekError] = useState<string | null>(null);
 
-  const currentUser = getStoredUser();
-  const currentUserId = currentUser?.id || 'justin_default_user';
+  const { user: currentUser } = useAuth();
 
   const handleImportCubeTrek = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -750,8 +524,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
         cubetrekUrl.trim(),
         cubetrekSport,
         cubetrekName.trim() || undefined,
-        cubetrekImportHeat,
-        currentUserId
+        cubetrekImportHeat
       );
       setCubetrekResult(res);
       setStatusMsg(res.message || 'CubeTrek track successfully imported.');
@@ -767,7 +540,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const loadConnectors = async () => {
     setLoading(true);
     try {
-      const data = await getConnectors(currentUserId);
+      const data = await getConnectors();
       setConnectors(data);
     } catch (err) {
       console.error('Failed to load connectors:', err);
@@ -777,8 +550,9 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   };
 
   useEffect(() => {
-    loadConnectors();
-  }, []);
+    if (currentUser) loadConnectors();
+    else setConnectors([]);
+  }, [currentUser]);
 
   const handleConnectGarmin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -791,7 +565,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
         username: garminUser.trim(),
         password: garminPass.trim(),
         import_to_heat: garminImportHeat
-      }, currentUserId);
+      });
       if (res.needs_mfa) {
         setGarminNeedsMfa(true);
         setGarminMfaSessionId(res.mfa_session_id || '');
@@ -821,7 +595,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     setGarminSubmitting(true);
     setGarminError(null);
     try {
-      const res = await verifyGarminMfa(garminMfaSessionId, garminMfaCode.trim(), garminImportHeat, currentUserId);
+      const res = await verifyGarminMfa(garminMfaSessionId, garminMfaCode.trim(), garminImportHeat);
       setShowGarminModal(false);
       setGarminNeedsMfa(false);
       setGarminMfaCode('');
@@ -841,7 +615,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
   const handleBulkImportGarmin = async () => {
     try {
       setStatusMsg('Bulk importing Garmin activities to heat...');
-      const res = await bulkImportGarmin(true, currentUserId);
+      const res = await bulkImportGarmin(true);
       setStatusMsg(res.message || `Bulk imported ${res.activities_imported} activities to heat.`);
       setTimeout(() => setStatusMsg(null), 5000);
       await loadConnectors();
@@ -857,7 +631,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       const res = await connectTrailforks({
         username: tfUsername.trim() || undefined,
         token: tfToken.trim() || undefined
-      }, currentUserId);
+      });
       setShowTrailforksModal(false);
       setTfUsername('');
       setTfToken('');
@@ -878,7 +652,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     setStravaSubmitting(true);
     setStravaError(null);
     try {
-      const res = await connectStrava({ personal_token: stravaToken.trim() }, currentUserId);
+      const res = await connectStrava({ personal_token: stravaToken.trim() });
       setShowStravaModal(false);
       setStravaToken('');
       setStatusMsg(res.message || 'Strava personal API token connected! Encrypted at rest.');
@@ -893,7 +667,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
 
   const handleSync = async (provider: string) => {
     try {
-      const res = await syncConnector(provider, currentUserId, true);
+      const res = await syncConnector(provider, true);
       setStatusMsg(res.message || `Synced ${provider}: ${res.activities_imported || 0} activities imported.`);
       setTimeout(() => setStatusMsg(null), 4000);
       await loadConnectors();
@@ -907,7 +681,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     if (!confirm) return;
 
     try {
-      await disconnectConnector(provider, currentUserId);
+      await disconnectConnector(provider);
       setStatusMsg(`${provider} disconnected.`);
       setTimeout(() => setStatusMsg(null), 3000);
       await loadConnectors();

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import type { SavedRoute, RouteResponse } from '../types';
 import { fetchSavedRoutes, deleteSavedRoute } from '../services/api';
-import { getStoredUser } from '../services/auth';
+import { useAuth } from '../services/auth';
 
 interface SavedRoutesPanelProps {
   onLoadRoute: (route: RouteResponse) => void;
@@ -10,14 +10,12 @@ interface SavedRoutesPanelProps {
 export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute }) => {
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user, ready } = useAuth();
 
   const loadRoutes = async () => {
     setIsLoading(true);
     try {
-      const user = getStoredUser();
-      const userId = user?.id || 'justin_user';
-      const token = user?.idToken;
-      const data = await fetchSavedRoutes(userId, token);
+      const data = await fetchSavedRoutes();
       setRoutes(data);
     } catch (e) {
       console.error(e);
@@ -28,10 +26,13 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
 
   useEffect(() => {
     let ignore = false;
-    const user = getStoredUser();
-    const userId = user?.id || 'justin_user';
-    const token = user?.idToken;
-    fetchSavedRoutes(userId, token)
+    if (!ready) return;
+    if (!user) {
+      setRoutes([]);
+      setIsLoading(false);
+      return;
+    }
+    fetchSavedRoutes()
       .then(data => {
         if (!ignore) {
           setRoutes(data);
@@ -43,15 +44,12 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
         if (!ignore) setIsLoading(false);
       });
     return () => { ignore = true; };
-  }, []);
+  }, [user, ready]);
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Delete this saved route?')) {
-      const user = getStoredUser();
-      const userId = user?.id || 'justin_user';
-      const token = user?.idToken;
-      await deleteSavedRoute(id, userId, token);
+      await deleteSavedRoute(id);
       setRoutes(prev => prev.filter(r => r.id !== id));
     }
   };

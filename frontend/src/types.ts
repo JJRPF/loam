@@ -257,7 +257,6 @@ export interface AuthUser {
   email: string;
   displayName: string;
   photoURL?: string;
-  idToken?: string;
 }
 
 export interface GeocodeResult {
