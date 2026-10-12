@@ -34,8 +34,8 @@ def clean_e2e_test_data():
                 cur.execute("DELETE FROM trail_submission_evidence WHERE user_id = 'e2e_justin_rider';")
                 cur.execute("DELETE FROM trail_submissions WHERE user_id = 'e2e_justin_rider';")
                 cur.execute("DELETE FROM user_connected_services WHERE user_id = 'e2e_justin_rider';")
-                cur.execute("DELETE FROM edge_heat WHERE edge_osm_id >= 990000;")
-                cur.execute("DELETE FROM edges WHERE osm_id >= 990000;")
+                cur.execute("DELETE FROM edge_heat WHERE edge_osm_id IN (SELECT osm_id FROM edges WHERE osm_id BETWEEN 990000 AND 999999 AND osm_source IS NOT TRUE);")
+                cur.execute("DELETE FROM edges WHERE osm_id BETWEEN 990000 AND 999999 AND osm_source IS NOT TRUE;")
                 cur.execute("DELETE FROM users WHERE id = 'e2e_justin_rider';")
                 conn.commit()
     except Exception:

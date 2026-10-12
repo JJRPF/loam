@@ -8,6 +8,10 @@ verification use the `real_auth` fixture, which removes the overrides.
 import os
 
 os.environ.setdefault("LOAM_ENV", "test")
+# Data lives once, under the base clone: <dev>/loam/main/data (grove layout).
+_main_data = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "main", "data")
+if os.path.isdir(_main_data):
+    os.environ.setdefault("DATA_DIR", _main_data)
 
 from typing import Optional  # noqa: E402
 

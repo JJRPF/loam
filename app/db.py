@@ -1996,7 +1996,7 @@ def get_unridden_high_heat_trails(
     Trails (not roads, by OSM highway class) with recent heat that the user has not ridden,
     within the radius. Empty when there is no heat data there.
     """
-    from app.routing import classify_surface
+    from app.surface import surface_category
 
     radius_m = radius_miles * 1609.344
     try:
@@ -2029,8 +2029,7 @@ def get_unridden_high_heat_trails(
                 items = []
                 for row in cur.fetchall():
                     item = dict(row)
-                    category = classify_surface(item.get("highway") or "", item.get("surface") or "",
-                                                item.get("tracktype") or "", item.get("name") or "")
+                    category = surface_category(item)
                     if category == "paved":
                         continue
                     geom_data = json.loads(item.pop("geom_json"))

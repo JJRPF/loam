@@ -49,7 +49,7 @@ def test_surface_classification():
     
     # Gravel
     assert classify_surface("track", "gravel", "grade1") == "gravel"
-    assert classify_surface("residential", "gravel", "") == "gravel"
+    assert classify_surface("residential", "gravel", "") == "paved"  # any road class counts as road (plan 5.1)
     
     # Paved
     assert classify_surface("tertiary", "asphalt", "") == "paved"

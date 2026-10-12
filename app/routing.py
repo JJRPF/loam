@@ -1,10 +1,11 @@
 import math
 import asyncio
-import re
 import httpx
 from typing import Dict, Any, List, Tuple, Optional, AsyncGenerator, Set
 from app.config import settings
 from app.models import RouteRequest, RouteResponse, SurfaceSegment, SportProfile
+from app.surface import surface_category
+from app.elevation import gain_loss, route_elevation
 from app.engine_config import get_config
 from app.scoring import (
     calculate_composite_score,
@@ -39,85 +40,12 @@ PROFILE_SPEED_MPH = {
     SportProfile.FOOT: 3.5,
 }
 
-ROAD_CLASSES = {
-    "primary", "secondary", "tertiary", "residential", "service",
-    "unclassified", "living_street", "motorway", "trunk", "road"
-}
-ROAD_NAME_REGEX = re.compile(
-    r'\b(road|rd|drive|dr|lane|ln|street|st|avenue|ave|boulevard|blvd|way|court|ct|circle|cir|highway|hwy|turnpike|pike|loop)\b',
-    re.IGNORECASE
-)
+def classify_surface(road_class: Optional[str] = None, surface: Optional[str] = None,
+                     track_type: Optional[str] = None, way_name: str = "") -> str:
+    """GraphHopper details -> Loam surface category, via the shared app.surface rules.
+    `way_name` is accepted for old callers and ignored: classification uses tags only."""
+    return surface_category({"highway": road_class, "surface": surface, "tracktype": track_type})
 
-def classify_surface(road_class: Optional[str] = None, surface: Optional[str] = None, track_type: Optional[str] = None, way_name: str = "") -> str:
-    """
-    Classifies an edge segment into one of: singletrack, doubletrack, gravel, paved.
-    Residential and paved streets (e.g. Grandview Road, Ridgewood Drive, Bettys Lane)
-    are categorized as road/paved (or gravel if unpaved road), and NEVER as singletrack.
-    Singletrack is strictly reserved for actual trail ways (e.g. highway=path/track/footway
-    with surface=dirt/ground or bicycle=designated).
-    """
-    rc = (road_class or "").lower()
-    s = (surface or "").lower()
-    tt = (track_type or "").lower()
-    name = (way_name or "").lower()
-
-    # If 3 arguments provided and 3rd is way_name rather than track_type
-    if not name and tt and not tt.startswith("grade"):
-        name = tt
-        tt = ""
-
-    # 1. Road check: if it is a motor road or named street, it is a road (paved or gravel)
-    is_road = rc in ROAD_CLASSES or (not rc and bool(ROAD_NAME_REGEX.search(name)))
-    if is_road:
-        if s in ("gravel", "fine_gravel", "compacted", "dirt", "earth", "ground", "sand", "unpaved") and rc not in ("primary", "secondary", "motorway", "trunk"):
-            return "gravel"
-        return "paved"
-
-    # 2. Path & singletrack classifications
-    if rc in ("path", "bridleway", "steps"):
-        if s in ("asphalt", "paved", "concrete", "paving_stones"):
-            return "paved"
-        elif s in ("gravel", "fine_gravel", "compacted", "crushed_limestone"):
-            return "gravel"
-        return "singletrack"
-
-    if rc == "footway":
-        if s in ("asphalt", "paved", "concrete", "paving_stones"):
-            return "paved"
-        elif s in ("gravel", "fine_gravel", "compacted"):
-            return "gravel"
-        return "singletrack"
-
-    if rc == "track":
-        if tt in ("grade2", "grade3", "grade4", "grade5") or s in ("ground", "dirt", "grass", "earth"):
-            return "doubletrack"
-        elif tt == "grade1" or s in ("gravel", "fine_gravel", "compacted", "crushed_limestone"):
-            return "gravel"
-        elif s in ("asphalt", "paved", "concrete"):
-            return "paved"
-        return "doubletrack"
-
-    if rc == "cycleway":
-        if s in ("dirt", "ground", "earth"):
-            return "singletrack"
-        elif s in ("gravel", "fine_gravel", "compacted"):
-            return "gravel"
-        return "paved"
-
-    # 3. Surface-based fallbacks
-    if s in ("asphalt", "paved", "concrete", "paving_stones"):
-        return "paved"
-    if s in ("gravel", "fine_gravel", "compacted", "crushed_limestone"):
-        return "gravel"
-    if s in ("dirt", "earth", "ground", "grass", "sand"):
-        if bool(ROAD_NAME_REGEX.search(name)):
-            return "gravel"
-        return "singletrack"
-
-    if bool(ROAD_NAME_REGEX.search(name)):
-        return "paved"
-
-    return "unpaved"
 
 def _bbox_of(points: List[List[float]]) -> List[float]:
     if not points:
@@ -274,17 +202,15 @@ def process_graphhopper_path(
     points = decode_points(path.get("points", {}))
     bbox = path.get("bbox") or _bbox_of(points)
 
-    # Elevation only from a real DEM sample (3D points); otherwise unknown, never estimated.
+    # Elevation only from DEM samples (USGS 3DEP); unknown when the DEM doesn't cover the route.
     ascend_m: Optional[float] = None
     descend_m: Optional[float] = None
     if points and all(len(p) > 2 and p[2] is not None for p in points):
-        ascend_m, descend_m = 0.0, 0.0
-        for i in range(1, len(points)):
-            ele_diff = points[i][2] - points[i - 1][2]
-            if ele_diff > 0:
-                ascend_m += ele_diff
-            else:
-                descend_m += abs(ele_diff)
+        ascend_m, descend_m = gain_loss([p[2] for p in points])
+    elif points:
+        coords3d, ascend_m, descend_m = route_elevation(points)
+        if coords3d is not None:
+            points = coords3d
 
     # Process surface details
     details = path.get("details", {})

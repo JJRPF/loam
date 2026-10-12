@@ -18,3 +18,5 @@ curl_cffi>=0.16.0
 google-auth>=2.40.0
 requests>=2.32.0
 CacheControl>=0.14.0
+osmium>=4.0.0
+rasterio>=1.4.0

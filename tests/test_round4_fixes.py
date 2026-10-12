@@ -6,35 +6,20 @@ from app.db import (
 
 
 def test_classify_surface_residential_roads():
-    """Verify residential and paved roads are never classified as singletrack."""
-    # Test with Grandview Road
-    assert classify_surface("residential", "asphalt", "Grandview Road") == "paved"
-    assert classify_surface(None, None, "Grandview Road") == "paved"
-    assert classify_surface("residential", None, "Grandview Road") == "paved"
-
-    # Test with Ridgewood Drive
-    assert classify_surface("residential", "paved", "Ridgewood Drive") == "paved"
-    assert classify_surface(None, None, "Ridgewood Dr") == "paved"
-
-    # Test with Bettys Lane
-    assert classify_surface("unclassified", None, "Bettys Lane") == "paved"
-    assert classify_surface(None, None, "Bettys Ln") == "paved"
-
-    # Test with other road types
-    assert classify_surface("service", None, "Access Road") == "paved"
-    assert classify_surface("tertiary", None, "Main Street") == "paved"
+    """Residential and paved roads are never singletrack (classification is by OSM tags)."""
+    assert classify_surface("residential", "asphalt") == "paved"
+    assert classify_surface("residential", None) == "paved"
+    assert classify_surface("unclassified", None) == "paved"
+    assert classify_surface("service", None) == "paved"
+    assert classify_surface("tertiary", None) == "paved"
 
 
 def test_classify_surface_singletrack_and_doubletrack():
-    """Verify actual paths and trails are classified as singletrack or doubletrack."""
-    # Paths default to singletrack
-    assert classify_surface("path", None, "Robertson Trail") == "singletrack"
-    assert classify_surface("path", "dirt", "Single Circuit Trail") == "singletrack"
-    assert classify_surface("path", "ground", "Boulder Trail") == "singletrack"
-
-    # Tracks default to doubletrack
-    assert classify_surface("track", None, "Branch Londonderry Turnpike East") == "doubletrack"
-    assert classify_surface("track", "gravel", "Powerlines Trail") == "gravel"
+    assert classify_surface("path", None) == "singletrack"
+    assert classify_surface("path", "dirt") == "singletrack"
+    assert classify_surface("path", "ground") == "singletrack"
+    assert classify_surface("track", None) == "doubletrack"
+    assert classify_surface("track", "gravel") == "gravel"
 
 
 def test_unridden_trails_excludes_roads():

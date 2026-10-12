@@ -21,8 +21,11 @@ class Settings(BaseModel):
     # PostGIS database URL
     database_url: str = os.getenv("DATABASE_URL", "postgresql://loam:loam_dev_pw@localhost:5432/loam")
 
-    # Elevation Provider
+    # Elevation: USGS 3DEP 1/3 arc-second tiles (scripts/fetch_3dep.py)
     elevation_provider: str = os.getenv("ELEVATION_PROVIDER", "usgs_3dep")
+    dem_dir: str = os.getenv("DEM_DIR") or os.path.join(
+        os.getenv("DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")),
+        "elevation", "3dep13")
 
     # Port & Host
     host: str = os.getenv("HOST", "0.0.0.0")

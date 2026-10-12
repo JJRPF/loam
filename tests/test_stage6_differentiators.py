@@ -27,8 +27,8 @@ def clean_stage6_test_data():
                 cur.execute("DELETE FROM restrictions WHERE name LIKE 'TEST_%';")
                 cur.execute("DELETE FROM activity_edge_visits WHERE user_id LIKE 'test_user_%';")
                 cur.execute("DELETE FROM activities WHERE user_id LIKE 'test_user_%';")
-                cur.execute("DELETE FROM edge_heat WHERE edge_osm_id >= 990000;")
-                cur.execute("DELETE FROM edges WHERE osm_id >= 990000;")
+                cur.execute("DELETE FROM edge_heat WHERE edge_osm_id IN (SELECT osm_id FROM edges WHERE osm_id BETWEEN 990000 AND 999999 AND osm_source IS NOT TRUE);")
+                cur.execute("DELETE FROM edges WHERE osm_id BETWEEN 990000 AND 999999 AND osm_source IS NOT TRUE;")
                 cur.execute("DELETE FROM users WHERE id LIKE 'test_user_%';")
                 conn.commit()
     except Exception:

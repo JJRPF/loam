@@ -37,8 +37,8 @@ def _difficulty(mtb_scale_raw: Any) -> Tuple[Optional[int], Dict[str, str]]:
 
 
 def _surface_category(highway: Optional[str], surface: Optional[str], tracktype: Optional[str], name: Optional[str]) -> str:
-    from app.routing import classify_surface
-    return classify_surface(highway or "", surface or "", tracktype or "", name or "")
+    from app.surface import surface_category
+    return surface_category({"highway": highway, "surface": surface, "tracktype": tracktype})
 
 
 async def fetch_otm_trails_by_bbox(

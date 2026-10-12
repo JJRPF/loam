@@ -61,6 +61,7 @@ from app.activity_parser import parse_activity_file, MAX_FILE_SIZE
 from app.privacy import apply_privacy_filters, haversine_m
 from app.map_matching import map_match_activity
 from app.worker import run_nightly_job
+from app.elevation import tile_count
 
 
 APP_START_TIME = datetime.datetime.now(datetime.timezone.utc)
@@ -100,7 +101,7 @@ async def health():
         version=settings.app_version,
         graphhopper=gh_ok,
         postgis=db_ok,
-        elevation_provider=settings.elevation_provider
+        elevation_provider=f"{settings.elevation_provider} ({tile_count()} DEM tiles)"
     )
 
 @app.post("/api/route", response_model=RouteResponse)
