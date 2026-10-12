@@ -47,6 +47,11 @@ class Settings(BaseModel):
     enable_cubetrek_connector: bool = os.getenv("ENABLE_CUBETREK_CONNECTOR", "true").lower() in ("true", "1")
     connector_secret_key: str = os.getenv("CONNECTOR_SECRET_KEY", DEFAULT_CONNECTOR_SECRET_KEY)
 
+    # Heat privacy: an edge's heat is shown to others / influences their routes only with at
+    # least this many unique riders. 3 by design; set to 1 on the Pi only while the heatmap is
+    # seeded from the owner's own rides, and back to 3 before Loam goes public (README checklist).
+    heat_min_unique_riders: int = int(os.getenv("HEAT_MIN_UNIQUE_RIDERS", "3"))
+
 
 settings = Settings()
 

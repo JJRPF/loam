@@ -5,24 +5,16 @@ from typing import Dict, Any, List, Tuple, Optional, AsyncGenerator, Set
 from app.config import settings
 from app.models import RouteRequest, RouteResponse, SurfaceSegment, SportProfile
 from app.surface import surface_category
-from app.elevation import gain_loss, route_elevation
-from app.engine_config import get_config
-from app.scoring import (
-    calculate_composite_score,
-    calculate_repetition_ratio,
-    classify_route_geometry,
-    generate_minimap,
-    get_sector_info,
-    haversine_m
+from app.route_builder import (
+    GEOMETRY_MAX_OFFSET_M, METERS_TO_MILES, Piece, build_route_response, haversine_m, pieces_from_graphhopper,
 )
+from app.engine_config import get_config
+from app.scoring import calculate_repetition_ratio, classify_route_geometry, get_sector_info
 from app.db import (
-    get_edges_heat, check_restrictions_along_line, is_region_covered,
+    get_edges_heat, is_region_covered, get_user_dnr_list,
     check_route_trust_layer, log_dnr_override, get_user_ridden_edge_ids,
-    resolve_osm_trail_name
 )
 from app.corridor_generator import generate_corridor_loop_candidate, find_retraced_segments
-from app.start_suggestions import find_nearby_loop_start
-from app.contracted_graph import ContractedTrailGraph
 
 METERS_TO_MILES = 0.000621371192
 METERS_TO_FEET = 3.280839895
@@ -185,6 +177,12 @@ def get_gh_profile(profile: SportProfile) -> str:
         return "bike"
     return "mtb"
 
+def graphhopper_candidate(path: Dict[str, Any]) -> Tuple[List[List[float]], List[Piece]]:
+    """Coordinates and per-way pieces of a GraphHopper path."""
+    points = decode_points(path.get("points", {}))
+    return points, pieces_from_graphhopper(path.get("details", {}) or {}, len(points))
+
+
 def process_graphhopper_path(
     path: Dict[str, Any],
     req: RouteRequest,
@@ -198,280 +196,16 @@ def process_graphhopper_path(
     trust_result: Optional[Dict[str, Any]] = None,
     user_ridden_ways: Optional[Set[int]] = None
 ) -> RouteResponse:
-    distance_m = path.get("distance", 0.0)
-    points = decode_points(path.get("points", {}))
-    bbox = path.get("bbox") or _bbox_of(points)
-
-    # Elevation only from DEM samples (USGS 3DEP); unknown when the DEM doesn't cover the route.
-    ascend_m: Optional[float] = None
-    descend_m: Optional[float] = None
-    if points and all(len(p) > 2 and p[2] is not None for p in points):
-        ascend_m, descend_m = gain_loss([p[2] for p in points])
-    elif points:
-        coords3d, ascend_m, descend_m = route_elevation(points)
-        if coords3d is not None:
-            points = coords3d
-
-    # Process surface details
-    details = path.get("details", {})
-    surface_details = details.get("surface", [])
-    road_class_details = details.get("road_class", [])
-    track_type_details = details.get("track_type", [])
-    osm_way_details = details.get("osm_way_id", [])
-    street_name_details = details.get("street_name", [])
-
-    total_pts = len(points)
-    surface_map = {}
-    for s_start, s_end, val in surface_details:
-        for idx in range(s_start, min(s_end, total_pts)):
-            surface_map[idx] = val
-
-    rc_map = {}
-    for r_start, r_end, val in road_class_details:
-        for idx in range(r_start, min(r_end, total_pts)):
-            rc_map[idx] = val
-
-    tt_map = {}
-    for t_start, t_end, val in track_type_details:
-        for idx in range(t_start, min(t_end, total_pts)):
-            tt_map[idx] = val
-
-    name_map = {}
-    for n_start, n_end, val in street_name_details:
-        for idx in range(n_start, min(n_end, total_pts)):
-            name_map[idx] = val
-
-    surface_strip: List[SurfaceSegment] = []
-    category_counts: Dict[str, float] = {
-        "singletrack": 0,
-        "doubletrack": 0,
-        "gravel": 0,
-        "paved": 0,
-    }
-
-    current_cat = None
-    seg_start = 0
-
-    for i in range(total_pts):
-        rc = rc_map.get(i, "")
-        s = surface_map.get(i, "")
-        tt = tt_map.get(i, "")
-        w_name = name_map.get(i, "")
-        cat = classify_surface(rc, s, tt, w_name)
-        # Weight by segment length (not point count): GraphHopper point density varies by
-        # surface, so point-share under-reports long straight road stretches (road-cap leak).
-        seg_w = haversine_m(points[i], points[i + 1]) if i + 1 < total_pts else 0.0
-        category_counts[cat] = category_counts.get(cat, 0) + seg_w
-
-        if current_cat is None:
-            current_cat = cat
-            seg_start = i
-        elif cat != current_cat:
-            surface_strip.append(SurfaceSegment(
-                start_index=seg_start,
-                end_index=i,
-                surface_type=current_cat,
-                raw_surface=surface_map.get(seg_start),
-                raw_road_class=rc_map.get(seg_start)
-            ))
-            current_cat = cat
-            seg_start = i
-
-    if current_cat is not None:
-        surface_strip.append(SurfaceSegment(
-            start_index=seg_start,
-            end_index=total_pts,
-            surface_type=current_cat,
-            raw_surface=surface_map.get(seg_start),
-            raw_road_class=rc_map.get(seg_start)
-        ))
-
-    # Calculate breakdown percentages
-    breakdown = {}
-    pts_divisor = sum(category_counts.values())
-    if pts_divisor <= 0:
-        pts_divisor = 1.0
-    for cat, count in category_counts.items():
-        pct = round((count / pts_divisor) * 100.0, 1)
-        if pct > 0:
-            breakdown[cat] = pct
-
-    dist_miles = round(distance_m * METERS_TO_MILES, 2)
-
-    # Estimate duration based on sport profile speed
-    speed_mph = PROFILE_SPEED_MPH.get(req.profile, 10.0)
-    est_duration_min = round((dist_miles / speed_mph) * 60.0, 1)
-
-    warnings: List[str] = list(additional_warnings or [])
-    if dist_miles > 100:
-        warnings.append("Route distance exceeds 100 miles.")
-
-    # Collect unique traversed OSM way IDs
-    unique_ways = [w[2] for w in osm_way_details if len(w) >= 3]
-
-    # Check for unverified ghost trails in covered networks
-    if is_covered_region and edge_heat_cache is not None:
-        ghost_trail_ways = set()
-        for item in osm_way_details:
-            if len(item) >= 3:
-                s_idx, wid = item[0], item[2]
-                cat = classify_surface(rc_map.get(s_idx, ""), surface_map.get(s_idx, ""), tt_map.get(s_idx, ""), name_map.get(s_idx, ""))
-                if cat != "paved" and wid not in edge_heat_cache:
-                    ghost_trail_ways.add(wid)
-        if ghost_trail_ways:
-            warnings.append(f"Ghost trail warning: traverses {len(ghost_trail_ways)} trail edge(s) with no logged activity heat.")
-
-    # Calculate repetition ratio and classify route geometry (loop, lollipop, out_and_back)
-    rep_ratio = calculate_repetition_ratio(points, osm_way_details)
-    route_geom_type, loop_frac = classify_route_geometry(points, osm_way_details, rep_ratio)
-    is_lollipop = (route_geom_type == "lollipop")
-
-    # Collect authentic trail names from GraphHopper street_name details or OSM way resolver
-    street_details = details.get("street_name", [])
-    named_trails_lengths: Dict[str, float] = {}
-    for item in street_details:
-        if len(item) >= 3 and item[2]:
-            s_name = str(item[2]).strip()
-            if s_name and not s_name.lower().startswith("trail #"):
-                s_idx, e_idx = item[0], item[1]
-                named_trails_lengths[s_name] = named_trails_lengths.get(s_name, 0.0) + max(1, e_idx - s_idx)
-
-    if not named_trails_lengths and osm_way_details:
-        for item in osm_way_details:
-            if len(item) >= 3 and item[2]:
-                wid = item[2]
-                real_name = resolve_osm_trail_name(wid)
-                if real_name and not real_name.startswith("Trail #"):
-                    s_idx, e_idx = item[0], item[1]
-                    named_trails_lengths[real_name] = named_trails_lengths.get(real_name, 0.0) + max(1, e_idx - s_idx)
-
-    primary_trail_name = None
-    if named_trails_lengths:
-        primary_trail_name = sorted(named_trails_lengths.items(), key=lambda x: x[1], reverse=True)[0][0]
-
-    # Find New Trails: identify unridden point indices and calculate stats
-    unridden_point_indices = set()
-    if user_ridden_ways is not None and osm_way_details:
-        for item in osm_way_details:
-            if len(item) >= 3:
-                w_start, w_end, wid = item[0], item[1], item[2]
-                if wid not in user_ridden_ways:
-                    for p_i in range(w_start, min(w_end, total_pts)):
-                        unridden_point_indices.add(p_i)
-
-    # Mark is_unridden on surface segments
-    for seg in surface_strip:
-        seg_pts = range(seg.start_index, seg.end_index)
-        if seg_pts and len(seg_pts) > 0:
-            unridden_in_seg = sum(1 for p_i in seg_pts if p_i in unridden_point_indices)
-            if (unridden_in_seg / len(seg_pts)) >= 0.35:
-                seg.is_unridden = True
-
-    # Calculate unridden distance
-    unridden_distance_m = 0.0
-    for i in range(len(points) - 1):
-        if i in unridden_point_indices or (i + 1) in unridden_point_indices:
-            p1 = points[i]
-            p2 = points[i + 1]
-            # Approximate segment distance
-            dlat = (p2[1] - p1[1]) * 111132.0
-            dlon = (p2[0] - p1[0]) * 111132.0 * math.cos(math.radians(p1[1]))
-            unridden_distance_m += math.hypot(dlat, dlon)
-
-    unridden_miles = round(unridden_distance_m * METERS_TO_MILES, 2)
-    unridden_percent = round((unridden_miles / max(dist_miles, 0.001)) * 100.0, 1)
-    unridden_percent = min(100.0, max(0.0, unridden_percent))
-
-    # Calculate 5-component composite score
-    composite_score, score_breakdown, verbal_summary = calculate_composite_score(
-        distance_miles=dist_miles,
-        target_distance_miles=req.target_distance_miles,
-        surface_breakdown=breakdown,
-        surface_strip=surface_strip,
-        preference=req.terrain_preference,
-        sport=req.profile,
-        repetition_ratio=rep_ratio,
-        warnings=warnings,
-        edge_osm_ids=unique_ways,
-        edge_heat_dict=edge_heat_cache,
-        user_id=user_id,
-        is_covered_region=is_covered_region,
-        find_new_trails_mode=req.find_new_trails_mode,
-        unridden_percent=unridden_percent,
-        target_new_percent=req.min_new_trail_percent,
-        unridden_miles=unridden_miles,
-        target_new_miles=req.min_new_trail_miles,
-        is_lollipop=is_lollipop,
-        route_type=route_geom_type
+    """A GraphHopper path through the one route builder."""
+    coords, pieces = graphhopper_candidate(path)
+    built = build_route_response(
+        coords, pieces, req, "graphhopper", user_id, cand_id=cand_id, label=sector_name,
+        heat_cache=edge_heat_cache if edge_heat_cache is not None else {}, user_ridden=user_ridden_ways,
+        covered=is_covered_region, trust_result=trust_result or {"all_warnings": []},
+        extra_warnings=[w for w in (additional_warnings or []) if not trust_result or w not in trust_result.get("all_warnings", [])],
     )
-
-    # Generate lightweight SVG minimap & bounds
-    mini_bbox, mini_svg = generate_minimap(points)
-
-    # Descriptive route name with real trail names
-    if primary_trail_name:
-        if route_geom_type == "lollipop":
-            base_type = "Lollipop Loop"
-        elif route_geom_type == "loop":
-            base_type = "Loop"
-        elif route_geom_type == "out_and_back":
-            base_type = "Out-and-Back"
-        else:
-            base_type = "Route"
-
-        if sector_name:
-            base_name = f"{primary_trail_name} — {sector_name}"
-        else:
-            base_name = f"{primary_trail_name} {base_type}"
-    elif sector_name:
-        base_name = req.name or f"Loam {sector_name}"
-    else:
-        base_name = req.name or f"Loam {req.profile.value.replace('_', ' ').title()} Route"
-
-    dnr_warns = [f"DNR Warning: Traverses '{d['name']}' ({d.get('reason', 'User DNR')})" for d in trust_result.get("soft_dnr", [])] if trust_result else []
-    snow_warns = trust_result.get("snowmobile_warnings", []) if trust_result else []
-    flag_warns = trust_result.get("community_flag_warnings", []) if trust_result else []
-    waived = bool(trust_result and trust_result.get("waived_hard_blocks_count", 0) > 0)
-
-    retraced_lines = path.get("retraced_coordinates")
-    if retraced_lines is None:
-        retraced_lines = find_retraced_segments(points, osm_way_details)
-    retraced_miles = float(path.get("retraced_miles", round(dist_miles * rep_ratio, 2)))
-
-    return RouteResponse(
-        id=cand_id,
-        name=base_name,
-        sport=req.profile.value,
-        sector=sector_code,
-        distance_miles=dist_miles,
-        duration_minutes=est_duration_min,
-        elevation_gain_ft=round(ascend_m * METERS_TO_FEET, 0) if ascend_m is not None else None,
-        elevation_loss_ft=round(descend_m * METERS_TO_FEET, 0) if descend_m is not None else None,
-        surface_breakdown=breakdown,
-        surface_strip=surface_strip,
-        coordinates=points,
-        bbox=bbox,
-        minimap_bounds=mini_bbox,
-        minimap_svg=mini_svg,
-        warnings=warnings,
-        dnr_warnings=dnr_warns,
-        snowmobile_warnings=snow_warns,
-        community_flag_warnings=flag_warns,
-        hard_block_waived=waived,
-        heat_score=score_breakdown.get("heat"),
-        match_score=composite_score,
-        score_breakdown=score_breakdown,
-        repetition_ratio=rep_ratio,
-        retraced_miles=retraced_miles,
-        retraced_coordinates=retraced_lines,
-        route_type=route_geom_type,
-        primary_trail_name=primary_trail_name,
-        verbal_summary=verbal_summary,
-        is_find_new_trails=req.find_new_trails_mode,
-        unridden_miles=unridden_miles,
-        unridden_percent=unridden_percent,
-        unridden_segments_count=sum(1 for s in surface_strip if s.is_unridden)
-    )
+    built.route.sector = sector_code
+    return built.route
 
 
 async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> RouteResponse:
@@ -580,41 +314,31 @@ async def fetch_route(req: RouteRequest, user_id: Optional[str] = None) -> Route
             if path == data["paths"][0] and best_t_path is not None:
                 path = best_t_path
 
-    osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
-    points = decode_points(path.get("points", {}))
-    geojson_line = {"type": "LineString", "coordinates": points}
+    coords, pieces = graphhopper_candidate(path)
+    osm_ways = [pc.way_id for pc in pieces if pc.way_id is not None]
 
     # Verify trust layer (hard blocks, soft DNR, access, snowmobile, community flags)
-    trust_result = check_route_trust_layer(geojson_line, osm_ways, user_id=user_id, sport=req.profile.value)
+    trust_result = check_route_trust_layer({"type": "LineString", "coordinates": coords}, osm_ways,
+                                           user_id=user_id, sport=req.profile.value)
     if trust_result["has_unwaived_hard_blocks"] and req.avoid_closed:
         first_block = next((b for b in trust_result["hard_blocks"] if not b["waived"]), None)
         block_desc = f"{first_block['name']} ({first_block['reason']})" if first_block else "Restricted area/trail"
         raise ValueError(f"Route violates hard block: {block_desc}. Hard blocks cannot be overridden unless you have previously ridden this trail.")
 
-    # Log soft DNR override if requested
     if req.override_dnr and trust_result.get("soft_dnr"):
         for sd in trust_result["soft_dnr"]:
             log_dnr_override(user_id=user_id, route_id="route_primary", dnr_id=sd.get("id"), edge_osm_id=sd.get("edge_osm_id"), reason="Route requested with soft DNR override")
 
-    covered = is_region_covered(req.start.lat, req.start.lon)
-    heat_cache = get_edges_heat(list(set(osm_ways)), req.profile.value, user_id=user_id)
     user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else None
-
-    return process_graphhopper_path(
-        path=path,
-        req=req,
-        cand_id="route_primary",
-        edge_heat_cache=heat_cache,
-        additional_warnings=trust_result["all_warnings"],
-        user_id=user_id,
-        is_covered_region=covered,
-        trust_result=trust_result,
-        user_ridden_ways=user_ridden
-    )
+    built = build_route_response(coords, pieces, req, "graphhopper", user_id, cand_id="route_primary",
+                                 trust_result=trust_result, user_ridden=user_ridden)
+    return built.route
 
 
 def road_pct(route: RouteResponse) -> float:
-    """Share of route (percent) on paved/road surface."""
+    """Road share (percent), excluding the access stretch from the start to the first trail."""
+    if route.road_pct is not None:
+        return float(route.road_pct)
     return float((route.surface_breakdown or {}).get("paved", 0.0))
 
 
@@ -625,10 +349,21 @@ def effective_road_cap(req: RouteRequest, cfg=None) -> float:
     return max(cfg.road_cap_pct, asked) + cfg.road_cap_slack_pct
 
 
+def distance_out_of_range(route: RouteResponse, req: RouteRequest) -> bool:
+    """Plan 6.4: more than 50% off the target, or under 25% of it, is never an option."""
+    target = req.target_distance_miles
+    if not target or target <= 0:
+        return False
+    return abs(route.distance_miles - target) / target > 0.50 or route.distance_miles < 0.25 * target
+
+
 def passes_hard_gates(route: RouteResponse, req: RouteRequest, cfg=None) -> List[str]:
     """Layer-0 style gates for the live engine. Returns the list of violated gates."""
     cfg = cfg or get_config()
     fails: List[str] = []
+    # Geometry fidelity (6.3): every point within 15 m of the OSM ways the route claims.
+    if route.geometry_max_offset_m is None or route.geometry_max_offset_m > GEOMETRY_MAX_OFFSET_M:
+        fails.append("geometry")
     if road_pct(route) > effective_road_cap(req, cfg):
         fails.append("road_cap")
     if cfg.distance_gate_enforced and req.target_distance_miles and req.target_distance_miles > 0:
@@ -640,136 +375,299 @@ def passes_hard_gates(route: RouteResponse, req: RouteRequest, cfg=None) -> List
     return fails
 
 
+def _warn(route: RouteResponse, message: str) -> None:
+    if message not in route.warnings:
+        route.warnings.append(message)
+
+
+def _overlap(a: Dict[int, float], b: Dict[int, float]) -> float:
+    """Shared length of two routes' ways over the shorter route's length."""
+    if not a or not b:
+        return 0.0
+    shared = sum(min(a[w], b[w]) for w in a.keys() & b.keys())
+    return shared / max(min(sum(a.values()), sum(b.values())), 1.0)
+
+
 def select_options(
-    scored_candidates: List[Tuple[RouteResponse, Set[int]]],
+    scored_candidates: List[Tuple[RouteResponse, Any]],
     req: RouteRequest,
     count: int,
     is_loop: bool,
 ) -> List[RouteResponse]:
     """Rank, gate and diversify scored candidates (pure; no I/O).
 
-    Hard gates (road cap, distance) are applied as *filters*, never as soft score
-    terms. Gate-failing routes are only returned, flagged with a warning, when
-    nothing passes, so the UI is never empty but violations are never silent.
+    Never shown, not even as a fallback: geometry failures and routes more than 50% off the
+    target distance (or under 25% of it). Road-cap failures are shown, flagged, only when
+    nothing else exists. The second element of each pair is the route's way set or, from the
+    route builder, a {way id: meters} map; near-duplicates (>= 70% shared length) are dropped.
     """
     cfg = get_config()
     count = count or cfg.candidate_count
 
-    # Sort descending by composite match score (stable: ties keep generation order)
-    scored_candidates = sorted(scored_candidates, key=lambda pair: pair[0].match_score or 0, reverse=True)
+    def lengths(ways: Any) -> Dict[int, float]:
+        if isinstance(ways, dict):
+            return ways
+        return {w: 1.0 for w in (ways or ())}
 
-    # Layer-0 gates, applied as tiers (order preserved within a tier):
-    #   tier 0: passes everything
-    #   tier 1: only the distance tolerance is violated -> kept (flagged) *after* tier 0 so
-    #           the UI can still show a full set of options
-    #   tier 2: violates the road cap -> dropped. Never traded for distance or variety.
-    #           Returned (flagged) only if absolutely nothing else exists.
+    pairs = [(r, lengths(w)) for r, w in scored_candidates
+             if "geometry" not in passes_hard_gates(r, req, cfg) and not distance_out_of_range(r, req)]
+    pairs.sort(key=lambda pair: pair[0].match_score or 0, reverse=True)
+
     tier0, tier1, tier2 = [], [], []
-    for pair in scored_candidates:
+    for pair in pairs:
         fails = passes_hard_gates(pair[0], req, cfg)
         if not fails:
             tier0.append(pair)
         elif fails == ["distance"]:
-            pair[0].warnings.append("Distance is outside the requested tolerance.")
+            _warn(pair[0], "Distance is outside the requested tolerance.")
             tier1.append(pair)
         else:
             if "road_cap" in fails:
-                pair[0].warnings.append(
-                    f"Road cap exceeded: {road_pct(pair[0]):.0f}% road vs {effective_road_cap(req, cfg):.0f}% cap.")
+                _warn(pair[0], f"Road cap exceeded: {road_pct(pair[0]):.0f}% road vs {effective_road_cap(req, cfg):.0f}% cap.")
             tier2.append(pair)
-    scored_candidates = (tier0 + tier1) or tier2
+    pairs = (tier0 + tier1) or tier2
 
     if req.route_mode == "out_and_back":
-        # Honest shape handling for out-and-back requests: genuine out-and-backs first.
-        oab = [p for p in scored_candidates if p[0].route_type == "out_and_back"]
-        rest = [p for p in scored_candidates if p[0].route_type != "out_and_back"]
-        candidate_pool = oab + rest
+        candidate_pool = [p for p in pairs if p[0].route_type == "out_and_back"] + \
+                         [p for p in pairs if p[0].route_type != "out_and_back"]
     elif is_loop:
+        true_loops = [p for p in pairs if p[0].route_type == "loop"]
+        lollipops = [p for p in pairs if p[0].route_type == "lollipop"]
         if req.loops_only:
-            true_loops = [p for p in scored_candidates if p[0].route_type == "loop"]
-            lollipops = [p for p in scored_candidates if p[0].route_type == "lollipop"]
             candidate_pool = true_loops + lollipops
+        elif true_loops or lollipops:
+            candidate_pool = true_loops + lollipops + [p for p in pairs if p[0].route_type not in ("loop", "lollipop")]
         else:
-            true_loops = [pair for pair in scored_candidates if pair[0].route_type == "loop"]
-            lollipop_pairs = [pair for pair in scored_candidates if pair[0].route_type == "lollipop"]
-            oab_pairs = [pair for pair in scored_candidates if pair[0].route_type == "out_and_back"]
-
-            def is_severe(r: RouteResponse) -> bool:
-                if req.target_distance_miles and req.target_distance_miles > 0:
-                    err = abs(r.distance_miles - req.target_distance_miles) / req.target_distance_miles
-                    if err > 0.45:
-                        return True
-                if (r.match_score or 0) < 40:
-                    return True
-                return False
-
-            viable_true_loops = [p for p in true_loops if not is_severe(p[0])]
-            viable_lollipops = [p for p in lollipop_pairs if not is_severe(p[0])]
-
-            if viable_true_loops or viable_lollipops:
-                candidate_pool = (
-                    viable_true_loops
-                    + viable_lollipops
-                    + [p for p in true_loops if p not in viable_true_loops]
-                    + [p for p in lollipop_pairs if p not in viable_lollipops]
-                    + oab_pairs
-                )
-            elif true_loops or lollipop_pairs:
-                candidate_pool = true_loops + lollipop_pairs + oab_pairs
-            else:
-                for r, _ in oab_pairs:
-                    r.warnings.append("Out-and-back fallback: No viable loop circuit found in this trail network.")
-                candidate_pool = oab_pairs
+            candidate_pool = pairs
+            for r, _ in candidate_pool:
+                _warn(r, "Out-and-back: no loop found in this trail network.")
     else:
-        candidate_pool = scored_candidates
+        candidate_pool = pairs
 
-    # Diversity selection and Deduplication:
-    # Reject near-duplicates that share more than 70% of edges with already selected routes
     selected: List[RouteResponse] = []
-    selected_way_sets: List[Set[int]] = []
-
-    # Pass 1: Strict <= 70% edge overlap
-    for route_resp, ways in candidate_pool:
-        is_dup = False
-        for s_ways in selected_way_sets:
-            if ways and s_ways:
-                overlap = len(ways & s_ways) / max(len(ways), 1)
-                if overlap > cfg.dup_overlap_strict:
-                    is_dup = True
-                    break
-        if not is_dup:
-            selected.append(route_resp)
-            selected_way_sets.append(ways)
-            if len(selected) == count:
+    selected_ways: List[Dict[int, float]] = []
+    for threshold in (cfg.dup_overlap_strict, cfg.dup_overlap_relaxed):
+        for route_resp, ways in candidate_pool:
+            if len(selected) >= count:
                 break
-
-    # Pass 2: If we have fewer than count distinct options, relax threshold to 0.82 to fill remaining slots
-    if len(selected) < count:
-        for route_resp, ways in candidate_pool:
-            if route_resp in selected:
+            if any(route_resp is r for r in selected):
                 continue
-            is_dup = False
-            for s_ways in selected_way_sets:
-                if ways and s_ways:
-                    overlap = len(ways & s_ways) / max(len(ways), 1)
-                    if overlap > cfg.dup_overlap_relaxed:
-                        is_dup = True
-                        break
-            if not is_dup:
+            if all(_overlap(ways, sw) <= threshold for sw in selected_ways):
                 selected.append(route_resp)
-                selected_way_sets.append(ways)
-                if len(selected) == count:
-                    break
-
-    # Final fallback if still under count (e.g. sparse single track system): take next highest score
-    if len(selected) < count:
-        for route_resp, ways in candidate_pool:
-            if route_resp not in selected:
-                selected.append(route_resp)
-                if len(selected) == count:
-                    break
-
+                selected_ways.append(ways)
     return selected
+
+
+class OptionsResult:
+    def __init__(self, options: List[RouteResponse], notice: Optional[str], nearby_suggestion: Optional[str],
+                 pool_size: int, sources: Dict[str, int]):
+        self.options = options
+        self.notice = notice
+        self.nearby_suggestion = nearby_suggestion
+        self.pool_size = pool_size
+        self.sources = sources
+
+
+def _ring(start_lat: float, start_lon: float, radius_m: float, deg: float) -> Tuple[float, float]:
+    lat_len = 111132.0
+    lon_len = 111132.0 * math.cos(math.radians(start_lat))
+    return (start_lat + radius_m * math.cos(math.radians(deg)) / lat_len,
+            start_lon + radius_m * math.sin(math.radians(deg)) / lon_len)
+
+
+def _graph_loop_candidates(req: RouteRequest, target_m: float, seed: int, excluded_ways: Set[int],
+                           road_budget_m: float) -> Tuple[List[Tuple[List[List[float]], List[Piece], str]], Optional[str]]:
+    """Trail-graph loops as (coords, pieces, label), plus a verified nearby-start suggestion."""
+    from app.trail_graph import graph_for
+    bike = req.profile not in (SportProfile.TRAIL_RUN, SportProfile.FOOT)
+    graph = graph_for(req.start.lon, req.start.lat, 0.6 * target_m, bike)
+    loops = graph.search_loops(req.start.lon, req.start.lat, target_m, get_config().distance_tolerance,
+                               road_budget_m, seed=seed, excluded_ways=excluded_ways)
+    out = []
+    suggestion = None
+    for lp in loops:
+        coords = graph.coords_of(lp.steps)
+        if coords is None:
+            continue  # discontinuous: never shown
+        pieces, idx = [], 0
+        for sid, fwd in lp.steps:
+            seg = graph.segments[sid]
+            n = len(seg.coords) - 1
+            pieces.append(Piece(start=idx, end=idx + n, way_id=seg.way_id, tags=seg.tags))
+            idx += n
+        out.append((coords, pieces, "Trail Loop"))
+        if suggestion is None and lp.stem_length >= 160.0:
+            names = [graph.segments[s].tags.get("name") for s, _ in lp.steps if graph.segments[s].tags.get("name")
+                     and graph.segments[s].category != "paved"]
+            where = names[0] if names else "the trail junction"
+            suggestion = f"Start {lp.stem_length * METERS_TO_MILES:.1f} mi away at {where} for a true loop"
+    return out, suggestion
+
+
+async def plan_route_options(
+    req: RouteRequest,
+    count: int = 10,
+    user_id: Optional[str] = None
+) -> OptionsResult:
+    """Every candidate source (GraphHopper corridors and sectors, trail-graph loops, seed loops)
+    goes through the one route builder, then the gates and selection (plan 6.1-6.4)."""
+    cfg = get_config()
+    target_miles = req.target_distance_miles or 10.0
+    target_m = target_miles / METERS_TO_MILES
+    is_loop = req.is_loop or req.route_mode in ("loop", "round_trip") or (req.end is None and req.route_mode != "out_and_back")
+    start_lat, start_lon = req.start.lat, req.start.lon
+    gh_profile = get_gh_profile(req.profile)
+    custom_model = build_custom_model(req)
+    road_budget_m = effective_road_cap(req, cfg) / 100.0 * target_m
+
+    excluded_ways: Set[int] = set()
+    if user_id and not req.override_dnr:
+        excluded_ways = {d["edge_osm_id"] for d in get_user_dnr_list(user_id) if d.get("edge_osm_id")}
+
+    raw: List[Tuple[List[List[float]], List[Piece], str, str]] = []  # coords, pieces, label, source
+    suggestion: Optional[str] = None
+
+    async def gh_round(specs: List[Tuple[str, Any, str]]):
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            tasks = []
+            for kind, arg, _ in specs:
+                if kind == "corridor":
+                    tasks.append(generate_corridor_loop_candidate(client, start_lat, start_lon, arg[0], arg[1], gh_profile, custom_model))
+                else:
+                    tasks.append(_query_gh(client, arg, gh_profile, custom_model))
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+        for (kind, arg, label), res in zip(specs, results):
+            path = None
+            if isinstance(res, dict):
+                path = res
+            elif res is not None and not isinstance(res, Exception) and getattr(res, "status_code", 0) == 200:
+                data = res.json()
+                path = data["paths"][0] if data.get("paths") else None
+            if path:
+                coords, pieces = graphhopper_candidate(path)
+                if len(coords) >= 2:
+                    raw.append((coords, pieces, label, "graphhopper"))
+
+    def loop_specs(radius_scale: float, degrees: List[float], inner: bool, lollipop_degs: List[float]):
+        specs = []
+        base_r = target_m / 3.8 * radius_scale
+        for deg in degrees:
+            name, _, _ = get_sector_info(deg)
+            dest = _ring(start_lat, start_lon, base_r * (0.75 if inner else 1.0), deg)
+            specs.append(("corridor", dest, f"{name} Loop"))
+        for deg in lollipop_degs:
+            name, _, _ = get_sector_info(deg)
+            stem = _ring(start_lat, start_lon, base_r * 0.35, deg)
+            l1 = _ring(stem[0], stem[1], base_r * 0.65, deg - 28.0)
+            l2 = _ring(stem[0], stem[1], base_r * 0.65, deg + 28.0)
+            pts = [(start_lat, start_lon), stem, l1, l2, stem, (start_lat, start_lon)]
+            specs.append(("route", pts, f"{name} Lollipop"))
+        return specs
+
+    if is_loop:
+        seed = int(abs(start_lat * 1e5) + abs(start_lon * 1e5) + target_miles * 10) % (2 ** 31)
+        graph_task = asyncio.to_thread(_graph_loop_candidates, req, target_m, seed, excluded_ways, road_budget_m)
+        gh_task = gh_round(loop_specs(1.0, [i * 30.0 for i in range(12)], False, [45.0, 135.0, 225.0, 315.0])
+                           + loop_specs(1.0, [0.0, 90.0, 180.0, 270.0], True, []))
+        (graph_cands, suggestion), _ = await asyncio.gather(graph_task, gh_task)
+        raw.extend((c, p, lbl, "graph_loop") for c, p, lbl in graph_cands)
+        raw.extend(_seed_candidates(req, target_miles, user_id))
+
+        async def widen():
+            """6.4: more sectors at other radii and a second graph-search seed."""
+            nonlocal suggestion
+            graph_task = asyncio.to_thread(_graph_loop_candidates, req, target_m, seed + 7919, excluded_ways, road_budget_m)
+            gh_task = gh_round(loop_specs(1.3, [15.0 + i * 30.0 for i in range(12)], False, [0.0, 90.0, 180.0, 270.0])
+                               + loop_specs(0.7, [15.0 + i * 30.0 for i in range(12)], False, []))
+            (more_graph, more_suggestion), _ = await asyncio.gather(graph_task, gh_task)
+            raw.extend((c, p, lbl, "graph_loop") for c, p, lbl in more_graph)
+            suggestion = suggestion or more_suggestion
+    else:
+        widen = None
+        # Point to point: start -> midpoints (in order) -> end; detours vary the longest leg.
+        end = req.end or req.start
+        stops = [(start_lat, start_lon)] + [(w.lat, w.lon) for w in (req.waypoints or [])] + [(end.lat, end.lon)]
+        specs = [("route", list(stops), "Direct")]
+        legs = [(i, haversine_m([stops[i][1], stops[i][0]], [stops[i + 1][1], stops[i + 1][0]])) for i in range(len(stops) - 1)]
+        li, leg_m = max(legs, key=lambda x: x[1])
+        a, b = stops[li], stops[li + 1]
+        heading = math.degrees(math.atan2((b[1] - a[1]) * math.cos(math.radians(a[0])), b[0] - a[0]))
+        extra = max(500.0, target_m - sum(m for _, m in legs)) / 2.0 if req.target_distance_miles else max(500.0, leg_m * 0.3)
+        for frac in (0.3, 0.5, 0.7):
+            mid = (a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac)
+            for off in (-1.2, -0.8, -0.4, 0.4, 0.8, 1.2):
+                side = heading + (90.0 if off > 0 else -90.0)
+                det = _ring(mid[0], mid[1], abs(off) * extra, side)
+                pts = stops[:li + 1] + [det] + stops[li + 1:]
+                name, _, _ = get_sector_info(side)
+                specs.append(("route", pts, f"{name} Corridor"))
+        await gh_round(specs)
+
+    scored: List[Tuple[RouteResponse, Dict[int, float]]] = []
+    sources: Dict[str, int] = {}
+    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else None
+    covered = is_region_covered(start_lat, start_lon)
+
+    def score_new(from_index: int) -> None:
+        new = raw[from_index:]
+        ways_needed = sorted({pc.way_id for _, pieces, _, _ in new for pc in pieces if pc.way_id is not None})
+        heat_cache = get_edges_heat(ways_needed, req.profile.value, user_id=user_id)
+        for idx, (coords, pieces, label, source) in enumerate(new, start=from_index):
+            if req.target_distance_miles:
+                miles = sum(haversine_m(coords[i], coords[i + 1]) for i in range(len(coords) - 1)) * METERS_TO_MILES
+                if abs(miles - req.target_distance_miles) / req.target_distance_miles > 0.50 \
+                        or miles < 0.25 * req.target_distance_miles:
+                    continue  # never an option (6.4); skip the expensive build
+            ways = [pc.way_id for pc in pieces if pc.way_id is not None]
+            trust = check_route_trust_layer({"type": "LineString", "coordinates": coords}, ways,
+                                            user_id=user_id, sport=req.profile.value)
+            if trust["has_unwaived_hard_blocks"] and req.avoid_closed:
+                continue
+            cand_id = f"opt_{idx + 1}"
+            if req.override_dnr and trust.get("soft_dnr"):
+                for sd in trust["soft_dnr"]:
+                    log_dnr_override(user_id=user_id, route_id=cand_id, dnr_id=sd.get("id"), edge_osm_id=sd.get("edge_osm_id"),
+                                     reason="Candidate selected with soft DNR override")
+            built = build_route_response(coords, pieces, req, source, user_id, cand_id=cand_id, label=label,
+                                         heat_cache=heat_cache, user_ridden=user_ridden, covered=covered, trust_result=trust)
+            scored.append((built.route, built.way_lengths))
+            sources[source] = sources.get(source, 0) + 1
+
+    score_new(0)
+    options = select_options([(r, w) for r, w in scored], req, count, is_loop)
+    if widen is not None and (len(raw) < 40 or len(options) < count):
+        before = len(raw)
+        await widen()
+        score_new(before)
+    options = select_options(scored, req, count, is_loop)
+    has_true_loop = any(o.route_type == "loop" for o in options)
+    if is_loop and has_true_loop:
+        suggestion = None
+    for o in options:
+        o.nearby_start_suggestion = suggestion
+    notice = None
+    if len(options) < 5:
+        notice = (f"Only {len(options)} route{'s' if len(options) != 1 else ''} match; "
+                  "try a different start or distance.")
+        if suggestion:
+            notice += f" {suggestion}."
+    return OptionsResult(options, notice, suggestion, len(scored), sources)
+
+
+def _seed_candidates(req: RouteRequest, target_miles: float, user_id: Optional[str]):
+    """Seed loops from riders' own imported rides (plan 7.4), as (coords, pieces, label, source)."""
+    from app.garmin_seeds import seed_catalog
+    out = []
+    for seed in seed_catalog.get_matching_seeds(req.start.lat, req.start.lon, target_miles, sport=req.profile.value,
+                                                user_id=user_id):
+        try:
+            built = seed_catalog.build_candidate(seed, req)
+        except Exception:
+            built = None
+        if built:
+            coords, pieces = built
+            out.append((coords, pieces, "Ridden Loop", "seed_loop"))
+    return out
 
 
 async def generate_route_options(
@@ -777,220 +675,19 @@ async def generate_route_options(
     count: int = 10,
     user_id: Optional[str] = None
 ) -> List[RouteResponse]:
+    return (await plan_route_options(req, count=count, user_id=user_id)).options
 
-    """
-    Generates ~10 distinct, scored candidate routes across compass quadrants and trail sectors.
-    Applies multi-quadrant generation, restriction filtering, deduplication (>70% overlap),
-    and composite scoring.
-    """
-    target_miles = req.target_distance_miles or 10.0
-    is_loop = req.is_loop or req.route_mode in ("loop", "round_trip") or (req.end is None and req.route_mode != "out_and_back")
-    start_lat = req.start.lat
-    start_lon = req.start.lon
-    gh_profile = get_gh_profile(req.profile)
-    custom_model = build_custom_model(req)
-
-    lat_deg_len = 111132.0
-    lon_deg_len = 111132.0 * math.cos(math.radians(start_lat))
-
-    candidate_tasks = []
-    task_metadata = []
-
-    client = httpx.AsyncClient(timeout=10.0)
-
-    try:
-        if is_loop:
-            # 1. Corridor Loops across 12 sectors
-            sectors = [i * 30.0 for i in range(12)]
-            base_r = (target_miles * 1609.344) / 3.8
-
-            for deg in sectors:
-                sec_name, sec_code, quad = get_sector_info(deg)
-                dest_lat = start_lat + (base_r * math.cos(math.radians(deg))) / lat_deg_len
-                dest_lon = start_lon + (base_r * math.sin(math.radians(deg))) / lon_deg_len
-                candidate_tasks.append(
-                    generate_corridor_loop_candidate(client, start_lat, start_lon, dest_lat, dest_lon, gh_profile, custom_model)
-                )
-                task_metadata.append({"sector_name": f"{sec_name} Loop", "sector_code": sec_code, "deg": deg, "var": "CORRIDOR"})
-
-            # 2. Compact Corridor Loops for cardinal directions
-            for deg in [0.0, 90.0, 180.0, 270.0]:
-                sec_name, sec_code, quad = get_sector_info(deg)
-                dest_lat = start_lat + (base_r * 0.75 * math.cos(math.radians(deg))) / lat_deg_len
-                dest_lon = start_lon + (base_r * 0.75 * math.sin(math.radians(deg))) / lon_deg_len
-                candidate_tasks.append(
-                    generate_corridor_loop_candidate(client, start_lat, start_lon, dest_lat, dest_lon, gh_profile, custom_model)
-                )
-                task_metadata.append({"sector_name": f"{sec_name} Inner Loop", "sector_code": sec_code, "deg": deg, "var": "CORRIDOR_INNER"})
-
-            # 3. Geometric lollipop & triangular options for variety
-            for deg in [45.0, 135.0, 225.0, 315.0]:
-                sec_name, sec_code, quad = get_sector_info(deg)
-                r_stem = base_r * 0.35
-                wp_stem = (start_lat + (r_stem * math.cos(math.radians(deg))) / lat_deg_len, start_lon + (r_stem * math.sin(math.radians(deg))) / lon_deg_len)
-                r_loop = base_r * 0.65
-                a_l1, a_l2 = math.radians(deg - 28.0), math.radians(deg + 28.0)
-                wp_l1 = (wp_stem[0] + (r_loop * math.cos(a_l1)) / lat_deg_len, wp_stem[1] + (r_loop * math.sin(a_l1)) / lon_deg_len)
-                wp_l2 = (wp_stem[0] + (r_loop * math.cos(a_l2)) / lat_deg_len, wp_stem[1] + (r_loop * math.sin(a_l2)) / lon_deg_len)
-                candidate_tasks.append(
-                    _query_gh(client, [(start_lat, start_lon), wp_stem, wp_l1, wp_l2, wp_stem, (start_lat, start_lon)], gh_profile, custom_model)
-                )
-                task_metadata.append({"sector_name": f"{sec_name} Lollipop Loop", "sector_code": sec_code, "deg": deg, "var": "LOLLIPOP_CW"})
-
-        else:
-            # Point to Point Mode
-            end_lat = req.end.lat if req.end else start_lat
-            end_lon = req.end.lon if req.end else start_lon
-            d_lat = end_lat - start_lat
-            d_lon = end_lon - start_lon
-            direct_dist_m = math.hypot(d_lat * lat_deg_len, d_lon * lon_deg_len)
-            direct_heading = math.atan2(d_lon * lon_deg_len, d_lat * lat_deg_len)
-
-            # Lateral offset scale
-            detour_extra_m = max(500.0, (target_miles * 1609.344) - direct_dist_m)
-            perp_offset_m = detour_extra_m / 2.0
-
-            offsets = [-1.2, -0.8, -0.4, 0.0, 0.4, 0.8, 1.2]
-            fractions = [0.3, 0.5, 0.7]
-
-            for frac in fractions:
-                mid_lat = start_lat + d_lat * frac
-                mid_lon = start_lon + d_lon * frac
-                for off in offsets:
-                    side_angle = direct_heading + (math.pi / 2.0 if off >= 0 else -math.pi / 2.0)
-                    dist_off = abs(off) * perp_offset_m
-                    detour_lat = mid_lat + (dist_off * math.cos(side_angle)) / lat_deg_len
-                    detour_lon = mid_lon + (dist_off * math.sin(side_angle)) / lon_deg_len
-                    sec_name, sec_code, _ = get_sector_info(math.degrees(side_angle))
-                    
-                    pts = [(start_lat, start_lon), (detour_lat, detour_lon), (end_lat, end_lon)]
-                    candidate_tasks.append(_query_gh(client, pts, gh_profile, custom_model))
-                    task_metadata.append({
-                        "sector_name": f"{sec_name} Corridor",
-                        "sector_code": sec_code,
-                        "deg": math.degrees(side_angle),
-                        "var": f"FRAC_{frac}_OFF_{off}"
-                    })
-
-        # Run GraphHopper candidate queries in parallel
-        results = await asyncio.gather(*candidate_tasks, return_exceptions=True)
-
-    finally:
-        await client.aclose()
-
-    # Evaluate nearby start suggestions if in loop mode
-    nearby_suggestion_text = None
-    if is_loop:
-        s_obj = find_nearby_loop_start(start_lat, start_lon, current_retrace_ratio=1.0)
-        if s_obj and isinstance(s_obj, dict):
-            nearby_suggestion_text = s_obj.get("message")
-
-    # Process candidates
-    valid_candidates = []
-    all_traversed_ways = set()
-
-    for idx, res in enumerate(results):
-        if isinstance(res, Exception) or res is None:
-            continue
-        try:
-            if isinstance(res, dict):
-                path = res
-            else:
-                if res.status_code != 200:
-                    continue
-                data = res.json()
-                if not data.get("paths"):
-                    continue
-                path = data["paths"][0]
-
-            meta = task_metadata[idx]
-
-            points = decode_points(path.get("points", {}))
-            if len(points) < 2:
-                continue
-
-            # Trust layer check (hard blocks, soft DNR, access, snowmobile, community flags)
-            geojson_line = {"type": "LineString", "coordinates": points}
-            osm_ways = [w[2] for w in path.get("details", {}).get("osm_way_id", []) if len(w) >= 3]
-
-            trust_result = check_route_trust_layer(geojson_line, osm_ways, user_id=user_id, sport=req.profile.value)
-            if trust_result["has_unwaived_hard_blocks"] and req.avoid_closed:
-                # Violates hard block (closure, private land, bike-prohibited wilderness, etc.) - REJECT
-                continue
-
-            all_traversed_ways.update(osm_ways)
-
-            valid_candidates.append({
-                "path": path,
-                "meta": meta,
-                "ways": set(osm_ways),
-                "trust_result": trust_result
-            })
-        except Exception:
-            continue
-
-    # Batch query edge heat from database
-    covered = is_region_covered(req.start.lat, req.start.lon)
-    heat_cache = get_edges_heat(list(all_traversed_ways), req.profile.value, user_id=user_id)
-    user_ridden = get_user_ridden_edge_ids(user_id, sport=req.profile.value) if user_id else None
-
-    # Score and build RouteResponse for all valid candidates
-    scored_candidates: List[Tuple[RouteResponse, Set[int]]] = []
-    for idx, item in enumerate(valid_candidates):
-        meta = item["meta"]
-        t_res = item["trust_result"]
-        cand_id = f"opt_{idx + 1}"
-
-        if req.override_dnr and t_res.get("soft_dnr"):
-            for sd in t_res["soft_dnr"]:
-                log_dnr_override(user_id=user_id, route_id=cand_id, dnr_id=sd.get("id"), edge_osm_id=sd.get("edge_osm_id"), reason="Candidate selected with soft DNR override")
-
-        route_resp = process_graphhopper_path(
-            path=item["path"],
-            req=req,
-            cand_id=cand_id,
-            sector_name=meta["sector_name"],
-            sector_code=meta["sector_code"],
-            edge_heat_cache=heat_cache,
-            additional_warnings=t_res["all_warnings"],
-            user_id=user_id,
-            is_covered_region=covered,
-            trust_result=t_res,
-            user_ridden_ways=user_ridden
-        )
-        route_resp.nearby_start_suggestion = nearby_suggestion_text
-
-        # Trailhead name prefix with real trail names
-        start_prefix = req.start.name.split('(')[0].strip() if req.start.name else "Start"
-        if route_resp.primary_trail_name:
-            if route_resp.route_type == "lollipop":
-                type_label = "Lollipop Loop"
-            elif route_resp.route_type == "loop":
-                type_label = "Loop"
-            elif route_resp.route_type == "out_and_back":
-                type_label = "Out-and-Back"
-            else:
-                type_label = "Route"
-            route_resp.name = f"{start_prefix} — {route_resp.primary_trail_name} {type_label}"
-        else:
-            route_resp.name = f"{start_prefix} — {meta['sector_name']}"
-
-        scored_candidates.append((route_resp, item["ways"]))
-
-    return select_options(scored_candidates, req, count, is_loop)
 
 async def generate_route_options_stream(
     req: RouteRequest,
     count: int = 10,
     user_id: Optional[str] = None
 ) -> AsyncGenerator[RouteResponse, None]:
-    """
-    Async generator that yields scored candidate route options sequentially for SSE streaming.
-    """
+    """Yields the selected options one by one for SSE streaming."""
     options = await generate_route_options(req, count=count, user_id=user_id)
     for opt in options:
         yield opt
-        await asyncio.sleep(0.01) # Yield to event loop for immediate network flush
+        await asyncio.sleep(0.01)
 
 
 async def _query_gh(

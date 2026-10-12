@@ -1,0 +1,344 @@
+{
+ "source": "OpenStreetMap contributors (ODbL); built by loam_eval.real.build_scenarios",
+ "scenarios": [
+  {
+   "id": "bow_10_mtb",
+   "kind": "plan_6.5",
+   "start": [
+    43.130061,
+    -71.482362
+   ],
+   "start_osm": "way/1412556913",
+   "name": "Bow Town Forest parking",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "bear_brook_10_mtb",
+   "kind": "plan_6.5",
+   "start": [
+    43.134855,
+    -71.36592
+   ],
+   "start_osm": "way/414782002",
+   "name": "Bear Brook State Park parking",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "bear_brook_14_mtb",
+   "kind": "plan_6.5",
+   "start": [
+    43.134855,
+    -71.36592
+   ],
+   "start_osm": "way/414782002",
+   "name": "Bear Brook State Park parking",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 14.0
+  },
+  {
+   "id": "bow_5_run",
+   "kind": "plan_6.5",
+   "start": [
+    43.130061,
+    -71.482362
+   ],
+   "start_osm": "way/1412556913",
+   "name": "Bow Town Forest parking",
+   "profile": "trail_run",
+   "mode": "loop",
+   "miles": 5.0
+  },
+  {
+   "id": "p2p_midpoint",
+   "kind": "plan_6.5",
+   "start": [
+    43.134855,
+    -71.36592
+   ],
+   "start_osm": "way/414782002",
+   "end": [
+    43.274465,
+    -71.528525
+   ],
+   "end_osm": "way/848156793",
+   "waypoints": [
+    [
+     43.127404,
+     -71.351083
+    ]
+   ],
+   "waypoint_osm": [
+    "node/2296621907"
+   ],
+   "name": "Bear Brook State Park parking",
+   "profile": "mtb_hardtail",
+   "mode": "point_to_point",
+   "miles": null
+  },
+  {
+   "id": "th_194679000",
+   "kind": "osm_trailhead",
+   "start": [
+    45.195914,
+    -71.200123
+   ],
+   "start_osm": "node/194679000",
+   "name": "Deer Mountain",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_5656746911",
+   "kind": "osm_trailhead",
+   "start": [
+    44.41687,
+    -71.065183
+   ],
+   "start_osm": "node/5656746911",
+   "name": "Mount Crag Trailhead",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_194628036",
+   "kind": "osm_trailhead",
+   "start": [
+    44.37152,
+    -71.289334
+   ],
+   "start_osm": "node/194628036",
+   "name": "Appalachia",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_8140114775",
+   "kind": "osm_trailhead",
+   "start": [
+    44.3602,
+    -71.488044
+   ],
+   "start_osm": "node/8140114775",
+   "name": "Owl's Head Trailhead",
+   "profile": "trail_run",
+   "mode": "loop",
+   "miles": 6.0
+  },
+  {
+   "id": "th_9152673905",
+   "kind": "osm_trailhead",
+   "start": [
+    44.203496,
+    -71.681069
+   ],
+   "start_osm": "node/9152673905",
+   "name": "Skookumchuck Trailhead",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_2133151582",
+   "kind": "osm_trailhead",
+   "start": [
+    44.075281,
+    -71.109084
+   ],
+   "start_osm": "node/2133151582",
+   "name": "Kearsarge North Trailhead",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_8770165708",
+   "kind": "osm_trailhead",
+   "start": [
+    44.074627,
+    -71.164088
+   ],
+   "start_osm": "node/8770165708",
+   "name": "Diana's Bath Trailhead",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_1997702798",
+   "kind": "osm_trailhead",
+   "start": [
+    43.997385,
+    -71.393224
+   ],
+   "start_osm": "node/1997702798",
+   "name": "Sabbaday Falls Trailhead",
+   "profile": "trail_run",
+   "mode": "loop",
+   "miles": 6.0
+  },
+  {
+   "id": "th_7557484425",
+   "kind": "osm_trailhead",
+   "start": [
+    43.83318,
+    -72.147011
+   ],
+   "start_osm": "node/7557484425",
+   "name": "Chaffee Wildlife Sanctuary Trailhead",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_7818421740",
+   "kind": "osm_trailhead",
+   "start": [
+    43.738187,
+    -72.108074
+   ],
+   "start_osm": "node/7818421740",
+   "name": "The Dismal at Pressey Brook Conservation Area",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_11732393315",
+   "kind": "osm_trailhead",
+   "start": [
+    43.718816,
+    -71.318979
+   ],
+   "start_osm": "node/11732393315",
+   "name": "Lower Trailhead Kiosk",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_7589880281",
+   "kind": "osm_trailhead",
+   "start": [
+    43.708206,
+    -71.633956
+   ],
+   "start_osm": "node/7589880281",
+   "name": "Whitten Woods Trailhead",
+   "profile": "trail_run",
+   "mode": "loop",
+   "miles": 6.0
+  },
+  {
+   "id": "th_13395414645",
+   "kind": "osm_trailhead",
+   "start": [
+    43.591856,
+    -71.627529
+   ],
+   "start_osm": "node/13395414645",
+   "name": "Spectacle Pond Cartop Access",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_5470792150",
+   "kind": "osm_trailhead",
+   "start": [
+    43.584814,
+    -71.221922
+   ],
+   "start_osm": "node/5470792150",
+   "name": "Sewall Woods Trailhead",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_194652368",
+   "kind": "osm_trailhead",
+   "start": [
+    43.571472,
+    -72.067714
+   ],
+   "start_osm": "node/194652368",
+   "name": "Bicknell Brook Trail",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_13796708325",
+   "kind": "osm_trailhead",
+   "start": [
+    43.554087,
+    -71.589065
+   ],
+   "start_osm": "node/13796708325",
+   "name": "This is My Song (Blue) 1mi",
+   "profile": "trail_run",
+   "mode": "loop",
+   "miles": 6.0
+  },
+  {
+   "id": "th_4813668256",
+   "kind": "osm_trailhead",
+   "start": [
+    43.245773,
+    -70.9719
+   ],
+   "start_osm": "node/4813668256",
+   "name": "Gonic Trails Falls",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_3817468228",
+   "kind": "osm_trailhead",
+   "start": [
+    43.047679,
+    -71.001966
+   ],
+   "start_osm": "node/3817468228",
+   "name": "Gate 5",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_11248539138",
+   "kind": "osm_trailhead",
+   "start": [
+    42.900244,
+    -71.875029
+   ],
+   "start_osm": "node/11248539138",
+   "name": "Wapack Trail",
+   "profile": "mtb_hardtail",
+   "mode": "loop",
+   "miles": 10.0
+  },
+  {
+   "id": "th_9062846278",
+   "kind": "osm_trailhead",
+   "start": [
+    42.889788,
+    -71.455127
+   ],
+   "start_osm": "node/9062846278",
+   "name": "Moore's Falls Trailhead",
+   "profile": "trail_run",
+   "mode": "loop",
+   "miles": 6.0
+  }
+ ]
+}

@@ -163,7 +163,7 @@ export function streamRouteOptions(
   },
   callbacks: {
     onCandidate: (candidate: RouteResponse) => void;
-    onComplete: (count: number) => void;
+    onComplete: (count: number, info?: { notice?: string | null; nearby_start_suggestion?: string | null }) => void;
     onError: (err: Error) => void;
   }
 ): () => void {
@@ -211,6 +211,7 @@ export function streamRouteOptions(
       const decoder = new TextDecoder();
       let buffer = '';
       let count = 0;
+      let completed = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -245,13 +246,16 @@ export function streamRouteOptions(
               console.warn('Failed to parse candidate JSON:', err);
             }
           } else if (eventName === 'complete') {
-            callbacks.onComplete(count);
+            let info = {};
+            try { info = JSON.parse(dataStr); } catch { /* older servers sent no details */ }
+            callbacks.onComplete(count, info);
+            completed = true;
           } else if (eventName === 'error') {
             callbacks.onError(new Error(dataStr || 'Streaming error'));
           }
         }
       }
-      callbacks.onComplete(count);
+      if (!completed) callbacks.onComplete(count);
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         callbacks.onError(err);
@@ -919,6 +923,15 @@ export async function disconnectConnector(
   if (!res.ok) {
     throw new Error(`Disconnect failed: ${await res.text()}`);
   }
+  return await res.json();
+}
+
+export const SEED_HEAT_NOTICE =
+  "Heat from one rider's seed data. The 3-rider privacy minimum is temporarily off.";
+
+export async function fetchHeatMeta(): Promise<{ min_unique_riders: number; seed_data_notice: boolean }> {
+  const res = await authedFetch(`${API_BASE}/api/heat/meta`);
+  if (!res.ok) throw new Error(`Heat settings unavailable (${res.status})`);
   return await res.json();
 }
 

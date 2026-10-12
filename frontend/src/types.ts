@@ -79,6 +79,10 @@ export interface RouteResponse {
   unridden_miles?: number;
   unridden_percent?: number;
   unridden_segments_count?: number;
+  source?: 'graphhopper' | 'graph_loop' | 'seed_loop' | null;
+  road_pct?: number | null;
+  access_miles?: number;
+  geometry_max_offset_m?: number | null;
 }
 
 export interface TrailSubmission {

@@ -19,6 +19,7 @@ interface ResultsPanelProps {
   isLoading?: boolean;
   noTrueLoopNearHere?: boolean;
   nearbyStartSuggestion?: string;
+  optionsNotice?: string;
 }
 
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
@@ -31,7 +32,8 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   onRouteSaved,
   isLoading = false,
   noTrueLoopNearHere = false,
-  nearbyStartSuggestion
+  nearbyStartSuggestion,
+  optionsNotice
 }) => {
   const [isExportingGpx, setIsExportingGpx] = useState(false);
   const [isExportingFit, setIsExportingFit] = useState(false);
@@ -268,6 +270,13 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           )}
         </div>
       </div>
+
+      {/* Honest option count: fewer than 5 routes passed the gates */}
+      {optionsNotice && !isLoading && (
+        <div role="status" style={{ padding: '8px 12px', backgroundColor: 'var(--color-bg-subtle)', border: '1px solid var(--color-divider)', borderRadius: 6, marginBottom: 8, fontSize: 13, color: 'var(--color-text-primary)' }}>
+          {optionsNotice}
+        </div>
+      )}
 
       {/* "No true loop near here" warning banner if only out-and-backs were generated */}
       {noTrueLoopNearHere && (

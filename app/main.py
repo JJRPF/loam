@@ -32,7 +32,7 @@ from app.models import (
     CubeTrekAuthRequest, CubeTrekImportRequest,
     ConnectorSyncRequest, ConnectorSyncResponse, DevConsoleStatusResponse
 )
-from app.routing import fetch_route, generate_route_options, generate_route_options_stream
+from app.routing import fetch_route, plan_route_options
 from app.db import (
     get_connection,
     check_db_health, get_edge_heat, record_edge_heat,
@@ -128,22 +128,19 @@ async def calculate_route_options(
 ):
     try:
         uid = user.uid if user else None
-        options = await generate_route_options(request, count=request.candidate_count, user_id=uid)
+        result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+        options = result.options
         is_loop_req = request.is_loop or request.route_mode in ("loop", "round_trip") or (request.end is None and request.route_mode != "out_and_back")
         has_true_loops = any(opt.route_type in ("loop", "lollipop") for opt in options)
-        no_true_loop = bool(is_loop_req and not has_true_loops)
-        nearby_sugg = None
-        if options and options[0].nearby_start_suggestion:
-            nearby_sugg = options[0].nearby_start_suggestion
-
         return RouteOptionsResponse(
             options=options,
             count=len(options),
             requested_target_miles=request.target_distance_miles,
             start_name=request.start.name,
             loops_only=request.loops_only,
-            no_true_loop_near_here=no_true_loop,
-            nearby_start_suggestion=nearby_sugg
+            no_true_loop_near_here=bool(is_loop_req and not has_true_loops),
+            nearby_start_suggestion=result.nearby_suggestion,
+            notice=result.notice,
         )
     except Exception as e:
         raise HTTPException(
@@ -159,14 +156,14 @@ async def stream_route_options_post(
     uid = user.uid if user else None
     async def event_generator():
         try:
-            count = 0
-            async for opt in generate_route_options_stream(request, count=request.candidate_count, user_id=uid):
-                count += 1
+            result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+            for opt in result.options:
                 yield f"event: candidate\ndata: {opt.model_dump_json()}\n\n"
-            yield f"event: complete\ndata: {{\"status\": \"complete\", \"count\": {count}}}\n\n"
+            done = {"status": "complete", "count": len(result.options), "notice": result.notice,
+                    "nearby_start_suggestion": result.nearby_suggestion}
+            yield f"event: complete\ndata: {json.dumps(done)}\n\n"
         except Exception as e:
-            yield f"event: error\ndata: {{\"error\": \"{str(e)}\"}}\n\n"
-
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -559,6 +556,31 @@ async def record_heat(
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to record heat to database")
     return {"status": "recorded", "edge_osm_id": record.edge_osm_id, "sport": record.sport}
+
+@app.post("/api/admin/heat/bulk-import")
+async def bulk_import_heat(
+    payload: Dict[str, Any],
+    admin: AuthUser = Depends(get_admin_user)
+):
+    """Imports a batch (<= 25) of stripped Garmin-export tracks for the authenticated admin:
+    re-trims, map-matches, records activities and edge visits, derives loop seeds. Raw points
+    are never stored; idempotent by activity id."""
+    from app.heat_import import TrackError, import_tracks
+    tracks = payload.get("tracks")
+    if not isinstance(tracks, list):
+        raise HTTPException(status_code=400, detail="Body must be {\"tracks\": [...]}")
+    try:
+        return await import_tracks(admin.uid, tracks)
+    except TrackError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/heat/meta")
+async def heat_meta():
+    """Heat privacy threshold, so the UI can say when the 3-rider minimum is temporarily off."""
+    n = settings.heat_min_unique_riders
+    return {"min_unique_riders": n, "seed_data_notice": n < 3}
+
 
 @app.get("/api/heat/trails")
 async def get_heat_trails(sport: Optional[str] = None):

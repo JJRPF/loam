@@ -17,7 +17,6 @@ interface YouPanelProps {
 export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
   const { user: currentUser } = useAuth();
   const isSignedIn = !!currentUser;
-  const [privacyZoneEnabled, setPrivacyZoneEnabled] = useState(true);
   const [dnrList, setDnrList] = useState<UserDNR[]>([]);
   const [showAddDnr, setShowAddDnr] = useState(false);
   const [newDnrName, setNewDnrName] = useState('');
@@ -140,62 +139,16 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
         <ActivityUploadWidget isDarkMode={isDarkMode} />
       </div>
 
-      {/* Connected Services (Stage 6 & GH-19) */}
+      {/* Connected Services */}
       <ConnectedServicesSection isDarkMode={isDarkMode} />
 
       {/* Settings & Privacy */}
       <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Preferences & Privacy</h3>
 
-        {/* Display Theme (Dark Mode Only) */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-          <div>
-            <strong>Display Theme</strong>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Dark Mode exclusively (Round 4)</div>
-          </div>
-          <span
-            style={{
-              fontSize: 12,
-              fontWeight: 700,
-              padding: '4px 10px',
-              borderRadius: 6,
-              backgroundColor: 'var(--color-bg-subtle, #162C27)',
-              color: 'var(--color-text-primary, #E7ECEC)',
-              border: '1px solid var(--color-divider, #264A42)'
-            }}
-          >
-            🌙 Dark Mode
-          </span>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-          <div>
-            <strong>Distance & Elevation Units</strong>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Miles & Feet (Fixed policy)</div>
-          </div>
-          <span style={{ fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Imperial (mi / ft)</span>
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-          <div>
-            <strong>Endpoint Trimming Protection</strong>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Automatically strip first & last 0.2 mi of ride uploads</div>
-          </div>
-          <input
-            type="checkbox"
-            checked={privacyZoneEnabled}
-            onChange={(e) => setPrivacyZoneEnabled(e.target.checked)}
-            style={{ width: 18, height: 18, accentColor: 'var(--color-blaze, #FF5B14)' }}
-          />
-        </div>
-
-        <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: 13 }}>
-          <div>
-            <strong>Privacy Threshold Invariant</strong>
-            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Public routes only influenced when ≥ 3 unique riders contribute</div>
-          </div>
-          <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>≥ 3 Riders</span>
-        </div>
+        <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: 0 }}>
+          We always trim 0.2 mi from the start and end of uploaded rides. Public heat only shows trails ridden by enough different riders to keep any one of them anonymous.
+        </p>
 
         <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -365,7 +318,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
 
       {/* About & Stack & Dev Tools Link */}
       <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.6, marginTop: 16 }}>
-        <div>loam Trail Route Builder • Stage 4 Heat v1</div>
+        <div>loam Trail Route Builder</div>
         <div>Built with MapLibre GL JS, GraphHopper & PostGIS</div>
         <div style={{ marginTop: 8 }}>
           <a

@@ -89,6 +89,12 @@ class RouteResponse(BaseModel):
     unridden_miles: float = 0.0
     unridden_percent: float = 0.0
     unridden_segments_count: int = 0
+    # Round 7: one route builder for every source
+    source: Optional[str] = None  # 'graphhopper' | 'graph_loop' | 'seed_loop'
+    road_pct: Optional[float] = None  # road share excluding the access stretch
+    access_miles: float = 0.0  # road from the start to the first trail (and back), reported separately
+    # Max distance (m) from the route to the OSM ways it claims to follow; None = not checked.
+    geometry_max_offset_m: Optional[float] = None
 
 
 class RouteOptionsRequest(RouteRequest):
@@ -102,6 +108,7 @@ class RouteOptionsResponse(BaseModel):
     loops_only: bool = False
     no_true_loop_near_here: bool = False
     nearby_start_suggestion: Optional[str] = None
+    notice: Optional[str] = None  # e.g. "Only 4 routes match; try a different start or distance"
 
 class EdgeHeatRecord(BaseModel):
     edge_osm_id: int

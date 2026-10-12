@@ -6,6 +6,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 from typing import Optional, Dict, Any, List
 from app.config import settings
+from app.decay import heat_sport, min_unique_riders
 
 def get_connection():
     return psycopg2.connect(settings.database_url)
@@ -47,12 +48,14 @@ def get_edge_heat(edge_osm_id: int, sport: str, user_id: Optional[str] = None) -
 
 def get_edges_heat(edge_osm_ids: List[int], sport: str, user_id: Optional[str] = None) -> Dict[int, Dict[str, Any]]:
     """
+    Heat is looked up per heat sport (a routing profile like mtb_hardtail maps to mtb).
     Batch query edge_heat table for a list of OSM way/edge IDs.
     Filters by the privacy threshold: heat counts only if is_public (>= 3 riders)
     OR if the current user is a contributing rider.
     """
     if not edge_osm_ids:
         return {}
+    sport = heat_sport(sport)
     try:
         with get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -394,6 +397,7 @@ def record_activity_edge_visits(
     """
     if not edge_counts:
         return 0
+    sport = heat_sport(sport)
 
     if visited_at is None:
         visited_at = datetime.datetime.now(datetime.timezone.utc)
@@ -748,7 +752,7 @@ def recalculate_all_edge_heat(ref_date: Optional[datetime.datetime] = None) -> D
                                 max_date = v_dt
 
                     u_count = len(contribs)
-                    is_pub = (u_count >= 1)
+                    is_pub = (u_count >= min_unique_riders())
                     contrib_arr = sorted(list(contribs))
 
                     cur.execute(
@@ -1937,6 +1941,7 @@ def get_user_ridden_edge_ids(user_id: str, sport: Optional[str] = None) -> set:
     """Returns set of edge OSM IDs that the user has previously ridden/visited."""
     if not user_id:
         return set()
+    sport = heat_sport(sport) if sport else None
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
@@ -1998,6 +2003,7 @@ def get_unridden_high_heat_trails(
     """
     from app.surface import surface_category
 
+    sport = heat_sport(sport)
     radius_m = radius_miles * 1609.344
     try:
         with get_connection() as conn:
@@ -2089,6 +2095,7 @@ def get_heat_trail_geojson(sport: Optional[str] = None, limit: int = 5000) -> Di
     """
     Returns GeoJSON FeatureCollection of traversed / heat trails for the map heatmap layer.
     """
+    sport = heat_sport(sport) if sport else None
     features = []
     try:
         with get_connection() as conn:
@@ -2431,3 +2438,58 @@ def admin_update_submission_status(
 
 
 
+
+
+# --- Round 7: OSM way geometry for the geometry-fidelity gate --------------------------------
+
+_way_geom_cache: Dict[int, Optional[List[List[float]]]] = {}
+_way_geom_import: Optional[int] = None
+
+
+_import_id_checked: List[float] = [0.0, 0.0]  # [checked_at, value]
+
+
+def latest_osm_import_id() -> Optional[int]:
+    """Id of the latest OSM import (None before the first import); caches key on it.
+    Re-read from the database at most every 30 s."""
+    import time as _time
+    now = _time.monotonic()
+    if now - _import_id_checked[0] < 30.0:
+        return _import_id_checked[1]
+    try:
+        with get_connection() as conn:
+            with conn.cursor() as cur:
+                cur.execute("SELECT max(id) FROM osm_imports")
+                value = cur.fetchone()[0]
+    except Exception:
+        return None
+    _import_id_checked[0], _import_id_checked[1] = now, value
+    return value
+
+
+def get_way_geometries(way_ids: List[int]) -> Dict[int, List[List[float]]]:
+    """OSM geometry ([[lon, lat], ...]) of each way that came from the OSM import. Ways with no
+    OSM geometry are absent from the result. Cached per import."""
+    global _way_geom_import
+    current = latest_osm_import_id()
+    if current != _way_geom_import:
+        _way_geom_cache.clear()
+        _way_geom_import = current
+    missing = [w for w in set(way_ids) if w not in _way_geom_cache]
+    if missing:
+        try:
+            with get_connection() as conn:
+                with conn.cursor() as cur:
+                    cur.execute(
+                        "SELECT osm_id, ST_AsGeoJSON(geom) FROM edges "
+                        "WHERE osm_id = ANY(%s) AND osm_source AND geom IS NOT NULL",
+                        (missing,),
+                    )
+                    found = {r[0]: json.loads(r[1])["coordinates"] for r in cur.fetchall()}
+        except Exception:
+            found = {}
+        for w in missing:
+            _way_geom_cache[w] = found.get(w)
+        if len(_way_geom_cache) > 200_000:
+            _way_geom_cache.clear()
+    return {w: _way_geom_cache[w] for w in set(way_ids) if _way_geom_cache.get(w)}

@@ -116,6 +116,11 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
           <div className="num-tabular" style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
             {formatGain(route.elevation_gain_ft)} • {durationText}
           </div>
+          {(route.access_miles ?? 0) >= 0.1 && (
+            <div className="num-tabular" style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
+              {route.access_miles!.toFixed(1)} mi road to trail
+            </div>
+          )}
 
           <div style={{ fontSize: 11, color: 'var(--color-text-primary, #1D3B34)', marginTop: 2, display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
             <span>{stPct}% Singletrack</span>

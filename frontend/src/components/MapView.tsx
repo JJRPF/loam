@@ -11,7 +11,7 @@ import {
   type GeoJSONSource 
 } from 'maplibre-gl';
 import type { RouteResponse, LatLon } from '../types';
-import { fetchHeatTrails, fetchOtmTrails } from '../services/api';
+import { fetchHeatMeta, fetchHeatTrails, fetchOtmTrails, SEED_HEAT_NOTICE } from '../services/api';
 import trailheadData from '../data/trailheads.json';
 
 const DEFAULT_TRAILHEAD = trailheadData.trailheads[0];
@@ -107,6 +107,11 @@ export const MapView: React.FC<MapViewProps> = ({
   // Heat trail state & cached GeoJSON
   const [showHeatmap, setShowHeatmap] = useState<boolean>(true);
   const [heatTrailCount, setHeatTrailCount] = useState<number>(0);
+  const [seedHeatNotice, setSeedHeatNotice] = useState<boolean>(false);
+
+  useEffect(() => {
+    fetchHeatMeta().then((m) => setSeedHeatNotice(m.seed_data_notice)).catch(() => setSeedHeatNotice(false));
+  }, []);
   const heatDataRef = useRef<any>(null);
 
   // OpenTrailMap (OTM) trails state & cached GeoJSON
@@ -758,6 +763,19 @@ export const MapView: React.FC<MapViewProps> = ({
             </span>
           )}
         </button>
+
+        {showHeatmap && seedHeatNotice && (
+          <span
+            role="note"
+            style={{
+              backgroundColor: 'var(--color-card-bg)', color: 'var(--color-text-primary)', borderRadius: 8,
+              padding: '4px 10px', fontSize: 11, maxWidth: 240, boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+              border: '1px solid var(--color-divider)'
+            }}
+          >
+            {SEED_HEAT_NOTICE}
+          </span>
+        )}
 
         {/* OpenTrailMap Layer Toggle Badge */}
         <button

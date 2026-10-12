@@ -6,6 +6,8 @@
     loam-eval final --round N                         ONE holdout evaluation: baseline vs best
     loam-eval label-sheet --split val                 HTML sheet for Layer-2 pairwise labels
     loam-eval label-fit --labels FILE                 fit the Bradley-Terry scorer, report agreement
+    loam-eval real-scenarios --pbf FILE               regenerate benchmark/real_scenarios.json (public OSM trailheads)
+    loam-eval real --engine NAME=TREE [...]           live-engine run of the real set, scored against OSM
 """
 from __future__ import annotations
 
@@ -193,6 +195,32 @@ def cmd_scenarios(a) -> int:
     return 0
 
 
+def cmd_real_scenarios(a) -> int:
+    from loam_eval import real
+    scs = real.write_scenarios(a.pbf)
+    print(f"{len(scs)} real scenarios -> {real.REAL_SCENARIOS}")
+    return 0
+
+
+def cmd_real(a) -> int:
+    """Each --engine NAME=TREE runs that source tree's engine in a subprocess over the real set."""
+    from loam_eval import real
+    scs = json.load(open(real.REAL_SCENARIOS))["scenarios"]
+    runs = {}
+    for spec in a.engine:
+        name, _, tree = spec.partition("=")
+        tree = os.path.abspath(tree or ROOT)
+        out = os.path.join(a.workdir, f"real_{name}.json")
+        runs[name] = real.run_engine(tree, real.REAL_SCENARIOS, out)
+    result = real.evaluate(runs, scs)
+    real.write_report(a.out, result, scs, a.note or [])
+    with open(os.path.splitext(a.out)[0] + ".json", "w") as f:
+        json.dump(result, f, indent=1)
+    print(json.dumps(result["summary"], indent=1))
+    log_event({"event": "real_benchmark", "engines": list(runs), "summary": result["summary"]})
+    return 0
+
+
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="loam-eval", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -205,6 +233,11 @@ def main(argv=None) -> int:
     ls = sub.add_parser("label-sheet"); ls.add_argument("--split", default="val", choices=["train", "val"]); ls.add_argument("--n", type=int, default=50)
     ls.add_argument("--config"); ls.set_defaults(fn=cmd_label_sheet)
     lf = sub.add_parser("label-fit"); lf.add_argument("--labels", required=True); lf.set_defaults(fn=cmd_label_fit)
+    rs = sub.add_parser("real-scenarios"); rs.add_argument("--pbf", required=True); rs.set_defaults(fn=cmd_real_scenarios)
+    rr = sub.add_parser("real"); rr.add_argument("--engine", action="append", required=True)
+    rr.add_argument("--out", default=os.path.join(BENCH, "reports", "round7.md"))
+    rr.add_argument("--workdir", default=os.path.join(BENCH, "reports"))
+    rr.add_argument("--note", action="append"); rr.set_defaults(fn=cmd_real)
     sc = sub.add_parser("scenarios"); sc.set_defaults(fn=cmd_scenarios)
     a = p.parse_args(argv)
     return a.fn(a)

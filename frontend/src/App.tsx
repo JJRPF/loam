@@ -95,6 +95,7 @@ export const App: React.FC = () => {
   const [loopsOnly, setLoopsOnly] = useState<boolean>(false);
   const [noTrueLoopNearHere, setNoTrueLoopNearHere] = useState<boolean>(false);
   const [nearbyStartSuggestion, setNearbyStartSuggestion] = useState<string | null>(null);
+  const [optionsNotice, setOptionsNotice] = useState<string | null>(null);
 
   // Route calculation and results
   const [route, setRoute] = useState<RouteResponse | null>(null);
@@ -130,6 +131,7 @@ export const App: React.FC = () => {
     setRoute(null);
     setNoTrueLoopNearHere(false);
     setNearbyStartSuggestion(null);
+    setOptionsNotice(null);
     setActiveTab('results');
     if (isMobile) {
       setSheetSnap('half');
@@ -164,8 +166,9 @@ export const App: React.FC = () => {
             return next;
           });
         },
-        onComplete: () => {
+        onComplete: (_count, info) => {
           setIsLoading(false);
+          setOptionsNotice(info?.notice || null);
           setOptions(currentOpts => {
             const hasLoops = currentOpts.some(o => o.route_type === 'loop' || o.route_type === 'lollipop');
             if (routeMode === 'loop' && (!hasLoops || currentOpts.length === 0)) {
@@ -375,6 +378,7 @@ export const App: React.FC = () => {
                   isLoading={isLoading}
                   noTrueLoopNearHere={noTrueLoopNearHere}
                   nearbyStartSuggestion={nearbyStartSuggestion || undefined}
+                  optionsNotice={optionsNotice || undefined}
                 />
               )}
 
@@ -551,6 +555,7 @@ export const App: React.FC = () => {
                     isLoading={isLoading}
                     noTrueLoopNearHere={noTrueLoopNearHere}
                     nearbyStartSuggestion={nearbyStartSuggestion || undefined}
+                  optionsNotice={optionsNotice || undefined}
                   />
                 )}
 
