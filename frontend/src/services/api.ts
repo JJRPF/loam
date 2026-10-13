@@ -165,6 +165,8 @@ export function streamRouteOptions(
     onCandidate: (candidate: RouteResponse) => void;
     onComplete: (count: number, info?: { notice?: string | null; nearby_start_suggestion?: string | null }) => void;
     onError: (err: Error) => void;
+    /** Called with the exact request body sent, so a later "Report bad route" can include it. */
+    onRequest?: (payload: Record<string, unknown>) => void;
   }
 ): () => void {
   const abortController = new AbortController();
@@ -188,7 +190,7 @@ export function streamRouteOptions(
     trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true,
     loops_only: params.loopsOnly ?? false
   };
-
+  callbacks.onRequest?.(payload);
 
   (async () => {
     try {
@@ -517,6 +519,38 @@ export async function createFlag(
   if (!res.ok) {
     throw new Error(`Failed to submit flag (${res.status}): ${await res.text()}`);
   }
+  return await res.json();
+}
+
+export interface BadRouteReportResult {
+  id: string;
+  status: 'filed' | 'pending';
+  issue_url?: string | null;
+  message: string;
+}
+
+/** Files a "bad route" report. The server trims the route line before it goes into the GitHub issue. */
+export async function submitBadRouteReport(
+  comment: string,
+  request: Record<string, unknown>,
+  route: RouteResponse,
+  options: RouteResponse[]
+): Promise<BadRouteReportResult> {
+  const res = await authedFetch(`${API_BASE}/api/reports/bad-route`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      comment,
+      request,
+      route,
+      options: options.slice(0, 25).map((o) => ({
+        id: o.id, name: o.name, distance_miles: o.distance_miles, route_type: o.route_type, match_score: o.match_score
+      }))
+    })
+  });
+  if (res.status === 429) throw new Error('You have sent 5 reports today. Please try again tomorrow.');
+  if (res.status === 401) throw new Error('Sign in to report a route.');
+  if (!res.ok) throw new Error(`Could not send the report (${res.status}).`);
   return await res.json();
 }
 

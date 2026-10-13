@@ -96,6 +96,7 @@ export const App: React.FC = () => {
   const [noTrueLoopNearHere, setNoTrueLoopNearHere] = useState<boolean>(false);
   const [nearbyStartSuggestion, setNearbyStartSuggestion] = useState<string | null>(null);
   const [optionsNotice, setOptionsNotice] = useState<string | null>(null);
+  const [searchRequest, setSearchRequest] = useState<Record<string, unknown> | null>(null);
 
   // Route calculation and results
   const [route, setRoute] = useState<RouteResponse | null>(null);
@@ -132,6 +133,7 @@ export const App: React.FC = () => {
     setNoTrueLoopNearHere(false);
     setNearbyStartSuggestion(null);
     setOptionsNotice(null);
+    setSearchRequest(null);
     setActiveTab('results');
     if (isMobile) {
       setSheetSnap('half');
@@ -157,6 +159,7 @@ export const App: React.FC = () => {
         loopsOnly
       },
       {
+        onRequest: setSearchRequest,
         onCandidate: (cand) => {
           setOptions(prev => {
             const next = [...prev, cand];
@@ -379,6 +382,7 @@ export const App: React.FC = () => {
                   noTrueLoopNearHere={noTrueLoopNearHere}
                   nearbyStartSuggestion={nearbyStartSuggestion || undefined}
                   optionsNotice={optionsNotice || undefined}
+                  searchRequest={searchRequest}
                 />
               )}
 
@@ -556,6 +560,7 @@ export const App: React.FC = () => {
                     noTrueLoopNearHere={noTrueLoopNearHere}
                     nearbyStartSuggestion={nearbyStartSuggestion || undefined}
                   optionsNotice={optionsNotice || undefined}
+                    searchRequest={searchRequest}
                   />
                 )}
 

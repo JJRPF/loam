@@ -103,3 +103,31 @@ Tests: new `tests/test_round7_no_fabrication.py` (7): the seed catalog is empty 
 Live probes from OSM parkings (local): Bear Brook 10 and 14 mi, 10 true loops each. Knox 10. Oak Hill 8 mi, 4 options plus the notice. Bow 10 mi, 7. All about 7 s.
 
 Frontend: ResultsPanel `optionsNotice` banner, "X mi road to trail" on CandidateCard, and the new response fields in `types.ts`.
+
+## Phase 5: Garmin export heat and real loop seeds (plan section 7)
+
+Phases 4, 5 and 6 are in one commit (9554779) rather than three. **Deviation**, logged here; the code for each phase is separable by file.
+
+- **Stripping (7.1)** runs locally (`scripts/strip_garmin_export.py`); the export never leaves the machine and nothing derived from it is committed. 427 tracks written (trail_run, mtb, gravel by year in the manifest). Home and start zones are removed and each track is trimmed 0.2 mi at both ends. Upload code is committed, the data is not.
+- **Upload (7.2):** `scripts/upload_stripped.py` has the planned HTTP mode (admin ID token, batches of 25, resumable) and a **direct mode** (`--direct --user-id`) that runs the same server-side import in-process. I added it to load the local stack, and it can load the Pi before Firebase sign-in exists. The server trims again on import (**double trimming**: 0.2 mi in the strip, 0.2 mi on the server), so imported rides lose a little more than the stated 0.2 mi per end. Stored activities keep no points (`raw_file_retained=false`, no geometry columns; checked by test).
+- **Map matching:** `match_path_graphhopper` retries once with `gps_accuracy=100` on "Sequence is broken", and no longer logs the response body, since GraphHopper echoes track coordinates in its errors. Local import: 369 matched on the first pass, 6 more on the retry. **34 tracks stay unmatchable** (GPS off the network). They are skipped, not faked.
+- **Heat-sport bug fixed:** activities were stored with the profile instead of the heat sport, so recalculation didn't group them. `heat_sport()` now maps every mtb profile to `mtb`, gravel/bike to `gravel`, foot/trail_run to `trail_run`.
+- **7.3 override:** `HEAT_MIN_UNIQUE_RIDERS` (default 3) with `/api/heat/meta` reporting it; with a value below 3 the UI shows the seed-data notice. Must return to 3 before Loam goes public (README checklist, Phase 8).
+- **7.4 seeds:** stored as OSM topology only in `seed_loops` (node and way ids). A seed is offered when its loop passes within 1.5 mi of the start, and to others only when enough distinct riders rode it. `build_candidate` bridges unresolved node pairs (up to 400 m) and closes the trimmed start/finish gap along the network. Local seeds by area: trail_run 16 loops, mtb 13, gravel 10, most in the Bow area, some at Bear Brook. Heat after recalculation with the override at 1: trail_run 584 edges (200 public), mtb 1219 (646), gravel 1434 (798).
+- **DEM check (7.1 end):** 24 elevation-corrected activities. The 3DEP signed median is +12.8% against Garmin gain, absolute median 24.2%, 9 of 24 within 15%. Most of these rides have a small gain (median about 51 m), so relative error is noisy. The plan's alternative, a point check against USGS EPQS, is within 0.2 m. That satisfies the "or".
+- **Open bug:** `recalculate_regional_coverage` logs `'activity_id'` on each recalc (local and Pi). Heat itself completes. Fixed in the next commit (see Phase 9).
+- **Not done:** a visual overlay check of heat against OSM trails.
+
+## Phase 6: Settings cleanup (plan section 8)
+
+YouPanel lost Theme, Units, Trimming and Threshold. One sentence of plain text covers both rules. The "(Round 4)" and "Stage 4 Heat v1" copy is gone. There was no client parameter to skip trimming, so nothing to remove server-side. **Deviation:** the plan lists privacy zones among the controls to keep; the panel never had a privacy-zone UI, so there is nothing to keep or remove. Zones are applied during the Garmin strip only. Playwright check of the panel happens in Phase 9.
+
+## Phase 7: Report bad route (plan section 9)
+
+Built as written. `POST /api/reports/bad-route` (auth, 5 per user per 24 h, then 429), `route_reports` (migration 004) holds the full snapshot, and `GET /api/admin/reports/{id}` returns it (admin only). `app/reports.py` builds the issue: title, the `in-app feedback` label (created on a 422), the comment in a five-backtick fence with `@` neutralized, inputs with every coordinate withheld (end and midpoints show only presence and count), scores, warnings, engine config version, git sha, report id and a short hash of the user id. The route line is trimmed 805 m at each end (`trim_ride_endpoints` with a parameter), rounded to 5 decimals and simplified until the body is under 60,000 characters. A route shorter than 1 mi gets no line.
+- If GitHub fails or the token is unset the report stays `pending` ("Saved. It will be filed shortly.") and `app/worker.py` retries it, up to 20 attempts. **Deviation:** the plan names no schedule; the retry runs inside the nightly heat job, so a failed report can wait up to a day.
+- git sha comes from `LOAM_GIT_SHA`, then a `REVISION` file beside `app/`, then `git rev-parse`. The Pi isn't a git checkout, so deploy writes `REVISION`.
+- UI: "Report bad route" button under the trail-issue buttons and a ⋯ menu on each candidate card, both only when signed in (signed out: "Sign in to report a bad route"). The modal has the plan's exact notice, a 10-2000 character textarea and a confirmation with the issue link. The request that produced the options is captured by a new `onRequest` callback in `streamRouteOptions`.
+- Tests: `tests/test_round7_reports.py` (6): 401 anonymous, 422 short comment, GitHub mocked, none of the first or last 90 points in the body, no start/end/midpoint coordinates, mentions neutralized, size limit, pending then filed by the worker, 5/day limit, admin-only read.
+- `GITHUB_FEEDBACK_TOKEN` is read from the environment only; copied to the Pi in Phase 9 without echoing.
+- Fixed `'activity_id'` in `recalculate_regional_coverage` (it selected `a.id`, read `activity_id`, and indexed a dict cursor as a tuple). It now computes centroids in SQL; 29 cells locally.

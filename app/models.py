@@ -481,3 +481,17 @@ class CubeTrekImportRequest(BaseModel):
     sport: str = "mtb"
     name: Optional[str] = None
     import_to_heat: bool = True
+
+
+class BadRouteReport(BaseModel):
+    comment: str = Field(..., min_length=10, max_length=2000)
+    request: RouteRequest
+    route: RouteResponse
+    options: List[Dict[str, Any]] = Field(default_factory=list, max_length=25)
+
+
+class BadRouteReportResponse(BaseModel):
+    id: str
+    status: str  # 'filed' | 'pending'
+    issue_url: Optional[str] = None
+    message: str

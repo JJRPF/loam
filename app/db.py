@@ -632,9 +632,9 @@ def recalculate_regional_coverage(threshold: int = 3) -> int:
                 # We can compute cell from visited edges' locations or activities
                 cur.execute(
                     """
-                    SELECT a.id, e.geom
+                    SELECT DISTINCT v.activity_id,
+                           ST_Y(ST_Centroid(e.geom)) AS lat, ST_X(ST_Centroid(e.geom)) AS lon
                     FROM activity_edge_visits v
-                    JOIN activities a ON v.activity_id = a.id
                     JOIN edges e ON v.edge_osm_id = e.osm_id
                     WHERE v.visited_at >= NOW() - INTERVAL '365 days'
                       AND e.geom IS NOT NULL;
@@ -645,19 +645,14 @@ def recalculate_regional_coverage(threshold: int = 3) -> int:
                 cell_coords: Dict[str, Tuple[float, float, float, float]] = {}
 
                 for r in rows:
-                    act_id = r["activity_id"]
-                    # If geom exists, get point
-                    cur.execute("SELECT ST_Y(ST_Centroid(%s::geometry)), ST_X(ST_Centroid(%s::geometry));", (r["geom"], r["geom"]))
-                    pt = cur.fetchone()
-                    if pt and pt[0] is not None:
-                        lat, lon = float(pt[0]), float(pt[1])
-                        min_lat = math.floor(lat / 0.05) * 0.05
-                        min_lon = math.floor(lon / 0.05) * 0.05
-                        c_id = f"{min_lat:.2f}:{min_lon:.2f}"
-                        if c_id not in cell_activity_map:
-                            cell_activity_map[c_id] = set()
-                            cell_coords[c_id] = (min_lat, min_lon, min_lat + 0.05, min_lon + 0.05)
-                        cell_activity_map[c_id].add(act_id)
+                    lat, lon = float(r["lat"]), float(r["lon"])
+                    min_lat = math.floor(lat / 0.05) * 0.05
+                    min_lon = math.floor(lon / 0.05) * 0.05
+                    c_id = f"{min_lat:.2f}:{min_lon:.2f}"
+                    if c_id not in cell_activity_map:
+                        cell_activity_map[c_id] = set()
+                        cell_coords[c_id] = (min_lat, min_lon, min_lat + 0.05, min_lon + 0.05)
+                    cell_activity_map[c_id].add(r["activity_id"])
 
                 for c_id, act_set in cell_activity_map.items():
                     cnt = len(act_set)

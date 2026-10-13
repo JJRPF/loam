@@ -12,6 +12,7 @@ from typing import Dict, Any, Optional, List
 from app.config import settings, check_production_config
 from app.auth import AuthUser, get_current_user, get_optional_user, get_admin_user
 from app.models import (
+    BadRouteReport, BadRouteReportResponse,
     RouteRequest, RouteResponse, HealthResponse,
     EdgeHeatRecord, SavedRouteCreate, SavedRouteItem,
     ExportRequest, RouteOptionsRequest, RouteOptionsResponse,
@@ -556,6 +557,48 @@ async def record_heat(
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to record heat to database")
     return {"status": "recorded", "edge_osm_id": record.edge_osm_id, "sport": record.sport}
+
+# --- Report bad route (Round 7 plan section 9) ---
+
+@app.post("/api/reports/bad-route", response_model=BadRouteReportResponse)
+async def report_bad_route(
+    body: BadRouteReport,
+    user: AuthUser = Depends(get_current_user)
+):
+    """Stores the full snapshot, then files a GitHub issue with the trimmed copy. 5 reports per user per day."""
+    import asyncio
+    from app import reports
+
+    if await asyncio.to_thread(reports.count_recent, user.uid) >= reports.DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail=f"At most {reports.DAILY_LIMIT} reports a day.")
+    request = body.request.model_dump(mode="json")
+    route = body.route.model_dump(mode="json")
+    rid = await asyncio.to_thread(reports.store_report, user.uid, body.comment.strip(), request, route, body.options)
+    stored = await asyncio.to_thread(reports.get_report, rid)
+    filed = await asyncio.to_thread(reports.file_issue, stored)
+    await asyncio.to_thread(reports.mark_attempt, rid, filed)
+    if filed:
+        return BadRouteReportResponse(id=rid, status="filed", issue_url=filed["url"],
+                                      message="Thanks. Your report was filed.")
+    return BadRouteReportResponse(id=rid, status="pending", message="Saved. It will be filed shortly.")
+
+@app.get("/api/admin/reports/{report_id}")
+async def get_bad_route_report(
+    report_id: str,
+    admin: AuthUser = Depends(get_admin_user)
+):
+    """The full stored snapshot of a report (the GitHub issue only has the trimmed copy)."""
+    import asyncio
+    from app import reports
+
+    try:
+        uuid.UUID(report_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report = await asyncio.to_thread(reports.get_report, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
 
 @app.post("/api/admin/heat/bulk-import")
 async def bulk_import_heat(

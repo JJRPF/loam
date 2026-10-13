@@ -27,6 +27,10 @@ class Settings(BaseModel):
         os.getenv("DATA_DIR", os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")),
         "elevation", "3dep13")
 
+    # "Report bad route" files GitHub issues with this fine-grained PAT (Issues read/write on one repo).
+    github_feedback_token: str = os.getenv("GITHUB_FEEDBACK_TOKEN", "")
+    github_feedback_repo: str = os.getenv("GITHUB_FEEDBACK_REPO", "JJRPF/loam")
+
     # Port & Host
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8080"))

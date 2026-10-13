@@ -3,6 +3,8 @@ import type { RouteResponse } from '../types';
 import { CandidateCard } from './CandidateCard';
 import { ElevationProfile } from './ElevationProfile';
 import { formatGain } from '../format';
+import { useAuth } from '../services/auth';
+import { ReportBadRouteModal } from './ReportBadRouteModal';
 import { 
   downloadGpx, downloadFit, shareRouteGarmin, saveRouteApi,
   submitTrailCheckin, createFlag
@@ -20,6 +22,8 @@ interface ResultsPanelProps {
   noTrueLoopNearHere?: boolean;
   nearbyStartSuggestion?: string;
   optionsNotice?: string;
+  /** The request body that produced these options (sent along with a bad-route report). */
+  searchRequest?: Record<string, unknown> | null;
 }
 
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
@@ -33,8 +37,11 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   isLoading = false,
   noTrueLoopNearHere = false,
   nearbyStartSuggestion,
-  optionsNotice
+  optionsNotice,
+  searchRequest = null
 }) => {
+  const { user: signedInUser } = useAuth();
+  const [reportTarget, setReportTarget] = useState<RouteResponse | null>(null);
   const [isExportingGpx, setIsExportingGpx] = useState(false);
   const [isExportingFit, setIsExportingFit] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -326,6 +333,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                   isSelected={isSelected}
                   onSelect={() => onSelectRoute?.(opt)}
                   onHover={onHoverRoute}
+                  onReportBad={signedInUser ? () => setReportTarget(opt) : undefined}
                 />
               );
             })}
@@ -439,6 +447,30 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             🚩 Report Trail Issue
           </button>
         </div>
+        <div style={{ marginTop: 8 }}>
+          {signedInUser ? (
+            <button
+              type="button"
+              onClick={() => setReportTarget(activeRoute)}
+              className="btn-secondary"
+              style={{ width: '100%', fontSize: 12, minHeight: 32, borderColor: 'var(--color-divider, #D1D8D8)', color: 'var(--color-text-primary, #1D3B34)' }}
+            >
+              Report bad route
+            </button>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center' }}>
+              Sign in to report a bad route (You tab).
+            </div>
+          )}
+        </div>
+        {reportTarget && (
+          <ReportBadRouteModal
+            route={reportTarget}
+            options={options.length > 0 ? options : [reportTarget]}
+            request={searchRequest}
+            onClose={() => setReportTarget(null)}
+          />
+        )}
 
         {checkinStatus && (
           <div style={{ fontSize: 12, color: '#2E6F40', backgroundColor: 'rgba(46, 111, 64, 0.15)', padding: '6px 10px', borderRadius: 4, marginTop: 6 }}>

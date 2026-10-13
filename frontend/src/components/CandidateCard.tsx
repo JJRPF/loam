@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { RouteResponse } from '../types';
 import { formatGain } from '../format';
 
@@ -7,14 +7,18 @@ interface CandidateCardProps {
   isSelected: boolean;
   onSelect: () => void;
   onHover?: (route: RouteResponse | null) => void;
+  /** Passed only when signed in: adds the overflow menu with "Report bad route". */
+  onReportBad?: () => void;
 }
 
 export const CandidateCard: React.FC<CandidateCardProps> = ({
   route,
   isSelected,
   onSelect,
-  onHover
+  onHover,
+  onReportBad
 }) => {
+  const [menuOpen, setMenuOpen] = useState(false);
   const durationMins = route.duration_minutes ?? 0;
   const hours = Math.floor(durationMins / 60);
   const mins = Math.round(durationMins % 60);
@@ -93,6 +97,36 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             {route.match_score ?? 90}
           </span>
         </div>
+
+        {onReportBad && (
+          <div style={{ position: 'relative', marginLeft: 6, flexShrink: 0 }}>
+            <button
+              type="button"
+              aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={(e) => { e.stopPropagation(); setMenuOpen((o) => !o); }}
+              style={{ minWidth: 32, minHeight: 32, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 18, lineHeight: 1, color: 'var(--color-text-primary, #1D3B34)' }}
+            >
+              ⋯
+            </button>
+            {menuOpen && (
+              <div
+                role="menu"
+                style={{ position: 'absolute', right: 0, top: 34, zIndex: 20, background: 'var(--color-card-bg, #FFFFFF)', border: '1px solid var(--color-divider, #D1D8D8)', borderRadius: 6, boxShadow: '0 4px 12px rgba(0,0,0,0.2)', whiteSpace: 'nowrap' }}
+              >
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(e) => { e.stopPropagation(); setMenuOpen(false); onReportBad(); }}
+                  style={{ display: 'block', padding: '8px 12px', minHeight: 36, border: 'none', background: 'transparent', cursor: 'pointer', fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}
+                >
+                  Report bad route
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Main Stats & Inline SVG Minimap */}
