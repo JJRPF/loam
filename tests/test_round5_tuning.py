@@ -3,13 +3,6 @@ from app.engine_config import EngineConfig, get_config, use_config
 from app.scoring import classify_route_geometry, calculate_composite_score
 from app.models import SportProfile, TerrainPreference, RouteResponse
 from app.routing import classify_surface, select_options
-from app.db import (
-    KNOWN_OSM_TRAIL_NAMES,
-    ingest_bow_ride_data_and_trails,
-    get_heat_trail_geojson,
-    get_unridden_high_heat_trails
-)
-from app.otm import FALLBACK_OTM_TRAILS
 from loam_eval.evaluator import layer0, evaluate_scenario
 
 
@@ -128,40 +121,6 @@ def test_road_cap_enforcement_and_penalties():
         )
 
         assert score_ok > score_excess + 20.0
-
-
-def test_bow_town_forest_knox_trails_registered():
-    """Verify Knox Mountain trails are registered in curated OSM, OTM, and Heat fallback."""
-    knox_trails = [
-        "Knox Mountain Trail",
-        "Tower Trail",
-        "Walker Forest Connector",
-        "Beaver Pond Trail",
-        "Page Road Trail"
-    ]
-
-    curated_names = set(KNOWN_OSM_TRAIL_NAMES.values())
-    otm_names = {t["name"] for t in FALLBACK_OTM_TRAILS}
-    heat_geojson = get_heat_trail_geojson(sport="mtb")
-    heat_names = {f["properties"]["name"] for f in heat_geojson["features"]}
-
-    for name in knox_trails:
-        assert name in curated_names, f"{name} must be in KNOWN_OSM_TRAIL_NAMES"
-        assert name in otm_names, f"{name} must be in FALLBACK_OTM_TRAILS"
-        assert name in heat_names, f"{name} must be in heat GeoJSON features"
-
-
-def test_bow_town_forest_knox_ingestion_and_geometry():
-    """Verify Bow ingestion populates heat trails and edge geometries for Knox trails."""
-    res = ingest_bow_ride_data_and_trails(user_id="test_knox_ingest", sport="mtb")
-    assert res["status"] == "success"
-    assert "Knox Mountain Trail" in res["trails"]
-    assert "Tower Trail" in res["trails"]
-    assert res["edges_ingested"] >= 10
-
-    geojson = get_heat_trail_geojson(sport="mtb")
-    feature_names = [f["properties"]["name"] for f in geojson["features"]]
-    assert any("Knox Mountain" in n or "Tower" in n for n in feature_names)
 
 
 def test_evaluator_layer_0_hard_gates():

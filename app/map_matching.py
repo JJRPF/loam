@@ -47,70 +47,77 @@ def persist_matched_geometry(path: Dict[str, Any]) -> int:
     return upsert_edge_geometries(extract_way_geometries(path))
 
 
+async def match_path_graphhopper(
+    points: List[TrackPoint],
+    sport: str = "mtb",
+    timeout: float = 30.0
+) -> Optional[Dict[str, Any]]:
+    """GraphHopper /match for a trace: the matched path (coordinates + osm_way_id details), or None."""
+    if len(points) < 2:
+        return None
+    gpx_payload = build_gpx_track(
+        name="Ingested Ride",
+        sport=sport,
+        coordinates=[[pt.lon, pt.lat] for pt in points],
+        distance_miles=1.0,
+        duration_minutes=30.0,
+        start_time=points[0].time
+    )
+    params = {
+        "profile": get_gh_matching_profile(sport),
+        "type": "json",
+        "points_encoded": "false",
+        "details": ["osm_way_id", "street_name", "road_class", "surface"]
+    }
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            # GraphHopper's default accuracy (40 m) breaks the sequence where GPS drifts off the
+            # network under tree cover; one retry with a wider radius rescues most of those.
+            for accuracy in (None, 100):
+                if accuracy:
+                    params["gps_accuracy"] = accuracy
+                resp = await client.post(f"{settings.graphhopper_url}/match", params=params,
+                                         headers={"Content-Type": "application/gpx+xml"},
+                                         content=gpx_payload.encode("utf-8"))
+                if resp.status_code == 200:
+                    paths = resp.json().get("paths", [])
+                    return paths[0] if paths else None
+                if "Sequence is broken" not in resp.text:
+                    break
+        # never log the body: GraphHopper echoes track coordinates in its error messages
+        logger.warning(f"GraphHopper map-matching returned status {resp.status_code}")
+        return None
+    except Exception as e:
+        logger.warning(f"GraphHopper /match request failed: {type(e).__name__}")
+        return None
+
+
+def edge_counts_from_path(path: Dict[str, Any]) -> Dict[int, int]:
+    counts: Dict[int, int] = {}
+    for item in path.get("details", {}).get("osm_way_id", []) or []:
+        if len(item) >= 3 and item[2] is not None:
+            wid = int(item[2])
+            counts[wid] = counts.get(wid, 0) + 1
+    return counts
+
+
 async def match_trackpoints_graphhopper(
     points: List[TrackPoint],
     sport: str = "mtb",
     timeout: float = 12.0
 ) -> Dict[int, int]:
-    """
-    Submits a GPX trace to GraphHopper's /match endpoint and returns traversed osm_way_ids
-    with their traversal counts.
-    """
-    if len(points) < 2:
+    """Traversed osm_way_ids (with traversal counts) of a trace, via GraphHopper /match."""
+    path = await match_path_graphhopper(points, sport=sport, timeout=timeout)
+    if not path:
         return {}
-
-    gh_profile = get_gh_matching_profile(sport)
-    coords_3d = [[pt.lon, pt.lat, pt.ele or 0.0] for pt in points]
-    gpx_payload = build_gpx_track(
-        name="Ingested Ride",
-        sport=sport,
-        coordinates=coords_3d,
-        distance_miles=1.0,
-        duration_minutes=30.0,
-        start_time=points[0].time
-    )
-
-    url = f"{settings.graphhopper_url}/match"
-    params = {
-        "profile": gh_profile,
-        "type": "json",
-        "points_encoded": "false",
-        "details": ["osm_way_id", "street_name", "road_class", "surface"]
-    }
-    headers = {"Content-Type": "application/gpx+xml"}
-
+    # Heat can only be drawn for edges with geometry; ways outside the OSM import get the
+    # matched (OSM-derived) geometry so they show on the map.
     try:
-        async with httpx.AsyncClient(timeout=timeout) as client:
-            resp = await client.post(url, params=params, headers=headers, content=gpx_payload.encode("utf-8"))
-            if resp.status_code != 200:
-                logger.warning(f"GraphHopper map-matching returned status {resp.status_code}: {resp.text}")
-                return {}
+        persist_matched_geometry(path)
+    except Exception as geo_err:  # never let geometry persistence break ingestion
+        logger.warning(f"Persisting matched edge geometry failed: {geo_err}")
+    return edge_counts_from_path(path)
 
-            data = resp.json()
-            paths = data.get("paths", [])
-            if not paths:
-                return {}
-
-            osm_way_details = paths[0].get("details", {}).get("osm_way_id", [])
-            edge_counts: Dict[int, int] = {}
-            for item in osm_way_details:
-                if len(item) >= 3:
-                    wid = int(item[2])
-                    edge_counts[wid] = edge_counts.get(wid, 0) + 1
-
-            # Heat can only be drawn for edges that have geometry. Edges first seen via a ride
-            # used to be inserted with osm_id only (invisible on the map), which made heat look
-            # far sparser than the rides that produced it. Persist the matched geometry.
-            try:
-                persist_matched_geometry(paths[0])
-            except Exception as geo_err:  # never let geometry persistence break ingestion
-                logger.warning(f"Persisting matched edge geometry failed: {geo_err}")
-
-            return edge_counts
-
-    except Exception as e:
-        logger.warning(f"GraphHopper /match request failed: {e}")
-        return {}
 
 def match_trackpoints_spatial_fallback(
     points: List[TrackPoint],

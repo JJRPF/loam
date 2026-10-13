@@ -12,12 +12,32 @@ import type {
   TrailSubmission,
   UnriddenTrailItem,
   ConnectorStatus,
-  AuthUser,
   GeocodeResult
 } from '../types';
 
 
+import { getIdToken } from './auth';
+import { formatGain } from '../format';
+
 const API_BASE = ''; // proxied via vite in dev, relative in production
+
+/**
+ * fetch() that sends the signed-in user's Firebase ID token as a bearer token.
+ * On a 401 it refreshes the token once and retries. Signed out, it sends no Authorization header.
+ */
+export async function authedFetch(input: string, init: RequestInit = {}): Promise<Response> {
+  const send = async (forceRefresh: boolean) => {
+    const token = await getIdToken(forceRefresh);
+    const headers = new Headers(init.headers || {});
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    return fetch(input, { ...init, headers });
+  };
+  const res = await send(false);
+  if (res.status === 401 && (await getIdToken(false))) {
+    return send(true);
+  }
+  return res;
+}
 
 export async function calculateRoute(params: {
   start: LatLon;
@@ -54,7 +74,7 @@ export async function calculateRoute(params: {
     trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true
   };
 
-  const res = await fetch(`${API_BASE}/api/route`, {
+  const res = await authedFetch(`${API_BASE}/api/route`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -107,7 +127,7 @@ export async function calculateRouteOptions(params: {
     loops_only: params.loopsOnly ?? false
   };
 
-  const res = await fetch(`${API_BASE}/api/route/options`, {
+  const res = await authedFetch(`${API_BASE}/api/route/options`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -143,8 +163,10 @@ export function streamRouteOptions(
   },
   callbacks: {
     onCandidate: (candidate: RouteResponse) => void;
-    onComplete: (count: number) => void;
+    onComplete: (count: number, info?: { notice?: string | null; nearby_start_suggestion?: string | null }) => void;
     onError: (err: Error) => void;
+    /** Called with the exact request body sent, so a later "Report bad route" can include it. */
+    onRequest?: (payload: Record<string, unknown>) => void;
   }
 ): () => void {
   const abortController = new AbortController();
@@ -168,11 +190,11 @@ export function streamRouteOptions(
     trail_run_avoid_mtb_flow: params.trailRunAvoidMtbFlow ?? true,
     loops_only: params.loopsOnly ?? false
   };
-
+  callbacks.onRequest?.(payload);
 
   (async () => {
     try {
-      const res = await fetch(`${API_BASE}/api/route/options/stream`, {
+      const res = await authedFetch(`${API_BASE}/api/route/options/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
@@ -191,6 +213,7 @@ export function streamRouteOptions(
       const decoder = new TextDecoder();
       let buffer = '';
       let count = 0;
+      let completed = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -225,13 +248,16 @@ export function streamRouteOptions(
               console.warn('Failed to parse candidate JSON:', err);
             }
           } else if (eventName === 'complete') {
-            callbacks.onComplete(count);
+            let info = {};
+            try { info = JSON.parse(dataStr); } catch { /* older servers sent no details */ }
+            callbacks.onComplete(count, info);
+            completed = true;
           } else if (eventName === 'error') {
             callbacks.onError(new Error(dataStr || 'Streaming error'));
           }
         }
       }
-      callbacks.onComplete(count);
+      if (!completed) callbacks.onComplete(count);
     } catch (err: any) {
       if (err.name !== 'AbortError') {
         callbacks.onError(err);
@@ -256,7 +282,7 @@ export async function downloadGpx(route: RouteResponse): Promise<void> {
   };
 
   try {
-    const res = await fetch(`${API_BASE}/api/export/gpx`, {
+    const res = await authedFetch(`${API_BASE}/api/export/gpx`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
@@ -288,7 +314,7 @@ export async function downloadFit(route: RouteResponse): Promise<void> {
     coordinates: route.coordinates
   };
 
-  const res = await fetch(`${API_BASE}/api/export/fit`, {
+  const res = await authedFetch(`${API_BASE}/api/export/fit`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload)
@@ -315,7 +341,7 @@ export async function shareRouteGarmin(route: RouteResponse): Promise<{ shared: 
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
           await navigator.share({
             title: route.name || 'Loam Route',
-            text: `Open in Garmin Connect (Route Import): ${route.distance_miles.toFixed(1)} mi • +${Math.round(route.elevation_gain_ft)} ft`,
+            text: `Open in Garmin Connect (Route Import): ${route.distance_miles.toFixed(1)} mi • ${formatGain(route.elevation_gain_ft)}`,
             files: [file]
           });
           return { shared: true, message: 'Phone share modal opened! Select Garmin Connect to import course.' };
@@ -331,7 +357,7 @@ export async function shareRouteGarmin(route: RouteResponse): Promise<{ shared: 
     try {
       await navigator.share({
         title: `${route.name || 'Loam Route'} (Garmin Course)`,
-        text: `Open in Garmin Connect to import course: ${route.distance_miles.toFixed(1)} mi • +${Math.round(route.elevation_gain_ft)} ft`,
+        text: `Open in Garmin Connect to import course: ${route.distance_miles.toFixed(1)} mi • ${formatGain(route.elevation_gain_ft)}`,
         url: window.location.href
       });
       return { shared: true, message: 'Phone share modal opened! Select Garmin Connect to import course.' };
@@ -353,7 +379,7 @@ export async function shareRouteGarmin(route: RouteResponse): Promise<{ shared: 
 export async function geocodeLocations(query: string): Promise<GeocodeResult[]> {
   if (!query || !query.trim()) return [];
   try {
-    const res = await fetch(`${API_BASE}/api/geocode?q=${encodeURIComponent(query.trim())}`);
+    const res = await authedFetch(`${API_BASE}/api/geocode?q=${encodeURIComponent(query.trim())}`);
     if (res.ok) {
       const data = await res.json();
       return data.results || [];
@@ -364,49 +390,7 @@ export async function geocodeLocations(query: string): Promise<GeocodeResult[]> 
   return [];
 }
 
-export async function verifyAuthToken(params: {
-  token?: string;
-  idToken?: string;
-  uid?: string;
-  email?: string;
-  displayName?: string;
-}): Promise<AuthUser> {
-  const payload = {
-    token: params.token || params.idToken,
-    id_token: params.idToken || params.token,
-    uid: params.uid,
-    email: params.email,
-    display_name: params.displayName
-  };
-
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (params.token || params.idToken) {
-    headers['Authorization'] = `Bearer ${params.token || params.idToken}`;
-  }
-
-  const res = await fetch(`${API_BASE}/api/auth/verify`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload)
-  });
-
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`Auth verification failed (${res.status}): ${errText}`);
-  }
-
-  const data = await res.json();
-  const user = data.user;
-  return {
-    id: user.id,
-    email: user.email,
-    displayName: user.display_name,
-    photoURL: user.photo_url,
-    idToken: params.token || params.idToken
-  };
-}
-
-export async function saveRouteApi(route: RouteResponse, userId = 'justin_user', token?: string): Promise<string> {
+export async function saveRouteApi(route: RouteResponse): Promise<string> {
   const payload = {
     name: route.name || 'Loam Route',
     sport: route.sport || 'mtb',
@@ -418,77 +402,28 @@ export async function saveRouteApi(route: RouteResponse, userId = 'justin_user',
     surface_strip: route.surface_strip,
     verbal_summary: route.verbal_summary
   };
-
-  try {
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
-    };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const res = await fetch(`${API_BASE}/api/saved-routes`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload)
-    });
-    if (res.ok) {
-      const data = await res.json();
-      saveRouteLocally({ ...payload, id: data.id, created_at: new Date().toISOString(), user_id: userId });
-      return data.id;
-    }
-  } catch (err) {
-    console.warn('API save route failed, saving locally:', err);
-  }
-
-  // Fallback: save to localStorage
-  const localId = `local_${Date.now()}`;
-  saveRouteLocally({ ...payload, id: localId, created_at: new Date().toISOString(), user_id: userId });
-  return localId;
+  const res = await authedFetch(`${API_BASE}/api/saved-routes`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (res.status === 401) throw new Error('Sign in to save routes.');
+  if (!res.ok) throw new Error(`Saving failed (${res.status}): ${await res.text()}`);
+  const data = await res.json();
+  return data.id;
 }
 
-export async function fetchSavedRoutes(userId = 'justin_user', token?: string): Promise<SavedRoute[]> {
-  try {
-    const headers: Record<string, string> = { 'X-User-Id': userId };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const res = await fetch(`${API_BASE}/api/saved-routes`, { headers });
-    if (res.ok) {
-      const data = await res.json();
-      if (data.routes && data.routes.length > 0) {
-        return data.routes;
-      }
-    }
-  } catch (err) {
-    console.warn('Could not fetch routes from API, reading localStorage:', err);
-  }
-
-  return getLocalSavedRoutes();
+export async function fetchSavedRoutes(): Promise<SavedRoute[]> {
+  const res = await authedFetch(`${API_BASE}/api/saved-routes`);
+  if (res.status === 401) return [];
+  if (!res.ok) throw new Error(`Could not load saved routes (${res.status})`);
+  const data = await res.json();
+  return data.routes || [];
 }
 
-export async function deleteSavedRoute(id: string, userId = 'justin_user', token?: string): Promise<boolean> {
-  try {
-    const headers: Record<string, string> = { 'X-User-Id': userId };
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const res = await fetch(`${API_BASE}/api/saved-routes/${id}`, {
-      method: 'DELETE',
-      headers
-    });
-    if (res.ok) {
-      removeLocalSavedRoute(id);
-      return true;
-    }
-  } catch (err) {
-    console.warn('API delete route failed:', err);
-  }
-  removeLocalSavedRoute(id);
-  return true;
+export async function deleteSavedRoute(id: string): Promise<boolean> {
+  const res = await authedFetch(`${API_BASE}/api/saved-routes/${id}`, { method: 'DELETE' });
+  return res.ok;
 }
 
 // Helpers
@@ -508,7 +443,7 @@ function generateClientGpx(route: RouteResponse): string {
   const trkpts = route.coordinates.map((pt) => {
     const lon = pt[0];
     const lat = pt[1];
-    const ele = pt.length > 2 ? `<ele>${pt[2].toFixed(1)}</ele>` : '';
+    const ele = pt.length > 2 && pt[2] !== null ? `<ele>${pt[2].toFixed(1)}</ele>` : '';
     return `      <trkpt lat="${lat.toFixed(6)}" lon="${lon.toFixed(6)}">${ele}</trkpt>`;
   }).join('\n');
 
@@ -529,41 +464,11 @@ ${trkpts}
 </gpx>`;
 }
 
-const LOCAL_STORAGE_KEY = 'loam_saved_routes_v1';
-
-function saveRouteLocally(route: SavedRoute) {
-  try {
-    const existing = getLocalSavedRoutes();
-    const updated = [route, ...existing.filter(r => r.id !== route.id)];
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-  } catch (e) {
-    console.error('LocalStorage write failed', e);
-  }
-}
-
-function getLocalSavedRoutes(): SavedRoute[] {
-  try {
-    const data = localStorage.getItem(LOCAL_STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
-  }
-}
-
-function removeLocalSavedRoute(id: string) {
-  try {
-    const existing = getLocalSavedRoutes();
-    const updated = existing.filter(r => r.id !== id);
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(updated));
-  } catch {}
-}
-
 export async function uploadActivityFile(
   file: File,
   sport: string = 'mtb',
   consentGiven: boolean = true,
-  retainFile: boolean = false,
-  userId: string = 'justin_default_user'
+  retainFile: boolean = false
 ): Promise<{
   activity_id: string;
   distance_miles: number;
@@ -578,11 +483,8 @@ export async function uploadActivityFile(
   formData.append('consent_given', String(consentGiven));
   formData.append('retain_file', String(retainFile));
 
-  const res = await fetch(`${API_BASE}/api/activities/upload`, {
+  const res = await authedFetch(`${API_BASE}/api/activities/upload`, {
     method: 'POST',
-    headers: {
-      'X-User-Id': userId
-    },
     body: formData
   });
 
@@ -601,14 +503,12 @@ export async function uploadActivityFile(
 export async function createFlag(
   edgeOsmId: number,
   flagType: 'gone' | 'blocked' | 'closed' | 'seasonal',
-  details?: string,
-  userId: string = 'justin_default_user'
+  details?: string
 ): Promise<CommunityFlag> {
-  const res = await fetch(`${API_BASE}/api/flags`, {
+  const res = await authedFetch(`${API_BASE}/api/flags`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       edge_osm_id: edgeOsmId,
@@ -622,6 +522,79 @@ export async function createFlag(
   return await res.json();
 }
 
+export interface BadRouteReportResult {
+  id: string;
+  status: 'filed' | 'pending';
+  issue_url?: string | null;
+  message: string;
+}
+
+/** Files a "bad route" report. The server trims the route line before it goes into the GitHub issue. */
+export async function submitBadRouteReport(
+  comment: string,
+  request: Record<string, unknown>,
+  route: RouteResponse,
+  options: RouteResponse[]
+): Promise<BadRouteReportResult> {
+  const res = await authedFetch(`${API_BASE}/api/reports/bad-route`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      comment,
+      request,
+      route,
+      options: options.slice(0, 25).map((o) => ({
+        id: o.id, name: o.name, distance_miles: o.distance_miles, route_type: o.route_type, match_score: o.match_score
+      }))
+    })
+  });
+  if (res.status === 429) throw new Error('You have sent 5 reports today. Please try again tomorrow.');
+  if (res.status === 401) throw new Error('Sign in to report a route.');
+  if (!res.ok) throw new Error(`Could not send the report (${res.status}).`);
+  return await res.json();
+}
+
+export interface PrivacyZone {
+  id: number;
+  name: string;
+  lat: number;
+  lon: number;
+  radius_m: number;
+}
+
+export async function listPrivacyZones(): Promise<PrivacyZone[]> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/zones`);
+  if (!res.ok) throw new Error(`Failed to load privacy zones (${res.status})`);
+  return await res.json();
+}
+
+export async function createPrivacyZone(zone: { name: string; lat: number; lon: number; radius_m: number }): Promise<PrivacyZone> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/zones`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(zone)
+  });
+  if (!res.ok) throw new Error(`Failed to save the privacy zone (${res.status})`);
+  return await res.json();
+}
+
+export async function deletePrivacyZone(id: number): Promise<void> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/zones/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to delete the privacy zone (${res.status})`);
+}
+
+export async function getContribution(): Promise<boolean> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/consent`);
+  if (!res.ok) throw new Error(`Failed to load consent (${res.status})`);
+  return Boolean((await res.json()).consent_given);
+}
+
+export async function setContribution(consentGiven: boolean): Promise<boolean> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/consent?consent_given=${consentGiven}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to save consent (${res.status})`);
+  return Boolean((await res.json()).consent_given);
+}
+
 export async function listFlags(
   edgeOsmId?: number,
   status: string = 'active'
@@ -630,21 +603,19 @@ export async function listFlags(
   if (edgeOsmId !== undefined) params.append('edge_osm_id', String(edgeOsmId));
   if (status) params.append('status', status);
 
-  const res = await fetch(`${API_BASE}/api/flags?${params.toString()}`);
+  const res = await authedFetch(`${API_BASE}/api/flags?${params.toString()}`);
   if (!res.ok) return [];
   return await res.json();
 }
 
 export async function voteFlag(
   flagId: number,
-  voteType: 'confirm' | 'dispute',
-  userId: string = 'justin_default_user'
+  voteType: 'confirm' | 'dispute'
 ): Promise<{ confirmed_count: number; disputed_count: number; status: string }> {
-  const res = await fetch(`${API_BASE}/api/flags/${flagId}/vote`, {
+  const res = await authedFetch(`${API_BASE}/api/flags/${flagId}/vote`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ vote_type: voteType })
   });
@@ -657,14 +628,12 @@ export async function voteFlag(
 export async function submitTrailCheckin(
   edgeOsmId: number,
   status: string = 'still_open',
-  note?: string,
-  userId: string = 'justin_default_user'
+  note?: string
 ): Promise<TrailCheckin> {
-  const res = await fetch(`${API_BASE}/api/trails/${edgeOsmId}/checkin`, {
+  const res = await authedFetch(`${API_BASE}/api/trails/${edgeOsmId}/checkin`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ status, note })
   });
@@ -685,7 +654,7 @@ export async function getTrailStatus(
   recent_checkins_count: number;
   active_flags: CommunityFlag[];
 }> {
-  const res = await fetch(`${API_BASE}/api/trails/${edgeOsmId}/status`);
+  const res = await authedFetch(`${API_BASE}/api/trails/${edgeOsmId}/status`);
   if (!res.ok) {
     throw new Error(`Failed to fetch trail status: ${res.status}`);
   }
@@ -693,11 +662,8 @@ export async function getTrailStatus(
 }
 
 export async function listUserDNR(
-  userId: string = 'justin_default_user'
 ): Promise<UserDNR[]> {
-  const res = await fetch(`${API_BASE}/api/user/dnr`, {
-    headers: { 'X-User-Id': userId }
-  });
+  const res = await authedFetch(`${API_BASE}/api/user/dnr`);
   if (!res.ok) return [];
   return await res.json();
 }
@@ -710,14 +676,12 @@ export async function createUserDNR(
     geom?: any;
     is_soft?: boolean;
     reason?: string;
-  },
-  userId: string = 'justin_default_user'
+  }
 ): Promise<UserDNR> {
-  const res = await fetch(`${API_BASE}/api/user/dnr`, {
+  const res = await authedFetch(`${API_BASE}/api/user/dnr`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       name: data.name,
@@ -735,22 +699,17 @@ export async function createUserDNR(
 }
 
 export async function deleteUserDNR(
-  dnrId: number,
-  userId: string = 'justin_default_user'
+  dnrId: number
 ): Promise<boolean> {
-  const res = await fetch(`${API_BASE}/api/user/dnr/${dnrId}`, {
-    method: 'DELETE',
-    headers: { 'X-User-Id': userId }
+  const res = await authedFetch(`${API_BASE}/api/user/dnr/${dnrId}`, {
+    method: 'DELETE'
   });
   return res.ok;
 }
 
 export async function exportMyData(
-  userId: string = 'justin_default_user'
 ): Promise<UserDataExport> {
-  const res = await fetch(`${API_BASE}/api/privacy/export`, {
-    headers: { 'X-User-Id': userId }
-  });
+  const res = await authedFetch(`${API_BASE}/api/privacy/export`, {});
   if (!res.ok) {
     throw new Error(`Export failed (${res.status}): ${await res.text()}`);
   }
@@ -758,11 +717,9 @@ export async function exportMyData(
 }
 
 export async function deleteMyAccount(
-  userId: string = 'justin_default_user'
 ): Promise<{ status: string; user_id: string }> {
-  const res = await fetch(`${API_BASE}/api/privacy/account`, {
-    method: 'DELETE',
-    headers: { 'X-User-Id': userId }
+  const res = await authedFetch(`${API_BASE}/api/privacy/account`, {
+    method: 'DELETE'
   });
   if (!res.ok) {
     throw new Error(`Account deletion failed (${res.status}): ${await res.text()}`);
@@ -774,24 +731,19 @@ export async function deleteMyAccount(
 // Stage 6: Differentiators API Client Methods
 // =========================================================================
 
-export async function getUnriddenTrails(params?: {
-  lat?: number;
-  lon?: number;
+export async function getUnriddenTrails(params: {
+  lat: number;
+  lon: number;
   radiusMiles?: number;
   sport?: string;
-  userId?: string;
 }): Promise<UnriddenTrailItem[]> {
-  const lat = params?.lat ?? 44.0536;
-  const lon = params?.lon ?? -71.1285;
   const query = new URLSearchParams({
-    lat: lat.toString(),
-    lon: lon.toString(),
-    radius_miles: (params?.radiusMiles ?? 15).toString(),
-    sport: params?.sport ?? 'mtb'
+    lat: params.lat.toString(),
+    lon: params.lon.toString(),
+    radius_miles: (params.radiusMiles ?? 15).toString(),
+    sport: params.sport ?? 'mtb'
   });
-  const res = await fetch(`${API_BASE}/api/trails/new-to-me?${query.toString()}`, {
-    headers: { 'X-User-Id': params?.userId ?? 'justin_default_user' }
-  });
+  const res = await authedFetch(`${API_BASE}/api/trails/new-to-me?${query.toString()}`);
   if (!res.ok) {
     throw new Error(`Failed to load unridden trails: ${await res.text()}`);
   }
@@ -804,13 +756,11 @@ export async function submitTrail(params: {
   difficulty: string;
   coordinates: number[][];
   description?: string;
-  userId?: string;
 }): Promise<TrailSubmission> {
-  const res = await fetch(`${API_BASE}/api/submissions`, {
+  const res = await authedFetch(`${API_BASE}/api/submissions`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': params.userId ?? 'justin_default_user'
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(params)
   });
@@ -822,7 +772,7 @@ export async function submitTrail(params: {
 
 export async function listSubmissions(status?: string): Promise<TrailSubmission[]> {
   const query = status ? `?status=${status}` : '';
-  const res = await fetch(`${API_BASE}/api/submissions${query}`);
+  const res = await authedFetch(`${API_BASE}/api/submissions${query}`);
   if (!res.ok) {
     throw new Error(`Failed to list submissions: ${await res.text()}`);
   }
@@ -831,14 +781,12 @@ export async function listSubmissions(status?: string): Promise<TrailSubmission[
 
 export async function submitTrailEvidence(
   submissionId: number,
-  evidence: { activity_id?: string; coordinates?: number[][] },
-  userId: string = 'justin_default_user'
+  evidence: { activity_id?: string; coordinates?: number[][] }
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/evidence`, {
+  const res = await authedFetch(`${API_BASE}/api/submissions/${submissionId}/evidence`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(evidence)
   });
@@ -849,7 +797,7 @@ export async function submitTrailEvidence(
 }
 
 export async function adminApproveSubmission(submissionId: number): Promise<TrailSubmission> {
-  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/approve`, {
+  const res = await authedFetch(`${API_BASE}/api/submissions/${submissionId}/approve`, {
     method: 'POST'
   });
   if (!res.ok) {
@@ -859,7 +807,7 @@ export async function adminApproveSubmission(submissionId: number): Promise<Trai
 }
 
 export async function adminRejectSubmission(submissionId: number, reason?: string): Promise<TrailSubmission> {
-  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/reject`, {
+  const res = await authedFetch(`${API_BASE}/api/submissions/${submissionId}/reject`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'reject', reason })
@@ -871,7 +819,7 @@ export async function adminRejectSubmission(submissionId: number, reason?: strin
 }
 
 export async function adminReverseSubmission(submissionId: number): Promise<TrailSubmission> {
-  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/reverse`, {
+  const res = await authedFetch(`${API_BASE}/api/submissions/${submissionId}/reverse`, {
     method: 'POST'
   });
   if (!res.ok) {
@@ -881,7 +829,7 @@ export async function adminReverseSubmission(submissionId: number): Promise<Trai
 }
 
 export async function adminTakedownSubmission(submissionId: number, reason?: string): Promise<TrailSubmission> {
-  const res = await fetch(`${API_BASE}/api/submissions/${submissionId}/takedown`, {
+  const res = await authedFetch(`${API_BASE}/api/submissions/${submissionId}/takedown`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'takedown', reason })
@@ -892,10 +840,8 @@ export async function adminTakedownSubmission(submissionId: number, reason?: str
   return await res.json();
 }
 
-export async function getConnectors(userId: string = 'justin_default_user'): Promise<ConnectorStatus[]> {
-  const res = await fetch(`${API_BASE}/api/connectors`, {
-    headers: { 'X-User-Id': userId }
-  });
+export async function getConnectors(): Promise<ConnectorStatus[]> {
+  const res = await authedFetch(`${API_BASE}/api/connectors`, {});
   if (!res.ok) {
     throw new Error(`Failed to fetch connectors: ${await res.text()}`);
   }
@@ -903,14 +849,12 @@ export async function getConnectors(userId: string = 'justin_default_user'): Pro
 }
 
 export async function connectGarmin(
-  credentials: { username: string; password: string; import_to_heat?: boolean; mfa_code?: string; mfa_session_id?: string },
-  userId: string = 'justin_default_user'
+  credentials: { username: string; password: string; import_to_heat?: boolean; mfa_code?: string; mfa_session_id?: string }
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/garmin/login`, {
+  const res = await authedFetch(`${API_BASE}/api/connectors/garmin/login`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       username: credentials.username,
@@ -929,14 +873,12 @@ export async function connectGarmin(
 export async function verifyGarminMfa(
   mfaSessionId: string,
   mfaCode: string,
-  importToHeat: boolean = true,
-  userId: string = 'justin_default_user'
+  importToHeat: boolean = true
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/garmin/verify-mfa`, {
+  const res = await authedFetch(`${API_BASE}/api/connectors/garmin/verify-mfa`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       mfa_session_id: mfaSessionId,
@@ -951,14 +893,12 @@ export async function verifyGarminMfa(
 }
 
 export async function bulkImportGarmin(
-  importToHeat: boolean = true,
-  userId: string = 'justin_default_user'
+  importToHeat: boolean = true
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/garmin/bulk-import`, {
+  const res = await authedFetch(`${API_BASE}/api/connectors/garmin/bulk-import`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ import_to_heat: importToHeat })
   });
@@ -969,14 +909,12 @@ export async function bulkImportGarmin(
 }
 
 export async function connectTrailforks(
-  credentials: { username?: string; token?: string },
-  userId: string = 'justin_default_user'
+  credentials: { username?: string; token?: string }
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/trailforks/auth`, {
+  const res = await authedFetch(`${API_BASE}/api/connectors/trailforks/auth`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(credentials)
   });
@@ -987,14 +925,12 @@ export async function connectTrailforks(
 }
 
 export async function connectStrava(
-  params: { code?: string; personal_token?: string },
-  userId: string = 'justin_default_user'
+  params: { code?: string; personal_token?: string }
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/strava/auth`, {
+  const res = await authedFetch(`${API_BASE}/api/connectors/strava/auth`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify(params)
   });
@@ -1004,68 +940,46 @@ export async function connectStrava(
   return await res.json();
 }
 
-export async function getDevStatus(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
-  const headers: Record<string, string> = {};
-  if (devKey) headers['X-Dev-Key'] = devKey;
-  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
-  if (userEmail) headers['X-User-Id'] = userEmail;
+export async function getAuthMe(): Promise<{ id: string; email: string | null; display_name: string | null; is_admin: boolean }> {
+  const res = await authedFetch(`${API_BASE}/api/auth/me`);
+  if (!res.ok) {
+    throw new Error(`Not signed in (${res.status})`);
+  }
+  return await res.json();
+}
 
-  const res = await fetch(`${API_BASE}/api/dev/status`, { headers });
+export async function getDevStatus(): Promise<any> {
+  const res = await authedFetch(`${API_BASE}/api/dev/status`);
   if (!res.ok) {
     throw new Error(`Dev status check failed (${res.status}): ${await res.text()}`);
   }
   return await res.json();
 }
 
-export async function clearDevCache(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
-  const headers: Record<string, string> = {};
-  if (devKey) headers['X-Dev-Key'] = devKey;
-  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
-  if (userEmail) headers['X-User-Id'] = userEmail;
-
-  const res = await fetch(`${API_BASE}/api/dev/cache/clear`, { method: 'POST', headers });
+export async function clearDevCache(): Promise<any> {
+  const res = await authedFetch(`${API_BASE}/api/dev/cache/clear`, { method: 'POST' });
   if (!res.ok) {
     throw new Error(`Cache clear failed (${res.status}): ${await res.text()}`);
   }
   return await res.json();
 }
 
-export async function recalculateDevHeat(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
-  const headers: Record<string, string> = {};
-  if (devKey) headers['X-Dev-Key'] = devKey;
-  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
-  if (userEmail) headers['X-User-Id'] = userEmail;
-
-  const res = await fetch(`${API_BASE}/api/dev/heat/recalculate`, { method: 'POST', headers });
+export async function recalculateDevHeat(): Promise<any> {
+  const res = await authedFetch(`${API_BASE}/api/dev/heat/recalculate`, { method: 'POST' });
   if (!res.ok) {
     throw new Error(`Heat recalculation failed (${res.status}): ${await res.text()}`);
   }
   return await res.json();
 }
 
-export async function ingestBowDevData(devKey?: string, idToken?: string, userEmail?: string): Promise<any> {
-  const headers: Record<string, string> = {};
-  if (devKey) headers['X-Dev-Key'] = devKey;
-  if (idToken) headers['Authorization'] = `Bearer ${idToken}`;
-  if (userEmail) headers['X-User-Id'] = userEmail;
-
-  const res = await fetch(`${API_BASE}/api/dev/bow/ingest`, { method: 'POST', headers });
-  if (!res.ok) {
-    throw new Error(`Bow ingestion failed (${res.status}): ${await res.text()}`);
-  }
-  return await res.json();
-}
-
 export async function syncConnector(
   provider: string,
-  userId: string = 'justin_default_user',
   importToHeat: boolean = true
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/${provider}/sync`, {
+  const res = await authedFetch(`${API_BASE}/api/connectors/${provider}/sync`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({ import_to_heat: importToHeat })
   });
@@ -1076,12 +990,10 @@ export async function syncConnector(
 }
 
 export async function disconnectConnector(
-  provider: string,
-  userId: string = 'justin_default_user'
+  provider: string
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/${provider}`, {
-    method: 'DELETE',
-    headers: { 'X-User-Id': userId }
+  const res = await authedFetch(`${API_BASE}/api/connectors/${provider}`, {
+    method: 'DELETE'
   });
   if (!res.ok) {
     throw new Error(`Disconnect failed: ${await res.text()}`);
@@ -1089,37 +1001,42 @@ export async function disconnectConnector(
   return await res.json();
 }
 
+export const SEED_HEAT_NOTICE =
+  "Heat from one rider's seed data. The 3-rider privacy minimum is temporarily off.";
+
+export async function fetchHeatMeta(): Promise<{ min_unique_riders: number; seed_data_notice: boolean }> {
+  const res = await authedFetch(`${API_BASE}/api/heat/meta`);
+  if (!res.ok) throw new Error(`Heat settings unavailable (${res.status})`);
+  return await res.json();
+}
+
 export async function fetchHeatTrails(sport?: string): Promise<{ type: string; features: any[] }> {
   const url = sport ? `${API_BASE}/api/heat/trails?sport=${encodeURIComponent(sport)}` : `${API_BASE}/api/heat/trails`;
-  const res = await fetch(url);
+  const res = await authedFetch(url);
   if (!res.ok) {
     throw new Error(`Failed to load heat trails (${res.status}): ${await res.text()}`);
   }
   return await res.json();
 }
 
-export async function fetchOtmTrails(params?: {
-  minLat?: number;
-  minLon?: number;
-  maxLat?: number;
-  maxLon?: number;
+export async function fetchOtmTrails(params: {
+  minLat: number;
+  minLon: number;
+  maxLat: number;
+  maxLon: number;
   sport?: string;
 }): Promise<{ type: string; features: any[] }> {
-  const minLat = params?.minLat ?? 43.05;
-  const minLon = params?.minLon ?? -71.45;
-  const maxLat = params?.maxLat ?? 43.20;
-  const maxLon = params?.maxLon ?? -71.25;
-  const sport = params?.sport ?? 'mtb';
-  const url = `${API_BASE}/api/otm/trails?min_lat=${minLat}&min_lon=${minLon}&max_lat=${maxLat}&max_lon=${maxLon}&sport=${encodeURIComponent(sport)}`;
-  const res = await fetch(url);
+  const sport = params.sport ?? 'mtb';
+  const url = `${API_BASE}/api/otm/trails?min_lat=${params.minLat}&min_lon=${params.minLon}&max_lat=${params.maxLat}&max_lon=${params.maxLon}&sport=${encodeURIComponent(sport)}`;
+  const res = await authedFetch(url);
   if (!res.ok) {
-    throw new Error(`Failed to load OpenTrailMap trails (${res.status}): ${await res.text()}`);
+    throw new Error(`Failed to load trails (${res.status}): ${await res.text()}`);
   }
   return await res.json();
 }
 
 export async function fetchOtmTrailDetails(osmWayId: number): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/otm/trail/${osmWayId}`);
+  const res = await authedFetch(`${API_BASE}/api/otm/trail/${osmWayId}`);
   if (!res.ok) {
     throw new Error(`Failed to load trail details (${res.status}): ${await res.text()}`);
   }
@@ -1130,14 +1047,12 @@ export async function importCubeTrekActivity(
   urlOrId: string,
   sport: string = 'mtb',
   name?: string,
-  importToHeat: boolean = true,
-  userId: string = 'justin_default_user'
+  importToHeat: boolean = true
 ): Promise<any> {
-  const res = await fetch(`${API_BASE}/api/connectors/cubetrek/import`, {
+  const res = await authedFetch(`${API_BASE}/api/connectors/cubetrek/import`, {
     method: 'POST',
     headers: {
-      'Content-Type': 'application/json',
-      'X-User-Id': userId
+      'Content-Type': 'application/json'
     },
     body: JSON.stringify({
       url_or_id: urlOrId,
@@ -1154,3 +1069,50 @@ export async function importCubeTrekActivity(
 
 
 
+
+
+export async function fetchPois(b: { minLat: number; minLon: number; maxLat: number; maxLon: number }): Promise<any> {
+  const q = new URLSearchParams({
+    min_lat: String(b.minLat), min_lon: String(b.minLon), max_lat: String(b.maxLat), max_lon: String(b.maxLon)
+  });
+  const res = await fetch(`${API_BASE}/api/pois?${q}`);
+  if (!res.ok) throw new Error(`POIs unavailable (${res.status})`);
+  return res.json();
+}
+
+export interface WeatherPeriod {
+  start: string;
+  temp_f: number | null;
+  precip_pct: number | null;
+  wind: string | null;
+  summary: string | null;
+}
+
+/** Hourly forecast from the National Weather Service via the API; null when it is unavailable. */
+export async function fetchWeather(lat: number, lon: number): Promise<WeatherPeriod[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/weather?lat=${lat}&lon=${lon}&hours=12`);
+    if (!res.ok) return null;
+    return (await res.json()).periods as WeatherPeriod[];
+  } catch {
+    return null;
+  }
+}
+
+
+export interface NetworkStat {
+  radius_mi: number;
+  trail_miles: number;
+  ridden_miles: number;
+  ridden_percent: number | null;
+}
+
+/** How much of the trail network around a point the signed-in rider has ridden (their own data). */
+export async function fetchMyNetwork(lat: number, lon: number): Promise<NetworkStat | null> {
+  try {
+    const res = await authedFetch(`${API_BASE}/api/me/network?lat=${lat}&lon=${lon}&radius_mi=10`);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}

@@ -31,7 +31,7 @@ async def test_garmin_connector_status_and_defaults():
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         test_uid = "test_gh22_user_init"
-        resp = await client.get("/api/connectors", headers={"X-User-Id": test_uid})
+        resp = await client.get("/api/connectors", headers={"X-Test-User": test_uid})
         assert resp.status_code == 200
         data = resp.json()
         garmin = next((c for c in data if c["name"] == "garmin"), None)
@@ -58,11 +58,11 @@ async def test_garmin_mfa_challenge_and_verification():
         login_resp = await client.post(
             "/api/connectors/garmin/login",
             json={
-                "username": "test_mfa_user@example.com",
+                "username": "mfa.rider@test.loam",
                 "password": raw_pw,
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert login_resp.status_code == 200
         login_data = login_resp.json()
@@ -76,10 +76,10 @@ async def test_garmin_mfa_challenge_and_verification():
             "/api/connectors/garmin/verify-mfa",
             json={
                 "mfa_session_id": session_id,
-                "mfa_code": "842109",
+                "mfa_code": "654321",
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert verify_resp.status_code == 200
         verify_data = verify_resp.json()
@@ -105,10 +105,10 @@ async def test_garmin_mfa_challenge_and_verification():
 
         # Decrypt token
         dec = decrypt_token(enc_token)
-        assert "garmin_session" in dec or "di_token" in dec
+        assert "di_token" in dec
 
         # Step 4: Disconnect purges tokens
-        disc_resp = await client.delete("/api/connectors/garmin", headers={"X-User-Id": test_uid})
+        disc_resp = await client.delete("/api/connectors/garmin", headers={"X-Test-User": test_uid})
         assert disc_resp.status_code == 200
         post_disc_record = get_user_connected_service(test_uid, "garmin")
         assert post_disc_record is None, "Disconnect must purge stored encrypted token"
@@ -129,7 +129,7 @@ async def test_garmin_mfa_error_handling():
                 "mfa_code": "123456",
                 "import_to_heat": True
             },
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert bad_sess_resp.status_code == 400
         assert "expired or invalid" in bad_sess_resp.json()["detail"].lower()
@@ -164,12 +164,16 @@ async def test_garmin_activity_filtering_and_classification():
     assert classify_garmin_sport("hiking") == "trail_run"
     assert classify_garmin_sport("walking") == "trail_run"
 
-    # 3. Idempotent bulk-import test with mock connector
+    # 3. Idempotent bulk import through the connector (Garmin Connect replaced by tests.fakes.FakeGarmin)
     test_uid = "test_gh22_idempotent_user"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute("DELETE FROM activities WHERE user_id = %s OR id LIKE 'garmin_act_900%%';", (test_uid,))
+        conn.commit()
     save_user_connected_service(
         user_id=test_uid,
         provider="garmin",
-        encrypted_token=encrypt_token("mock_garmin_token")
+        encrypted_token=encrypt_token('{"di_token": "test-di-token"}')
     )
     garmin = connector_manager.get_connector("garmin")
     assert garmin is not None
@@ -178,15 +182,15 @@ async def test_garmin_activity_filtering_and_classification():
     res1 = await garmin.sync_activities(test_uid, import_to_heat=True)
     assert res1["status"] == "success"
     imported1 = res1["activities_imported"]
-    assert imported1 == 3
+    assert imported1 == 2  # the strength_training session is filtered out
 
     # Second sync (idempotent, updating rather than duplicating rows)
     res2 = await garmin.sync_activities(test_uid, import_to_heat=True)
     assert res2["status"] == "success"
-    assert res2["activities_imported"] == 3
+    assert res2["activities_imported"] == 2
 
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute("SELECT count(*) FROM activities WHERE user_id = %s;", (test_uid,))
             count = cur.fetchone()[0]
-            assert count == 3, f"Expected 3 activities without duplicates, found {count}"
+            assert count == 2, f"Expected 2 activities without duplicates, found {count}"

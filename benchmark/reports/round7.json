@@ -1,0 +1,2952 @@
+{
+ "summary": {
+  "round6": {
+   "scenarios": 25,
+   "options_mean": 5.6,
+   "pass_gates_pct": 20.7,
+   "geometry_fail_pct": 15.7,
+   "true_loop_pct_when_loops_exist": 39.1,
+   "road_pct_mean": 29.8,
+   "retrace_pct_mean": 15.4,
+   "latency_p50_s": 1.1,
+   "latency_p95_s": 1.5,
+   "errors": 0
+  },
+  "round7": {
+   "scenarios": 25,
+   "options_mean": 5.7,
+   "pass_gates_pct": 49.0,
+   "geometry_fail_pct": 0.0,
+   "true_loop_pct_when_loops_exist": 80.0,
+   "road_pct_mean": 28.4,
+   "retrace_pct_mean": 12.4,
+   "latency_p50_s": 5.9,
+   "latency_p95_s": 7.4,
+   "errors": 0
+  }
+ },
+ "per_scenario": {
+  "bow_10_mtb": {
+   "round6": {
+    "latency_s": 1.4,
+    "error": null,
+    "options": [
+     {
+      "miles": 5.52,
+      "offset_m": 239.2,
+      "road_pct": 86.1,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.448,
+      "passes": false
+     },
+     {
+      "miles": 3.57,
+      "offset_m": 238.3,
+      "road_pct": 84.1,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.643,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 7.36,
+    "error": null,
+    "options": [
+     {
+      "miles": 10.74,
+      "offset_m": 0.7,
+      "road_pct": 1.2,
+      "retrace": 0.003,
+      "shape": "loop",
+      "dist_err": 0.074,
+      "passes": true
+     },
+     {
+      "miles": 9.94,
+      "offset_m": 0.0,
+      "road_pct": 9.7,
+      "retrace": 0.178,
+      "shape": "lollipop",
+      "dist_err": 0.006,
+      "passes": true
+     },
+     {
+      "miles": 9.97,
+      "offset_m": 0.0,
+      "road_pct": 10.0,
+      "retrace": 0.178,
+      "shape": "lollipop",
+      "dist_err": 0.003,
+      "passes": true
+     },
+     {
+      "miles": 10.61,
+      "offset_m": 0.0,
+      "road_pct": 12.1,
+      "retrace": 0.167,
+      "shape": "lollipop",
+      "dist_err": 0.061,
+      "passes": true
+     },
+     {
+      "miles": 9.55,
+      "offset_m": 0.0,
+      "road_pct": 12.9,
+      "retrace": 0.186,
+      "shape": "lollipop",
+      "dist_err": 0.045,
+      "passes": true
+     },
+     {
+      "miles": 9.16,
+      "offset_m": 0.0,
+      "road_pct": 12.9,
+      "retrace": 0.194,
+      "shape": "lollipop",
+      "dist_err": 0.084,
+      "passes": true
+     },
+     {
+      "miles": 9.34,
+      "offset_m": 0.0,
+      "road_pct": 1.3,
+      "retrace": 0.19,
+      "shape": "lollipop",
+      "dist_err": 0.066,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "bear_brook_10_mtb": {
+   "round6": {
+    "latency_s": 1.14,
+    "error": null,
+    "options": [
+     {
+      "miles": 10.17,
+      "offset_m": 0.4,
+      "road_pct": 1.2,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.017,
+      "passes": true
+     },
+     {
+      "miles": 11.07,
+      "offset_m": 0.4,
+      "road_pct": 5.9,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.107,
+      "passes": true
+     },
+     {
+      "miles": 7.75,
+      "offset_m": 0.4,
+      "road_pct": 0.3,
+      "retrace": 0.013,
+      "shape": "loop",
+      "dist_err": 0.225,
+      "passes": true
+     },
+     {
+      "miles": 21.19,
+      "offset_m": 0.6,
+      "road_pct": 16.3,
+      "retrace": 0.004,
+      "shape": "loop",
+      "dist_err": 1.119,
+      "passes": false
+     },
+     {
+      "miles": 15.5,
+      "offset_m": 0.5,
+      "road_pct": 6.2,
+      "retrace": 0.208,
+      "shape": "out_and_back",
+      "dist_err": 0.55,
+      "passes": false
+     },
+     {
+      "miles": 11.2,
+      "offset_m": 0.5,
+      "road_pct": 14.3,
+      "retrace": 0.497,
+      "shape": "out_and_back",
+      "dist_err": 0.12,
+      "passes": true
+     },
+     {
+      "miles": 22.72,
+      "offset_m": 0.4,
+      "road_pct": 7.0,
+      "retrace": 0.493,
+      "shape": "out_and_back",
+      "dist_err": 1.272,
+      "passes": false
+     },
+     {
+      "miles": 17.64,
+      "offset_m": 0.4,
+      "road_pct": 0.7,
+      "retrace": 0.031,
+      "shape": "loop",
+      "dist_err": 0.764,
+      "passes": false
+     },
+     {
+      "miles": 12.02,
+      "offset_m": 0.5,
+      "road_pct": 1.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.202,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 7.21,
+    "error": null,
+    "options": [
+     {
+      "miles": 10.16,
+      "offset_m": 0.0,
+      "road_pct": 1.2,
+      "retrace": 0.065,
+      "shape": "loop",
+      "dist_err": 0.016,
+      "passes": true
+     },
+     {
+      "miles": 9.59,
+      "offset_m": 0.0,
+      "road_pct": 0.2,
+      "retrace": 0.069,
+      "shape": "loop",
+      "dist_err": 0.041,
+      "passes": true
+     },
+     {
+      "miles": 9.68,
+      "offset_m": 0.0,
+      "road_pct": 4.4,
+      "retrace": 0.039,
+      "shape": "loop",
+      "dist_err": 0.032,
+      "passes": true
+     },
+     {
+      "miles": 10.39,
+      "offset_m": 0.0,
+      "road_pct": 1.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.039,
+      "passes": true
+     },
+     {
+      "miles": 10.1,
+      "offset_m": 0.0,
+      "road_pct": 8.5,
+      "retrace": 0.038,
+      "shape": "loop",
+      "dist_err": 0.01,
+      "passes": true
+     },
+     {
+      "miles": 11.1,
+      "offset_m": 0.0,
+      "road_pct": 3.4,
+      "retrace": 0.059,
+      "shape": "loop",
+      "dist_err": 0.11,
+      "passes": true
+     },
+     {
+      "miles": 9.75,
+      "offset_m": 0.0,
+      "road_pct": 3.4,
+      "retrace": 0.027,
+      "shape": "loop",
+      "dist_err": 0.025,
+      "passes": true
+     },
+     {
+      "miles": 11.47,
+      "offset_m": 0.0,
+      "road_pct": 0.1,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.147,
+      "passes": true
+     },
+     {
+      "miles": 11.18,
+      "offset_m": 0.0,
+      "road_pct": 3.5,
+      "retrace": 0.064,
+      "shape": "loop",
+      "dist_err": 0.118,
+      "passes": true
+     },
+     {
+      "miles": 11.25,
+      "offset_m": 0.0,
+      "road_pct": 4.2,
+      "retrace": 0.023,
+      "shape": "loop",
+      "dist_err": 0.125,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "bear_brook_14_mtb": {
+   "round6": {
+    "latency_s": 1.23,
+    "error": null,
+    "options": [
+     {
+      "miles": 2.96,
+      "offset_m": 493.4,
+      "road_pct": 60.8,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.789,
+      "passes": false
+     },
+     {
+      "miles": 13.71,
+      "offset_m": 0.6,
+      "road_pct": 26.3,
+      "retrace": 0.003,
+      "shape": "loop",
+      "dist_err": 0.021,
+      "passes": false
+     },
+     {
+      "miles": 16.03,
+      "offset_m": 0.7,
+      "road_pct": 10.9,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.145,
+      "passes": true
+     },
+     {
+      "miles": 20.94,
+      "offset_m": 0.6,
+      "road_pct": 15.2,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.496,
+      "passes": false
+     },
+     {
+      "miles": 22.83,
+      "offset_m": 0.5,
+      "road_pct": 12.4,
+      "retrace": 0.494,
+      "shape": "out_and_back",
+      "dist_err": 0.631,
+      "passes": false
+     },
+     {
+      "miles": 12.02,
+      "offset_m": 0.5,
+      "road_pct": 1.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.141,
+      "passes": true
+     },
+     {
+      "miles": 16.56,
+      "offset_m": 0.4,
+      "road_pct": 0.8,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.183,
+      "passes": true
+     },
+     {
+      "miles": 20.1,
+      "offset_m": 0.5,
+      "road_pct": 0.1,
+      "retrace": 0.539,
+      "shape": "out_and_back",
+      "dist_err": 0.436,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 7.26,
+    "error": null,
+    "options": [
+     {
+      "miles": 14.24,
+      "offset_m": 0.0,
+      "road_pct": 4.4,
+      "retrace": 0.05,
+      "shape": "loop",
+      "dist_err": 0.017,
+      "passes": true
+     },
+     {
+      "miles": 14.44,
+      "offset_m": 0.0,
+      "road_pct": 5.4,
+      "retrace": 0.093,
+      "shape": "loop",
+      "dist_err": 0.031,
+      "passes": true
+     },
+     {
+      "miles": 13.31,
+      "offset_m": 0.0,
+      "road_pct": 1.4,
+      "retrace": 0.053,
+      "shape": "loop",
+      "dist_err": 0.049,
+      "passes": true
+     },
+     {
+      "miles": 13.76,
+      "offset_m": 0.0,
+      "road_pct": 6.1,
+      "retrace": 0.048,
+      "shape": "loop",
+      "dist_err": 0.017,
+      "passes": true
+     },
+     {
+      "miles": 15.44,
+      "offset_m": 0.0,
+      "road_pct": 4.6,
+      "retrace": 0.043,
+      "shape": "loop",
+      "dist_err": 0.103,
+      "passes": true
+     },
+     {
+      "miles": 14.28,
+      "offset_m": 0.0,
+      "road_pct": 13.1,
+      "retrace": 0.032,
+      "shape": "loop",
+      "dist_err": 0.02,
+      "passes": true
+     },
+     {
+      "miles": 15.47,
+      "offset_m": 0.0,
+      "road_pct": 3.3,
+      "retrace": 0.07,
+      "shape": "loop",
+      "dist_err": 0.105,
+      "passes": true
+     },
+     {
+      "miles": 14.31,
+      "offset_m": 0.0,
+      "road_pct": 15.1,
+      "retrace": 0.045,
+      "shape": "loop",
+      "dist_err": 0.022,
+      "passes": false
+     },
+     {
+      "miles": 12.02,
+      "offset_m": 0.5,
+      "road_pct": 1.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.141,
+      "passes": true
+     },
+     {
+      "miles": 15.81,
+      "offset_m": 0.0,
+      "road_pct": 10.7,
+      "retrace": 0.042,
+      "shape": "loop",
+      "dist_err": 0.129,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "bow_5_run": {
+   "round6": {
+    "latency_s": 1.08,
+    "error": null,
+    "options": [
+     {
+      "miles": 3.79,
+      "offset_m": 0.4,
+      "road_pct": 100.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.242,
+      "passes": false
+     },
+     {
+      "miles": 13.66,
+      "offset_m": 0.6,
+      "road_pct": 15.2,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 1.732,
+      "passes": false
+     },
+     {
+      "miles": 27.95,
+      "offset_m": 0.5,
+      "road_pct": 39.2,
+      "retrace": 0.479,
+      "shape": "out_and_back",
+      "dist_err": 4.59,
+      "passes": false
+     },
+     {
+      "miles": 4.83,
+      "offset_m": 0.4,
+      "road_pct": 100.0,
+      "retrace": 0.512,
+      "shape": "out_and_back",
+      "dist_err": 0.034,
+      "passes": false
+     },
+     {
+      "miles": 12.02,
+      "offset_m": 0.6,
+      "road_pct": 11.4,
+      "retrace": 0.005,
+      "shape": "loop",
+      "dist_err": 1.404,
+      "passes": false
+     },
+     {
+      "miles": 3.95,
+      "offset_m": 0.4,
+      "road_pct": 100.0,
+      "retrace": 0.15,
+      "shape": "lollipop",
+      "dist_err": 0.21,
+      "passes": false
+     },
+     {
+      "miles": 11.05,
+      "offset_m": 0.6,
+      "road_pct": 0.0,
+      "retrace": 0.071,
+      "shape": "loop",
+      "dist_err": 1.21,
+      "passes": false
+     },
+     {
+      "miles": 12.94,
+      "offset_m": 0.6,
+      "road_pct": 16.8,
+      "retrace": 0.505,
+      "shape": "out_and_back",
+      "dist_err": 1.588,
+      "passes": false
+     },
+     {
+      "miles": 11.78,
+      "offset_m": 0.6,
+      "road_pct": 14.8,
+      "retrace": 0.007,
+      "shape": "loop",
+      "dist_err": 1.356,
+      "passes": false
+     },
+     {
+      "miles": 10.14,
+      "offset_m": 0.6,
+      "road_pct": 0.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 1.028,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 1.37,
+    "error": null,
+    "options": [
+     {
+      "miles": 4.82,
+      "offset_m": 0.4,
+      "road_pct": 100.0,
+      "retrace": 0.039,
+      "shape": "loop",
+      "dist_err": 0.036,
+      "passes": false
+     },
+     {
+      "miles": 4.16,
+      "offset_m": 0.8,
+      "road_pct": 100.0,
+      "retrace": 0.077,
+      "shape": "loop",
+      "dist_err": 0.168,
+      "passes": false
+     },
+     {
+      "miles": 3.27,
+      "offset_m": 0.5,
+      "road_pct": 100.0,
+      "retrace": 0.005,
+      "shape": "loop",
+      "dist_err": 0.346,
+      "passes": false
+     },
+     {
+      "miles": 4.83,
+      "offset_m": 0.4,
+      "road_pct": 100.0,
+      "retrace": 0.512,
+      "shape": "out_and_back",
+      "dist_err": 0.034,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "p2p_midpoint": {
+   "round6": {
+    "latency_s": 0.92,
+    "error": null,
+    "options": [
+     {
+      "miles": 20.4,
+      "offset_m": 0.7,
+      "road_pct": 36.7,
+      "retrace": 0.019,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 18.91,
+      "offset_m": 0.5,
+      "road_pct": 42.0,
+      "retrace": 0.0,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 19.66,
+      "offset_m": 0.7,
+      "road_pct": 43.0,
+      "retrace": 0.008,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 20.4,
+      "offset_m": 0.7,
+      "road_pct": 36.7,
+      "retrace": 0.019,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 19.62,
+      "offset_m": 0.7,
+      "road_pct": 38.1,
+      "retrace": 0.0,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 19.62,
+      "offset_m": 0.7,
+      "road_pct": 38.1,
+      "retrace": 0.0,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 19.62,
+      "offset_m": 0.7,
+      "road_pct": 38.1,
+      "retrace": 0.0,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 19.62,
+      "offset_m": 0.7,
+      "road_pct": 38.1,
+      "retrace": 0.0,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 19.62,
+      "offset_m": 0.7,
+      "road_pct": 38.1,
+      "retrace": 0.0,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 23.7,
+      "offset_m": 0.7,
+      "road_pct": 41.2,
+      "retrace": 0.086,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 2.28,
+    "error": null,
+    "options": [
+     {
+      "miles": 26.27,
+      "offset_m": 0.7,
+      "road_pct": 33.4,
+      "retrace": 0.104,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 28.8,
+      "offset_m": 0.6,
+      "road_pct": 33.6,
+      "retrace": 0.035,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 29.79,
+      "offset_m": 0.7,
+      "road_pct": 36.1,
+      "retrace": 0.024,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 26.78,
+      "offset_m": 0.6,
+      "road_pct": 41.7,
+      "retrace": 0.027,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 21.77,
+      "offset_m": 0.7,
+      "road_pct": 44.8,
+      "retrace": 0.033,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 24.81,
+      "offset_m": 0.7,
+      "road_pct": 42.6,
+      "retrace": 0.076,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     },
+     {
+      "miles": 23.95,
+      "offset_m": 0.6,
+      "road_pct": 51.7,
+      "retrace": 0.03,
+      "shape": "point_to_point",
+      "dist_err": null,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_194679000": {
+   "round6": {
+    "latency_s": 1.07,
+    "error": null,
+    "options": [
+     {
+      "miles": 19.61,
+      "offset_m": 0.4,
+      "road_pct": 4.7,
+      "retrace": 0.059,
+      "shape": "loop",
+      "dist_err": 0.961,
+      "passes": false
+     },
+     {
+      "miles": 40.3,
+      "offset_m": 0.5,
+      "road_pct": 0.8,
+      "retrace": 0.518,
+      "shape": "out_and_back",
+      "dist_err": 3.03,
+      "passes": false
+     },
+     {
+      "miles": 16.65,
+      "offset_m": 0.5,
+      "road_pct": 0.0,
+      "retrace": 0.574,
+      "shape": "out_and_back",
+      "dist_err": 0.665,
+      "passes": false
+     },
+     {
+      "miles": 11.91,
+      "offset_m": 0.4,
+      "road_pct": 11.7,
+      "retrace": 0.528,
+      "shape": "out_and_back",
+      "dist_err": 0.191,
+      "passes": true
+     },
+     {
+      "miles": 0.46,
+      "offset_m": 29.3,
+      "road_pct": 5.7,
+      "retrace": 0.224,
+      "shape": "out_and_back",
+      "dist_err": 0.954,
+      "passes": false
+     },
+     {
+      "miles": 0.57,
+      "offset_m": 35.0,
+      "road_pct": 11.3,
+      "retrace": 0.264,
+      "shape": "out_and_back",
+      "dist_err": 0.943,
+      "passes": false
+     },
+     {
+      "miles": 0.32,
+      "offset_m": 19.5,
+      "road_pct": 0.0,
+      "retrace": 0.129,
+      "shape": "lollipop",
+      "dist_err": 0.968,
+      "passes": false
+     },
+     {
+      "miles": 0.46,
+      "offset_m": 23.7,
+      "road_pct": 2.3,
+      "retrace": 0.118,
+      "shape": "lollipop",
+      "dist_err": 0.954,
+      "passes": false
+     },
+     {
+      "miles": 7.05,
+      "offset_m": 0.4,
+      "road_pct": 0.2,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.295,
+      "passes": true
+     },
+     {
+      "miles": 5.85,
+      "offset_m": 0.4,
+      "road_pct": 5.5,
+      "retrace": 0.407,
+      "shape": "out_and_back",
+      "dist_err": 0.415,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.43,
+    "error": null,
+    "options": [
+     {
+      "miles": 7.05,
+      "offset_m": 0.4,
+      "road_pct": 0.2,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.295,
+      "passes": true
+     },
+     {
+      "miles": 11.91,
+      "offset_m": 0.4,
+      "road_pct": 11.7,
+      "retrace": 0.528,
+      "shape": "out_and_back",
+      "dist_err": 0.191,
+      "passes": true
+     },
+     {
+      "miles": 5.85,
+      "offset_m": 0.4,
+      "road_pct": 5.5,
+      "retrace": 0.407,
+      "shape": "out_and_back",
+      "dist_err": 0.415,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_5656746911": {
+   "round6": {
+    "latency_s": 1.12,
+    "error": null,
+    "options": [
+     {
+      "miles": 5.86,
+      "offset_m": 0.5,
+      "road_pct": 0.0,
+      "retrace": 0.289,
+      "shape": "out_and_back",
+      "dist_err": 0.414,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.54,
+    "error": null,
+    "options": [
+     {
+      "miles": 6.72,
+      "offset_m": 0.5,
+      "road_pct": 0.0,
+      "retrace": 0.316,
+      "shape": "out_and_back",
+      "dist_err": 0.328,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_194628036": {
+   "round6": {
+    "latency_s": 0.88,
+    "error": null,
+    "options": [
+     {
+      "miles": 11.13,
+      "offset_m": 21.2,
+      "road_pct": 3.5,
+      "retrace": 0.018,
+      "shape": "loop",
+      "dist_err": 0.113,
+      "passes": false
+     },
+     {
+      "miles": 0.01,
+      "offset_m": 0.0,
+      "road_pct": 100.0,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.999,
+      "passes": false
+     },
+     {
+      "miles": 11.97,
+      "offset_m": 21.2,
+      "road_pct": 3.8,
+      "retrace": 0.009,
+      "shape": "loop",
+      "dist_err": 0.197,
+      "passes": false
+     },
+     {
+      "miles": 12.44,
+      "offset_m": 53.9,
+      "road_pct": 7.3,
+      "retrace": 0.003,
+      "shape": "loop",
+      "dist_err": 0.244,
+      "passes": false
+     },
+     {
+      "miles": 9.93,
+      "offset_m": 21.2,
+      "road_pct": 3.9,
+      "retrace": 0.123,
+      "shape": "lollipop",
+      "dist_err": 0.007,
+      "passes": false
+     },
+     {
+      "miles": 8.08,
+      "offset_m": 21.2,
+      "road_pct": 4.8,
+      "retrace": 0.013,
+      "shape": "loop",
+      "dist_err": 0.192,
+      "passes": false
+     },
+     {
+      "miles": 22.17,
+      "offset_m": 14.5,
+      "road_pct": 2.2,
+      "retrace": 0.45,
+      "shape": "out_and_back",
+      "dist_err": 1.217,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 1.97,
+    "error": null,
+    "options": []
+   }
+  },
+  "th_8140114775": {
+   "round6": {
+    "latency_s": 1.39,
+    "error": null,
+    "options": [
+     {
+      "miles": 1.35,
+      "offset_m": 2.4,
+      "road_pct": 11.7,
+      "retrace": 0.463,
+      "shape": "out_and_back",
+      "dist_err": 0.775,
+      "passes": false
+     },
+     {
+      "miles": 0.23,
+      "offset_m": 15.6,
+      "road_pct": 7.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.962,
+      "passes": false
+     },
+     {
+      "miles": 9.81,
+      "offset_m": 0.5,
+      "road_pct": 23.7,
+      "retrace": 0.163,
+      "shape": "lollipop",
+      "dist_err": 0.635,
+      "passes": false
+     },
+     {
+      "miles": 4.37,
+      "offset_m": 0.5,
+      "road_pct": 0.2,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.272,
+      "passes": true
+     },
+     {
+      "miles": 0.24,
+      "offset_m": 20.2,
+      "road_pct": 95.2,
+      "retrace": 0.044,
+      "shape": "loop",
+      "dist_err": 0.96,
+      "passes": false
+     },
+     {
+      "miles": 3.86,
+      "offset_m": 0.5,
+      "road_pct": 0.3,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.357,
+      "passes": true
+     },
+     {
+      "miles": 3.43,
+      "offset_m": 0.5,
+      "road_pct": 0.3,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.428,
+      "passes": true
+     },
+     {
+      "miles": 2.56,
+      "offset_m": 0.2,
+      "road_pct": 6.5,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.573,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.49,
+    "error": null,
+    "options": [
+     {
+      "miles": 8.37,
+      "offset_m": 0.5,
+      "road_pct": 24.8,
+      "retrace": 0.011,
+      "shape": "loop",
+      "dist_err": 0.395,
+      "passes": false
+     },
+     {
+      "miles": 5.6,
+      "offset_m": 0.5,
+      "road_pct": 0.2,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.067,
+      "passes": true
+     },
+     {
+      "miles": 4.37,
+      "offset_m": 0.5,
+      "road_pct": 0.2,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.272,
+      "passes": true
+     },
+     {
+      "miles": 3.86,
+      "offset_m": 0.5,
+      "road_pct": 0.3,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.357,
+      "passes": true
+     },
+     {
+      "miles": 3.43,
+      "offset_m": 0.5,
+      "road_pct": 0.3,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.428,
+      "passes": true
+     },
+     {
+      "miles": 3.21,
+      "offset_m": 0.5,
+      "road_pct": 0.3,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.465,
+      "passes": true
+     },
+     {
+      "miles": 4.97,
+      "offset_m": 0.4,
+      "road_pct": 45.4,
+      "retrace": 0.019,
+      "shape": "loop",
+      "dist_err": 0.172,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_9152673905": {
+   "round6": {
+    "latency_s": 1.11,
+    "error": null,
+    "options": [
+     {
+      "miles": 10.89,
+      "offset_m": 0.5,
+      "road_pct": 16.0,
+      "retrace": 0.002,
+      "shape": "loop",
+      "dist_err": 0.089,
+      "passes": false
+     },
+     {
+      "miles": 13.1,
+      "offset_m": 0.5,
+      "road_pct": 34.8,
+      "retrace": 0.028,
+      "shape": "loop",
+      "dist_err": 0.31,
+      "passes": false
+     },
+     {
+      "miles": 9.88,
+      "offset_m": 0.5,
+      "road_pct": 56.7,
+      "retrace": 0.03,
+      "shape": "loop",
+      "dist_err": 0.012,
+      "passes": false
+     },
+     {
+      "miles": 21.98,
+      "offset_m": 0.5,
+      "road_pct": 23.8,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 1.198,
+      "passes": false
+     },
+     {
+      "miles": 32.36,
+      "offset_m": 0.5,
+      "road_pct": 19.8,
+      "retrace": 0.156,
+      "shape": "lollipop",
+      "dist_err": 2.236,
+      "passes": false
+     },
+     {
+      "miles": 18.61,
+      "offset_m": 0.5,
+      "road_pct": 19.7,
+      "retrace": 0.452,
+      "shape": "out_and_back",
+      "dist_err": 0.861,
+      "passes": false
+     },
+     {
+      "miles": 10.89,
+      "offset_m": 0.5,
+      "road_pct": 16.0,
+      "retrace": 0.002,
+      "shape": "loop",
+      "dist_err": 0.089,
+      "passes": false
+     },
+     {
+      "miles": 10.89,
+      "offset_m": 0.5,
+      "road_pct": 16.0,
+      "retrace": 0.002,
+      "shape": "loop",
+      "dist_err": 0.089,
+      "passes": false
+     },
+     {
+      "miles": 12.69,
+      "offset_m": 28.3,
+      "road_pct": 13.7,
+      "retrace": 0.002,
+      "shape": "loop",
+      "dist_err": 0.269,
+      "passes": false
+     },
+     {
+      "miles": 4.25,
+      "offset_m": 1.4,
+      "road_pct": 1.0,
+      "retrace": 0.005,
+      "shape": "loop",
+      "dist_err": 0.575,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.79,
+    "error": null,
+    "options": [
+     {
+      "miles": 12.36,
+      "offset_m": 0.5,
+      "road_pct": 13.9,
+      "retrace": 0.061,
+      "shape": "loop",
+      "dist_err": 0.236,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_2133151582": {
+   "round6": {
+    "latency_s": 1.29,
+    "error": null,
+    "options": [
+     {
+      "miles": 14.46,
+      "offset_m": 0.5,
+      "road_pct": 9.7,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.446,
+      "passes": true
+     },
+     {
+      "miles": 15.49,
+      "offset_m": 0.5,
+      "road_pct": 0.1,
+      "retrace": 0.453,
+      "shape": "out_and_back",
+      "dist_err": 0.549,
+      "passes": false
+     },
+     {
+      "miles": 14.95,
+      "offset_m": 43.6,
+      "road_pct": 11.4,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.495,
+      "passes": false
+     },
+     {
+      "miles": 14.46,
+      "offset_m": 0.5,
+      "road_pct": 9.7,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.446,
+      "passes": true
+     },
+     {
+      "miles": 14.46,
+      "offset_m": 0.5,
+      "road_pct": 9.7,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.446,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 9.62,
+    "error": null,
+    "options": [
+     {
+      "miles": 10.07,
+      "offset_m": 0.0,
+      "road_pct": 6.6,
+      "retrace": 0.054,
+      "shape": "loop",
+      "dist_err": 0.007,
+      "passes": true
+     },
+     {
+      "miles": 10.55,
+      "offset_m": 0.0,
+      "road_pct": 3.5,
+      "retrace": 0.052,
+      "shape": "loop",
+      "dist_err": 0.055,
+      "passes": true
+     },
+     {
+      "miles": 8.81,
+      "offset_m": 0.0,
+      "road_pct": 6.2,
+      "retrace": 0.062,
+      "shape": "loop",
+      "dist_err": 0.119,
+      "passes": true
+     },
+     {
+      "miles": 11.33,
+      "offset_m": 0.0,
+      "road_pct": 11.0,
+      "retrace": 0.048,
+      "shape": "loop",
+      "dist_err": 0.133,
+      "passes": true
+     },
+     {
+      "miles": 10.94,
+      "offset_m": 0.0,
+      "road_pct": 12.3,
+      "retrace": 0.05,
+      "shape": "loop",
+      "dist_err": 0.094,
+      "passes": true
+     },
+     {
+      "miles": 11.31,
+      "offset_m": 0.0,
+      "road_pct": 13.7,
+      "retrace": 0.048,
+      "shape": "loop",
+      "dist_err": 0.131,
+      "passes": true
+     },
+     {
+      "miles": 11.04,
+      "offset_m": 0.6,
+      "road_pct": 0.1,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.104,
+      "passes": true
+     },
+     {
+      "miles": 14.46,
+      "offset_m": 0.5,
+      "road_pct": 9.7,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.446,
+      "passes": true
+     },
+     {
+      "miles": 6.23,
+      "offset_m": 0.5,
+      "road_pct": 11.4,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.377,
+      "passes": true
+     },
+     {
+      "miles": 9.93,
+      "offset_m": 0.0,
+      "road_pct": 3.4,
+      "retrace": 0.108,
+      "shape": "lollipop",
+      "dist_err": 0.007,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_8770165708": {
+   "round6": {
+    "latency_s": 1.25,
+    "error": null,
+    "options": [
+     {
+      "miles": 11.62,
+      "offset_m": 0.5,
+      "road_pct": 1.2,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.162,
+      "passes": true
+     },
+     {
+      "miles": 0.13,
+      "offset_m": 20.7,
+      "road_pct": 4.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.987,
+      "passes": false
+     },
+     {
+      "miles": 10.89,
+      "offset_m": 0.5,
+      "road_pct": 0.0,
+      "retrace": 0.51,
+      "shape": "out_and_back",
+      "dist_err": 0.089,
+      "passes": true
+     },
+     {
+      "miles": 10.22,
+      "offset_m": 0.5,
+      "road_pct": 1.4,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.022,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.83,
+    "error": null,
+    "options": [
+     {
+      "miles": 10.22,
+      "offset_m": 0.5,
+      "road_pct": 1.4,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.022,
+      "passes": true
+     },
+     {
+      "miles": 10.99,
+      "offset_m": 0.0,
+      "road_pct": 10.9,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.099,
+      "passes": true
+     },
+     {
+      "miles": 8.54,
+      "offset_m": 0.0,
+      "road_pct": 14.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.146,
+      "passes": true
+     },
+     {
+      "miles": 10.01,
+      "offset_m": 0.0,
+      "road_pct": 5.8,
+      "retrace": 0.162,
+      "shape": "lollipop",
+      "dist_err": 0.001,
+      "passes": true
+     },
+     {
+      "miles": 9.2,
+      "offset_m": 0.0,
+      "road_pct": 0.0,
+      "retrace": 0.177,
+      "shape": "lollipop",
+      "dist_err": 0.08,
+      "passes": true
+     },
+     {
+      "miles": 9.9,
+      "offset_m": 0.0,
+      "road_pct": 24.2,
+      "retrace": 0.145,
+      "shape": "lollipop",
+      "dist_err": 0.01,
+      "passes": false
+     },
+     {
+      "miles": 9.7,
+      "offset_m": 0.0,
+      "road_pct": 27.2,
+      "retrace": 0.161,
+      "shape": "lollipop",
+      "dist_err": 0.03,
+      "passes": false
+     },
+     {
+      "miles": 10.07,
+      "offset_m": 0.0,
+      "road_pct": 29.8,
+      "retrace": 0.147,
+      "shape": "lollipop",
+      "dist_err": 0.007,
+      "passes": false
+     },
+     {
+      "miles": 10.15,
+      "offset_m": 0.0,
+      "road_pct": 27.0,
+      "retrace": 0.142,
+      "shape": "lollipop",
+      "dist_err": 0.015,
+      "passes": false
+     },
+     {
+      "miles": 10.87,
+      "offset_m": 0.0,
+      "road_pct": 27.0,
+      "retrace": 0.159,
+      "shape": "lollipop",
+      "dist_err": 0.087,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_1997702798": {
+   "round6": {
+    "latency_s": 1.38,
+    "error": null,
+    "options": [
+     {
+      "miles": 3.3,
+      "offset_m": 0.3,
+      "road_pct": 0.0,
+      "retrace": 0.472,
+      "shape": "out_and_back",
+      "dist_err": 0.45,
+      "passes": true
+     },
+     {
+      "miles": 0.06,
+      "offset_m": 6.0,
+      "road_pct": 100.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.99,
+      "passes": false
+     },
+     {
+      "miles": 0.06,
+      "offset_m": 6.0,
+      "road_pct": 100.0,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.99,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 4.63,
+    "error": null,
+    "options": [
+     {
+      "miles": 4.2,
+      "offset_m": 0.3,
+      "road_pct": 0.0,
+      "retrace": 0.478,
+      "shape": "out_and_back",
+      "dist_err": 0.3,
+      "passes": true
+     },
+     {
+      "miles": 8.99,
+      "offset_m": 0.5,
+      "road_pct": 0.0,
+      "retrace": 0.53,
+      "shape": "out_and_back",
+      "dist_err": 0.498,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_7557484425": {
+   "round6": {
+    "latency_s": 1.54,
+    "error": null,
+    "options": [
+     {
+      "miles": 9.23,
+      "offset_m": 0.7,
+      "road_pct": 4.8,
+      "retrace": 0.012,
+      "shape": "loop",
+      "dist_err": 0.077,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.43,
+    "error": null,
+    "options": [
+     {
+      "miles": 9.23,
+      "offset_m": 0.7,
+      "road_pct": 4.8,
+      "retrace": 0.012,
+      "shape": "loop",
+      "dist_err": 0.077,
+      "passes": true
+     },
+     {
+      "miles": 9.88,
+      "offset_m": 0.0,
+      "road_pct": 17.6,
+      "retrace": 0.029,
+      "shape": "loop",
+      "dist_err": 0.012,
+      "passes": false
+     },
+     {
+      "miles": 10.36,
+      "offset_m": 0.0,
+      "road_pct": 12.5,
+      "retrace": 0.09,
+      "shape": "loop",
+      "dist_err": 0.036,
+      "passes": true
+     },
+     {
+      "miles": 8.61,
+      "offset_m": 0.0,
+      "road_pct": 21.1,
+      "retrace": 0.064,
+      "shape": "loop",
+      "dist_err": 0.139,
+      "passes": false
+     },
+     {
+      "miles": 11.05,
+      "offset_m": 0.8,
+      "road_pct": 10.4,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.105,
+      "passes": true
+     },
+     {
+      "miles": 9.82,
+      "offset_m": 0.0,
+      "road_pct": 14.7,
+      "retrace": 0.143,
+      "shape": "lollipop",
+      "dist_err": 0.018,
+      "passes": true
+     },
+     {
+      "miles": 9.89,
+      "offset_m": 0.0,
+      "road_pct": 15.1,
+      "retrace": 0.169,
+      "shape": "lollipop",
+      "dist_err": 0.011,
+      "passes": false
+     },
+     {
+      "miles": 9.67,
+      "offset_m": 0.0,
+      "road_pct": 15.1,
+      "retrace": 0.133,
+      "shape": "lollipop",
+      "dist_err": 0.033,
+      "passes": false
+     },
+     {
+      "miles": 9.11,
+      "offset_m": 0.0,
+      "road_pct": 19.3,
+      "retrace": 0.153,
+      "shape": "lollipop",
+      "dist_err": 0.089,
+      "passes": false
+     },
+     {
+      "miles": 11.05,
+      "offset_m": 0.0,
+      "road_pct": 18.0,
+      "retrace": 0.117,
+      "shape": "lollipop",
+      "dist_err": 0.105,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_7818421740": {
+   "round6": {
+    "latency_s": 1.12,
+    "error": null,
+    "options": [
+     {
+      "miles": 12.58,
+      "offset_m": 0.5,
+      "road_pct": 29.0,
+      "retrace": 0.003,
+      "shape": "loop",
+      "dist_err": 0.258,
+      "passes": false
+     },
+     {
+      "miles": 43.3,
+      "offset_m": 0.6,
+      "road_pct": 21.3,
+      "retrace": 0.025,
+      "shape": "loop",
+      "dist_err": 3.33,
+      "passes": false
+     },
+     {
+      "miles": 15.07,
+      "offset_m": 0.5,
+      "road_pct": 28.1,
+      "retrace": 0.247,
+      "shape": "out_and_back",
+      "dist_err": 0.507,
+      "passes": false
+     },
+     {
+      "miles": 23.09,
+      "offset_m": 0.5,
+      "road_pct": 31.0,
+      "retrace": 0.065,
+      "shape": "loop",
+      "dist_err": 1.309,
+      "passes": false
+     },
+     {
+      "miles": 0.05,
+      "offset_m": 0.0,
+      "road_pct": 100.0,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.995,
+      "passes": false
+     },
+     {
+      "miles": 14.0,
+      "offset_m": 0.5,
+      "road_pct": 8.1,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.4,
+      "passes": true
+     },
+     {
+      "miles": 19.56,
+      "offset_m": 0.5,
+      "road_pct": 11.0,
+      "retrace": 0.46,
+      "shape": "out_and_back",
+      "dist_err": 0.956,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.54,
+    "error": null,
+    "options": [
+     {
+      "miles": 9.96,
+      "offset_m": 0.5,
+      "road_pct": 16.0,
+      "retrace": 0.004,
+      "shape": "loop",
+      "dist_err": 0.004,
+      "passes": false
+     },
+     {
+      "miles": 14.0,
+      "offset_m": 0.5,
+      "road_pct": 8.1,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.4,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_11732393315": {
+   "round6": {
+    "latency_s": 1.19,
+    "error": null,
+    "options": [
+     {
+      "miles": 10.28,
+      "offset_m": 0.5,
+      "road_pct": 5.7,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.028,
+      "passes": true
+     },
+     {
+      "miles": 11.32,
+      "offset_m": 86.4,
+      "road_pct": 5.9,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.132,
+      "passes": false
+     },
+     {
+      "miles": 13.36,
+      "offset_m": 0.5,
+      "road_pct": 4.4,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.336,
+      "passes": true
+     },
+     {
+      "miles": 13.18,
+      "offset_m": 0.5,
+      "road_pct": 0.0,
+      "retrace": 0.499,
+      "shape": "out_and_back",
+      "dist_err": 0.318,
+      "passes": true
+     },
+     {
+      "miles": 10.0,
+      "offset_m": 7.1,
+      "road_pct": 5.8,
+      "retrace": 0.047,
+      "shape": "loop",
+      "dist_err": 0.0,
+      "passes": true
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.42,
+    "error": null,
+    "options": [
+     {
+      "miles": 9.43,
+      "offset_m": 0.0,
+      "road_pct": 0.0,
+      "retrace": 0.076,
+      "shape": "loop",
+      "dist_err": 0.057,
+      "passes": true
+     },
+     {
+      "miles": 10.28,
+      "offset_m": 0.5,
+      "road_pct": 5.7,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.028,
+      "passes": true
+     },
+     {
+      "miles": 9.63,
+      "offset_m": 0.0,
+      "road_pct": 11.3,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.037,
+      "passes": true
+     },
+     {
+      "miles": 10.6,
+      "offset_m": 0.0,
+      "road_pct": 15.8,
+      "retrace": 0.086,
+      "shape": "loop",
+      "dist_err": 0.06,
+      "passes": false
+     },
+     {
+      "miles": 11.96,
+      "offset_m": 0.5,
+      "road_pct": 4.7,
+      "retrace": 0.018,
+      "shape": "loop",
+      "dist_err": 0.196,
+      "passes": true
+     },
+     {
+      "miles": 13.36,
+      "offset_m": 0.5,
+      "road_pct": 4.4,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.336,
+      "passes": true
+     },
+     {
+      "miles": 9.64,
+      "offset_m": 0.0,
+      "road_pct": 4.3,
+      "retrace": 0.114,
+      "shape": "lollipop",
+      "dist_err": 0.036,
+      "passes": true
+     },
+     {
+      "miles": 9.59,
+      "offset_m": 0.0,
+      "road_pct": 2.4,
+      "retrace": 0.138,
+      "shape": "lollipop",
+      "dist_err": 0.041,
+      "passes": true
+     },
+     {
+      "miles": 10.94,
+      "offset_m": 0.0,
+      "road_pct": 5.6,
+      "retrace": 0.13,
+      "shape": "lollipop",
+      "dist_err": 0.094,
+      "passes": true
+     },
+     {
+      "miles": 9.53,
+      "offset_m": 0.0,
+      "road_pct": 8.5,
+      "retrace": 0.126,
+      "shape": "lollipop",
+      "dist_err": 0.047,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_7589880281": {
+   "round6": {
+    "latency_s": 1.11,
+    "error": null,
+    "options": [
+     {
+      "miles": 0.07,
+      "offset_m": 9.3,
+      "road_pct": 62.5,
+      "retrace": 0.041,
+      "shape": "loop",
+      "dist_err": 0.988,
+      "passes": false
+     },
+     {
+      "miles": 0.22,
+      "offset_m": 11.7,
+      "road_pct": 85.4,
+      "retrace": 0.014,
+      "shape": "loop",
+      "dist_err": 0.963,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.83,
+    "error": null,
+    "options": [
+     {
+      "miles": 3.54,
+      "offset_m": 0.4,
+      "road_pct": 0.0,
+      "retrace": 0.147,
+      "shape": "lollipop",
+      "dist_err": 0.41,
+      "passes": true
+     },
+     {
+      "miles": 5.44,
+      "offset_m": 0.0,
+      "road_pct": 0.0,
+      "retrace": 0.267,
+      "shape": "out_and_back",
+      "dist_err": 0.093,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_13395414645": {
+   "round6": {
+    "latency_s": 1.48,
+    "error": null,
+    "options": [
+     {
+      "miles": 0.32,
+      "offset_m": 11.5,
+      "road_pct": 96.5,
+      "retrace": 0.055,
+      "shape": "loop",
+      "dist_err": 0.968,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.0,
+    "error": null,
+    "options": [
+     {
+      "miles": 14.3,
+      "offset_m": 0.7,
+      "road_pct": 54.1,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.43,
+      "passes": false
+     },
+     {
+      "miles": 9.25,
+      "offset_m": 0.7,
+      "road_pct": 82.3,
+      "retrace": 0.002,
+      "shape": "loop",
+      "dist_err": 0.075,
+      "passes": false
+     },
+     {
+      "miles": 9.6,
+      "offset_m": 0.7,
+      "road_pct": 87.0,
+      "retrace": 0.002,
+      "shape": "loop",
+      "dist_err": 0.04,
+      "passes": false
+     },
+     {
+      "miles": 13.77,
+      "offset_m": 0.5,
+      "road_pct": 59.1,
+      "retrace": 0.355,
+      "shape": "out_and_back",
+      "dist_err": 0.377,
+      "passes": false
+     },
+     {
+      "miles": 12.04,
+      "offset_m": 0.7,
+      "road_pct": 83.4,
+      "retrace": 0.01,
+      "shape": "loop",
+      "dist_err": 0.204,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_5470792150": {
+   "round6": {
+    "latency_s": 0.96,
+    "error": null,
+    "options": [
+     {
+      "miles": 0.64,
+      "offset_m": 60.2,
+      "road_pct": 40.9,
+      "retrace": 0.219,
+      "shape": "out_and_back",
+      "dist_err": 0.936,
+      "passes": false
+     },
+     {
+      "miles": 0.39,
+      "offset_m": 0.7,
+      "road_pct": 9.1,
+      "retrace": 0.457,
+      "shape": "out_and_back",
+      "dist_err": 0.961,
+      "passes": false
+     },
+     {
+      "miles": 0.38,
+      "offset_m": 0.2,
+      "road_pct": 7.0,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.962,
+      "passes": false
+     },
+     {
+      "miles": 0.24,
+      "offset_m": 0.2,
+      "road_pct": 0.0,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.976,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.32,
+    "error": null,
+    "options": [
+     {
+      "miles": 9.7,
+      "offset_m": 0.6,
+      "road_pct": 58.8,
+      "retrace": 0.027,
+      "shape": "loop",
+      "dist_err": 0.03,
+      "passes": false
+     },
+     {
+      "miles": 11.66,
+      "offset_m": 0.6,
+      "road_pct": 52.5,
+      "retrace": 0.021,
+      "shape": "loop",
+      "dist_err": 0.166,
+      "passes": false
+     },
+     {
+      "miles": 9.82,
+      "offset_m": 0.5,
+      "road_pct": 80.2,
+      "retrace": 0.096,
+      "shape": "loop",
+      "dist_err": 0.018,
+      "passes": false
+     },
+     {
+      "miles": 6.54,
+      "offset_m": 0.6,
+      "road_pct": 70.7,
+      "retrace": 0.05,
+      "shape": "loop",
+      "dist_err": 0.346,
+      "passes": false
+     },
+     {
+      "miles": 5.34,
+      "offset_m": 0.6,
+      "road_pct": 71.1,
+      "retrace": 0.055,
+      "shape": "loop",
+      "dist_err": 0.466,
+      "passes": false
+     },
+     {
+      "miles": 6.92,
+      "offset_m": 0.6,
+      "road_pct": 93.6,
+      "retrace": 0.094,
+      "shape": "loop",
+      "dist_err": 0.308,
+      "passes": false
+     },
+     {
+      "miles": 8.82,
+      "offset_m": 0.0,
+      "road_pct": 31.8,
+      "retrace": 0.119,
+      "shape": "lollipop",
+      "dist_err": 0.118,
+      "passes": false
+     },
+     {
+      "miles": 8.86,
+      "offset_m": 0.0,
+      "road_pct": 32.5,
+      "retrace": 0.118,
+      "shape": "lollipop",
+      "dist_err": 0.114,
+      "passes": false
+     },
+     {
+      "miles": 6.06,
+      "offset_m": 0.6,
+      "road_pct": 85.0,
+      "retrace": 0.157,
+      "shape": "lollipop",
+      "dist_err": 0.394,
+      "passes": false
+     },
+     {
+      "miles": 9.92,
+      "offset_m": 0.5,
+      "road_pct": 63.8,
+      "retrace": 0.476,
+      "shape": "out_and_back",
+      "dist_err": 0.008,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_194652368": {
+   "round6": {
+    "latency_s": 1.2,
+    "error": null,
+    "options": [
+     {
+      "miles": 11.36,
+      "offset_m": 0.6,
+      "road_pct": 31.5,
+      "retrace": 0.012,
+      "shape": "loop",
+      "dist_err": 0.136,
+      "passes": false
+     },
+     {
+      "miles": 12.63,
+      "offset_m": 0.5,
+      "road_pct": 56.4,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.263,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 5.91,
+    "error": null,
+    "options": [
+     {
+      "miles": 11.14,
+      "offset_m": 0.6,
+      "road_pct": 32.1,
+      "retrace": 0.002,
+      "shape": "loop",
+      "dist_err": 0.114,
+      "passes": false
+     },
+     {
+      "miles": 11.32,
+      "offset_m": 0.6,
+      "road_pct": 12.1,
+      "retrace": 0.242,
+      "shape": "out_and_back",
+      "dist_err": 0.132,
+      "passes": true
+     }
+    ]
+   }
+  },
+  "th_13796708325": {
+   "round6": {
+    "latency_s": 0.86,
+    "error": null,
+    "options": [
+     {
+      "miles": 6.73,
+      "offset_m": 0.5,
+      "road_pct": 58.6,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.122,
+      "passes": false
+     },
+     {
+      "miles": 0.31,
+      "offset_m": 15.3,
+      "road_pct": 7.3,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.948,
+      "passes": false
+     },
+     {
+      "miles": 0.2,
+      "offset_m": 8.9,
+      "road_pct": 2.8,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.967,
+      "passes": false
+     },
+     {
+      "miles": 5.44,
+      "offset_m": 0.5,
+      "road_pct": 17.2,
+      "retrace": 0.499,
+      "shape": "out_and_back",
+      "dist_err": 0.093,
+      "passes": false
+     },
+     {
+      "miles": 6.73,
+      "offset_m": 0.5,
+      "road_pct": 58.6,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.122,
+      "passes": false
+     },
+     {
+      "miles": 6.99,
+      "offset_m": 0.5,
+      "road_pct": 35.1,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.165,
+      "passes": false
+     },
+     {
+      "miles": 6.16,
+      "offset_m": 0.5,
+      "road_pct": 35.7,
+      "retrace": 0.465,
+      "shape": "out_and_back",
+      "dist_err": 0.027,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.07,
+    "error": null,
+    "options": [
+     {
+      "miles": 6.4,
+      "offset_m": 0.5,
+      "road_pct": 24.1,
+      "retrace": 0.046,
+      "shape": "loop",
+      "dist_err": 0.067,
+      "passes": false
+     },
+     {
+      "miles": 6.61,
+      "offset_m": 0.5,
+      "road_pct": 46.1,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.102,
+      "passes": false
+     },
+     {
+      "miles": 7.1,
+      "offset_m": 0.5,
+      "road_pct": 38.2,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.183,
+      "passes": false
+     },
+     {
+      "miles": 4.84,
+      "offset_m": 0.5,
+      "road_pct": 49.1,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.193,
+      "passes": false
+     },
+     {
+      "miles": 6.5,
+      "offset_m": 0.5,
+      "road_pct": 36.5,
+      "retrace": 0.225,
+      "shape": "out_and_back",
+      "dist_err": 0.083,
+      "passes": false
+     },
+     {
+      "miles": 7.28,
+      "offset_m": 0.5,
+      "road_pct": 36.6,
+      "retrace": 0.525,
+      "shape": "out_and_back",
+      "dist_err": 0.213,
+      "passes": false
+     },
+     {
+      "miles": 6.73,
+      "offset_m": 0.5,
+      "road_pct": 58.6,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.122,
+      "passes": false
+     },
+     {
+      "miles": 8.65,
+      "offset_m": 0.5,
+      "road_pct": 58.7,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.442,
+      "passes": false
+     },
+     {
+      "miles": 6.95,
+      "offset_m": 0.5,
+      "road_pct": 31.4,
+      "retrace": 0.176,
+      "shape": "lollipop",
+      "dist_err": 0.158,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_4813668256": {
+   "round6": {
+    "latency_s": 1.15,
+    "error": null,
+    "options": [
+     {
+      "miles": 12.27,
+      "offset_m": 0.6,
+      "road_pct": 60.7,
+      "retrace": 0.014,
+      "shape": "loop",
+      "dist_err": 0.227,
+      "passes": false
+     },
+     {
+      "miles": 15.19,
+      "offset_m": 0.6,
+      "road_pct": 58.1,
+      "retrace": 0.006,
+      "shape": "loop",
+      "dist_err": 0.519,
+      "passes": false
+     },
+     {
+      "miles": 20.35,
+      "offset_m": 0.6,
+      "road_pct": 56.8,
+      "retrace": 0.012,
+      "shape": "loop",
+      "dist_err": 1.035,
+      "passes": false
+     },
+     {
+      "miles": 15.47,
+      "offset_m": 0.6,
+      "road_pct": 68.6,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.547,
+      "passes": false
+     },
+     {
+      "miles": 13.01,
+      "offset_m": 0.6,
+      "road_pct": 78.4,
+      "retrace": 0.012,
+      "shape": "loop",
+      "dist_err": 0.301,
+      "passes": false
+     },
+     {
+      "miles": 26.77,
+      "offset_m": 0.7,
+      "road_pct": 60.9,
+      "retrace": 0.01,
+      "shape": "loop",
+      "dist_err": 1.677,
+      "passes": false
+     },
+     {
+      "miles": 20.74,
+      "offset_m": 0.6,
+      "road_pct": 65.1,
+      "retrace": 0.006,
+      "shape": "loop",
+      "dist_err": 1.074,
+      "passes": false
+     },
+     {
+      "miles": 11.87,
+      "offset_m": 0.6,
+      "road_pct": 87.5,
+      "retrace": 0.379,
+      "shape": "out_and_back",
+      "dist_err": 0.187,
+      "passes": false
+     },
+     {
+      "miles": 15.44,
+      "offset_m": 0.7,
+      "road_pct": 62.4,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.544,
+      "passes": false
+     },
+     {
+      "miles": 17.5,
+      "offset_m": 0.6,
+      "road_pct": 69.7,
+      "retrace": 0.009,
+      "shape": "loop",
+      "dist_err": 0.75,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.45,
+    "error": null,
+    "options": [
+     {
+      "miles": 12.84,
+      "offset_m": 0.6,
+      "road_pct": 76.7,
+      "retrace": 0.007,
+      "shape": "loop",
+      "dist_err": 0.284,
+      "passes": false
+     },
+     {
+      "miles": 13.13,
+      "offset_m": 0.6,
+      "road_pct": 57.4,
+      "retrace": 0.508,
+      "shape": "out_and_back",
+      "dist_err": 0.313,
+      "passes": false
+     },
+     {
+      "miles": 11.87,
+      "offset_m": 0.6,
+      "road_pct": 87.5,
+      "retrace": 0.379,
+      "shape": "out_and_back",
+      "dist_err": 0.187,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_3817468228": {
+   "round6": {
+    "latency_s": 1.03,
+    "error": null,
+    "options": [
+     {
+      "miles": 9.78,
+      "offset_m": 0.8,
+      "road_pct": 78.8,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.022,
+      "passes": false
+     },
+     {
+      "miles": 12.93,
+      "offset_m": 0.6,
+      "road_pct": 43.9,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.293,
+      "passes": false
+     },
+     {
+      "miles": 14.33,
+      "offset_m": 0.6,
+      "road_pct": 44.5,
+      "retrace": 0.003,
+      "shape": "loop",
+      "dist_err": 0.433,
+      "passes": false
+     },
+     {
+      "miles": 11.3,
+      "offset_m": 0.7,
+      "road_pct": 62.6,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.13,
+      "passes": false
+     },
+     {
+      "miles": 12.63,
+      "offset_m": 0.7,
+      "road_pct": 51.4,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.263,
+      "passes": false
+     },
+     {
+      "miles": 8.6,
+      "offset_m": 0.7,
+      "road_pct": 51.6,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.14,
+      "passes": false
+     },
+     {
+      "miles": 19.05,
+      "offset_m": 0.6,
+      "road_pct": 52.4,
+      "retrace": 0.009,
+      "shape": "loop",
+      "dist_err": 0.905,
+      "passes": false
+     },
+     {
+      "miles": 18.63,
+      "offset_m": 146.7,
+      "road_pct": 52.2,
+      "retrace": 0.0,
+      "shape": "loop",
+      "dist_err": 0.863,
+      "passes": false
+     },
+     {
+      "miles": 17.18,
+      "offset_m": 0.8,
+      "road_pct": 51.6,
+      "retrace": 0.416,
+      "shape": "out_and_back",
+      "dist_err": 0.718,
+      "passes": false
+     },
+     {
+      "miles": 15.9,
+      "offset_m": 0.7,
+      "road_pct": 53.9,
+      "retrace": 0.005,
+      "shape": "loop",
+      "dist_err": 0.59,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.9,
+    "error": null,
+    "options": [
+     {
+      "miles": 11.99,
+      "offset_m": 0.8,
+      "road_pct": 44.3,
+      "retrace": 0.032,
+      "shape": "loop",
+      "dist_err": 0.199,
+      "passes": false
+     },
+     {
+      "miles": 8.15,
+      "offset_m": 0.7,
+      "road_pct": 48.8,
+      "retrace": 0.029,
+      "shape": "loop",
+      "dist_err": 0.185,
+      "passes": false
+     },
+     {
+      "miles": 11.45,
+      "offset_m": 0.6,
+      "road_pct": 54.0,
+      "retrace": 0.014,
+      "shape": "loop",
+      "dist_err": 0.145,
+      "passes": false
+     },
+     {
+      "miles": 12.93,
+      "offset_m": 0.6,
+      "road_pct": 43.9,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.293,
+      "passes": false
+     },
+     {
+      "miles": 11.17,
+      "offset_m": 0.6,
+      "road_pct": 60.3,
+      "retrace": 0.011,
+      "shape": "loop",
+      "dist_err": 0.117,
+      "passes": false
+     },
+     {
+      "miles": 11.3,
+      "offset_m": 0.7,
+      "road_pct": 62.6,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.13,
+      "passes": false
+     },
+     {
+      "miles": 9.78,
+      "offset_m": 0.8,
+      "road_pct": 78.8,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.022,
+      "passes": false
+     },
+     {
+      "miles": 14.89,
+      "offset_m": 0.6,
+      "road_pct": 40.9,
+      "retrace": 0.354,
+      "shape": "out_and_back",
+      "dist_err": 0.489,
+      "passes": false
+     },
+     {
+      "miles": 10.83,
+      "offset_m": 0.6,
+      "road_pct": 71.4,
+      "retrace": 0.207,
+      "shape": "out_and_back",
+      "dist_err": 0.083,
+      "passes": false
+     },
+     {
+      "miles": 8.6,
+      "offset_m": 0.7,
+      "road_pct": 51.6,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.14,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_11248539138": {
+   "round6": {
+    "latency_s": 1.37,
+    "error": null,
+    "options": [
+     {
+      "miles": 0.16,
+      "offset_m": 9.7,
+      "road_pct": 100.0,
+      "retrace": 0.013,
+      "shape": "loop",
+      "dist_err": 0.984,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.38,
+    "error": null,
+    "options": [
+     {
+      "miles": 9.83,
+      "offset_m": 0.7,
+      "road_pct": 41.5,
+      "retrace": 0.01,
+      "shape": "loop",
+      "dist_err": 0.017,
+      "passes": false
+     },
+     {
+      "miles": 9.65,
+      "offset_m": 0.7,
+      "road_pct": 63.6,
+      "retrace": 0.015,
+      "shape": "loop",
+      "dist_err": 0.035,
+      "passes": false
+     },
+     {
+      "miles": 11.27,
+      "offset_m": 0.7,
+      "road_pct": 38.8,
+      "retrace": 0.093,
+      "shape": "loop",
+      "dist_err": 0.127,
+      "passes": false
+     },
+     {
+      "miles": 10.43,
+      "offset_m": 0.6,
+      "road_pct": 59.4,
+      "retrace": 0.224,
+      "shape": "out_and_back",
+      "dist_err": 0.043,
+      "passes": false
+     },
+     {
+      "miles": 12.07,
+      "offset_m": 0.7,
+      "road_pct": 48.3,
+      "retrace": 0.236,
+      "shape": "out_and_back",
+      "dist_err": 0.207,
+      "passes": false
+     },
+     {
+      "miles": 13.94,
+      "offset_m": 0.7,
+      "road_pct": 85.1,
+      "retrace": 0.53,
+      "shape": "out_and_back",
+      "dist_err": 0.394,
+      "passes": false
+     },
+     {
+      "miles": 14.85,
+      "offset_m": 0.9,
+      "road_pct": 40.1,
+      "retrace": 0.007,
+      "shape": "loop",
+      "dist_err": 0.485,
+      "passes": false
+     },
+     {
+      "miles": 13.22,
+      "offset_m": 0.9,
+      "road_pct": 56.9,
+      "retrace": 0.001,
+      "shape": "loop",
+      "dist_err": 0.322,
+      "passes": false
+     }
+    ]
+   }
+  },
+  "th_9062846278": {
+   "round6": {
+    "latency_s": 1.15,
+    "error": null,
+    "options": [
+     {
+      "miles": 1.28,
+      "offset_m": 0.3,
+      "road_pct": 23.0,
+      "retrace": 0.5,
+      "shape": "out_and_back",
+      "dist_err": 0.787,
+      "passes": false
+     },
+     {
+      "miles": 1.43,
+      "offset_m": 5.8,
+      "road_pct": 31.6,
+      "retrace": 0.487,
+      "shape": "out_and_back",
+      "dist_err": 0.762,
+      "passes": false
+     },
+     {
+      "miles": 1.42,
+      "offset_m": 16.4,
+      "road_pct": 30.8,
+      "retrace": 0.441,
+      "shape": "out_and_back",
+      "dist_err": 0.763,
+      "passes": false
+     }
+    ]
+   },
+   "round7": {
+    "latency_s": 6.29,
+    "error": null,
+    "options": []
+   }
+  }
+ },
+ "loops_exist": {
+  "bow_10_mtb": true,
+  "bear_brook_10_mtb": true,
+  "bear_brook_14_mtb": true,
+  "bow_5_run": false,
+  "p2p_midpoint": false,
+  "th_194679000": false,
+  "th_5656746911": false,
+  "th_194628036": false,
+  "th_8140114775": false,
+  "th_9152673905": true,
+  "th_2133151582": true,
+  "th_8770165708": true,
+  "th_1997702798": false,
+  "th_7557484425": true,
+  "th_7818421740": false,
+  "th_11732393315": true,
+  "th_7589880281": true,
+  "th_13395414645": false,
+  "th_5470792150": false,
+  "th_194652368": false,
+  "th_13796708325": false,
+  "th_4813668256": false,
+  "th_3817468228": false,
+  "th_11248539138": false,
+  "th_9062846278": false
+ }
+}

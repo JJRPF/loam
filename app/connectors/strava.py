@@ -57,75 +57,46 @@ class StravaConnector(BaseConnector):
                 "error": "Strava connector is disabled by configuration (ENABLE_STRAVA_CONNECTOR=false)."
             }
 
-        personal_token = credentials.get("personal_token")
-        code = credentials.get("code")
-
-        if not personal_token and not code:
-            return {"success": False, "error": "Personal Strava API access token or authorization code is required."}
+        personal_token = (credentials.get("personal_token") or "").strip()
+        if not personal_token:
+            return {"success": False, "error": "A Strava personal access token is required."}
 
         try:
-            token_payload = personal_token.strip() if personal_token else f"strava_token_{uuid.uuid4().hex}"
-            athlete_name = None
-            if personal_token and not personal_token.startswith("mock_") and not personal_token.startswith("test_"):
-                import httpx
-                try:
-                    async with httpx.AsyncClient(timeout=6.0) as client:
-                        resp = await client.get(
-                            "https://www.strava.com/api/v3/athlete",
-                            headers={"Authorization": f"Bearer {token_payload}"}
-                        )
-                        if resp.status_code == 200:
-                            data = resp.json()
-                            athlete_name = f"{data.get('firstname', '')} {data.get('lastname', '')}".strip()
-                        elif resp.status_code == 401:
-                            return {"success": False, "error": "Invalid Strava Personal Access Token. Please verify at strava.com/settings/api."}
-                except Exception:
-                    pass
+            status_code, data = await self._fetch_athlete(personal_token)
+        except Exception:
+            return {"success": False, "error": "Could not reach Strava. Try again later."}
+        if status_code == 401:
+            return {"success": False, "error": "Invalid Strava Personal Access Token. Please verify at strava.com/settings/api."}
+        if status_code != 200:
+            return {"success": False, "error": f"Strava rejected the token ({status_code})."}
 
-            encrypted_token = encrypt_token(token_payload)
-            expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
+        athlete_name = f"{data.get('firstname', '')} {data.get('lastname', '')}".strip()
+        save_user_connected_service(
+            user_id=user_id,
+            provider=self.name,
+            encrypted_token=encrypt_token(personal_token),
+            expires_at=datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=365)
+        )
+        return {
+            "success": True,
+            "connected": True,
+            "message": f"Connected to Strava ({athlete_name}). Activity import isn't available yet." if athlete_name
+            else "Connected to Strava. Activity import isn't available yet."
+        }
 
-            save_user_connected_service(
-                user_id=user_id,
-                provider=self.name,
-                encrypted_token=encrypted_token,
-                expires_at=expires_at
+    async def _fetch_athlete(self, token: str):
+        """GET /athlete with the token: (status code, JSON body or {})."""
+        import httpx
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            resp = await client.get(
+                "https://www.strava.com/api/v3/athlete",
+                headers={"Authorization": f"Bearer {token}"}
             )
-
-            msg = f"Connected to Strava ({athlete_name}). Personal token encrypted at rest." if athlete_name else "Connected to Strava via personal API token. Encrypted at rest."
-
-            return {
-                "success": True,
-                "message": msg,
-                "connected": True
-            }
-        except Exception as e:
-            return {"success": False, "error": f"Strava authentication failed: {str(e)}"}
+        return resp.status_code, (resp.json() if resp.status_code == 200 else {})
 
     async def fetch_activities(self, user_id: str, limit: Optional[int] = None) -> List[Dict[str, Any]]:
-        if not self.is_enabled():
-            return []
-
-        record = get_user_connected_service(user_id, self.name)
-        if not record or not record.get("encrypted_session_token"):
-            return []
-
-        token = decrypt_token(record["encrypted_session_token"])
-        if not token:
-            return []
-
-        count = min(limit, 2) if limit is not None else 2
-        return [
-            {
-                "external_id": f"strava_act_{idx + 1}",
-                "name": f"Strava Trail Ride {idx + 1}",
-                "sport": "mtb",
-                "distance_miles": 12.3,
-                "duration_minutes": 75.0,
-                "date": datetime.datetime.now(datetime.timezone.utc).isoformat()
-            }
-            for idx in range(count)
-        ]
+        # Strava activity import isn't built; nothing is returned rather than placeholder rides.
+        return []
 
     async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:
         if not self.is_enabled():
@@ -136,12 +107,11 @@ class StravaConnector(BaseConnector):
                 "message": "Strava connector is disabled by configuration."
             }
 
-        activities = await self.fetch_activities(user_id)
         return {
             "connector": self.name,
-            "status": "success",
-            "activities_imported": len(activities),
-            "message": f"Successfully synchronized {len(activities)} activities from Strava."
+            "status": "unavailable",
+            "activities_imported": 0,
+            "message": "Strava activity import isn't available yet."
         }
 
     async def disconnect(self, user_id: str) -> bool:

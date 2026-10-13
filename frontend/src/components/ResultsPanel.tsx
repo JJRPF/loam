@@ -1,12 +1,15 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import type { RouteResponse } from '../types';
 import { CandidateCard } from './CandidateCard';
 import { ElevationProfile } from './ElevationProfile';
+import { formatGain } from '../format';
+import { useAuth } from '../services/auth';
+import { fetchWeather, fetchMyNetwork, type WeatherPeriod, type NetworkStat } from '../services/api';
+import { ReportBadRouteModal } from './ReportBadRouteModal';
 import { 
   downloadGpx, downloadFit, shareRouteGarmin, saveRouteApi,
   submitTrailCheckin, createFlag
 } from '../services/api';
-import { getStoredUser } from '../services/auth';
 
 interface ResultsPanelProps {
   route?: RouteResponse | null;
@@ -19,6 +22,9 @@ interface ResultsPanelProps {
   isLoading?: boolean;
   noTrueLoopNearHere?: boolean;
   nearbyStartSuggestion?: string;
+  optionsNotice?: string;
+  /** The request body that produced these options (sent along with a bad-route report). */
+  searchRequest?: Record<string, unknown> | null;
 }
 
 export const ResultsPanel: React.FC<ResultsPanelProps> = ({
@@ -31,8 +37,39 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   onRouteSaved,
   isLoading = false,
   noTrueLoopNearHere = false,
-  nearbyStartSuggestion
+  nearbyStartSuggestion,
+  optionsNotice,
+  searchRequest = null
 }) => {
+  const { user: signedInUser } = useAuth();
+  const [reportTarget, setReportTarget] = useState<RouteResponse | null>(null);
+  const [weather, setWeather] = useState<WeatherPeriod[] | null>(null);
+  const [network, setNetwork] = useState<NetworkStat | null>(null);
+  const wxRoute = route || (options.length > 0 ? options[0] : null);
+  const wxLon = wxRoute?.coordinates?.[0]?.[0];
+  const wxLat = wxRoute?.coordinates?.[0]?.[1];
+  const wxKey = wxLat !== undefined && wxLon !== undefined ? `${wxLat.toFixed(1)},${wxLon.toFixed(1)}` : null;
+  useEffect(() => {
+    let ignore = false;
+    setWeather(null);
+    if (wxLat !== undefined && wxLon !== undefined) {
+      fetchWeather(wxLat, wxLon).then((p) => { if (!ignore) setWeather(p); });
+    }
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wxKey]);
+
+  // Contributor perk: how much of the nearby network this rider has ridden (only their own rides count).
+  const signedInId = signedInUser?.id;
+  useEffect(() => {
+    let ignore = false;
+    setNetwork(null);
+    if (signedInId && wxLat !== undefined && wxLon !== undefined) {
+      fetchMyNetwork(wxLat, wxLon).then((n) => { if (!ignore) setNetwork(n); });
+    }
+    return () => { ignore = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wxKey, signedInId]);
   const [isExportingGpx, setIsExportingGpx] = useState(false);
   const [isExportingFit, setIsExportingFit] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
@@ -226,11 +263,8 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const handleSaveRoute = async () => {
     setIsSaving(true);
     try {
-      const user = getStoredUser();
-      const userId = user?.id || 'justin_user';
-      const token = user?.idToken;
-      await saveRouteApi(activeRoute, userId, token);
-      setSavedStatus('Saved to Profile & Database!');
+      await saveRouteApi(activeRoute);
+      setSavedStatus('Saved to your routes.');
       onRouteSaved?.();
       setTimeout(() => setSavedStatus(null), 3000);
     } catch (e: any) {
@@ -271,6 +305,13 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           )}
         </div>
       </div>
+
+      {/* Honest option count: fewer than 5 routes passed the gates */}
+      {optionsNotice && !isLoading && (
+        <div role="status" style={{ padding: '8px 12px', backgroundColor: 'var(--color-bg-subtle)', border: '1px solid var(--color-divider)', borderRadius: 6, marginBottom: 8, fontSize: 13, color: 'var(--color-text-primary)' }}>
+          {optionsNotice}
+        </div>
+      )}
 
       {/* "No true loop near here" warning banner if only out-and-backs were generated */}
       {noTrueLoopNearHere && (
@@ -320,6 +361,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
                   isSelected={isSelected}
                   onSelect={() => onSelectRoute?.(opt)}
                   onHover={onHoverRoute}
+                  onReportBad={signedInUser ? () => setReportTarget(opt) : undefined}
                 />
               );
             })}
@@ -350,7 +392,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               {(activeRoute.distance_miles ?? 0).toFixed(1)} <span style={{ fontSize: 14 }}>mi</span>
             </div>
             <div className="num-tabular" style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
-              +{Math.round(activeRoute.elevation_gain_ft ?? 0)} ft • {durationText}
+              {formatGain(activeRoute.elevation_gain_ft)} • {durationText}
             </div>
           </div>
         </div>
@@ -433,6 +475,30 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             🚩 Report Trail Issue
           </button>
         </div>
+        <div style={{ marginTop: 8 }}>
+          {signedInUser ? (
+            <button
+              type="button"
+              onClick={() => setReportTarget(activeRoute)}
+              className="btn-secondary"
+              style={{ width: '100%', fontSize: 12, minHeight: 32, borderColor: 'var(--color-divider, #D1D8D8)', color: 'var(--color-text-primary, #1D3B34)' }}
+            >
+              Report bad route
+            </button>
+          ) : (
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center' }}>
+              Sign in to report a bad route (You tab).
+            </div>
+          )}
+        </div>
+        {reportTarget && (
+          <ReportBadRouteModal
+            route={reportTarget}
+            options={options.length > 0 ? options : [reportTarget]}
+            request={searchRequest}
+            onClose={() => setReportTarget(null)}
+          />
+        )}
 
         {checkinStatus && (
           <div style={{ fontSize: 12, color: '#2E6F40', backgroundColor: 'rgba(46, 111, 64, 0.15)', padding: '6px 10px', borderRadius: 4, marginTop: 6 }}>
@@ -557,10 +623,50 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         surfaceStrip={activeRoute.surface_strip || []}
         surfaceBreakdown={activeRoute.surface_breakdown || {}}
         distanceMiles={activeRoute.distance_miles ?? 0}
-        elevationGainFt={activeRoute.elevation_gain_ft ?? 0}
-        elevationLossFt={activeRoute.elevation_loss_ft ?? 0}
+        elevationGainFt={activeRoute.elevation_gain_ft}
+        elevationLossFt={activeRoute.elevation_loss_ft}
         onScrub={onScrubCoord}
       />
+
+      {/* Forecast at the start (National Weather Service); hidden when unavailable */}
+      {weather && weather.length > 0 && (
+        <section aria-label="Forecast at the start" style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>Forecast at the start</div>
+          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+            {weather.slice(0, 8).map((p) => (
+              <div key={p.start} style={{ flex: '0 0 auto', minWidth: 62, textAlign: 'center', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)' }}>
+                <div className="num-tabular">{new Date(p.start).toLocaleTimeString([], { hour: 'numeric' })}</div>
+                <div className="num-tabular" style={{ fontWeight: 700 }}>{p.temp_f !== null ? `${p.temp_f}°F` : '-'}</div>
+                <div>{p.precip_pct !== null ? `${p.precip_pct}% rain` : ''}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ color: 'var(--color-text-secondary, #42675E)' }}>{weather[0].summary}. Source: National Weather Service.</div>
+        </section>
+      )}
+
+      {network && network.ridden_percent !== null && network.ridden_miles > 0 && (
+        <div style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
+          You have ridden {network.ridden_percent}% of the trail network within {network.radius_mi} mi of here
+          ({network.ridden_miles} of {network.trail_miles} mi).
+        </div>
+      )}
+
+      {/* Cue sheet from OSM trail names */}
+      {activeRoute.cues && activeRoute.cues.length > 1 && (
+        <details style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
+          <summary style={{ fontWeight: 700, cursor: 'pointer', minHeight: 32 }}>Directions ({activeRoute.cues.length} steps)</summary>
+          <ol style={{ margin: '6px 0 0', paddingLeft: 0, listStyle: 'none', display: 'flex', flexDirection: 'column', gap: 4 }}>
+            {activeRoute.cues.map((c, i) => (
+              <li key={i} style={{ display: 'flex', gap: 8 }}>
+                <span className="num-tabular" style={{ minWidth: 48, color: 'var(--color-text-secondary, #42675E)' }}>{c.distance_miles.toFixed(1)} mi</span>
+                <span>{c.text}</span>
+              </li>
+            ))}
+          </ol>
+          <div style={{ color: 'var(--color-text-secondary, #42675E)', marginTop: 4 }}>Trail names come from OpenStreetMap. This is a list to read, not voice navigation.</div>
+        </details>
+      )}
 
       {/* Export & Actions Section */}
       <section style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 4 }}>

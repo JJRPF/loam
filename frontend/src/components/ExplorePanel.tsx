@@ -1,23 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { NH_TRAILHEAD_PRESETS } from '../types';
-import type { TrailSubmission, UnriddenTrailItem } from '../types';
+import type { LatLon, Trailhead, TrailSubmission, UnriddenTrailItem } from '../types';
+import trailheadData from '../data/trailheads.json';
 import {
   getUnriddenTrails,
   submitTrail,
   listSubmissions,
-  submitTrailEvidence,
   adminApproveSubmission,
   adminRejectSubmission,
   adminReverseSubmission,
-  adminTakedownSubmission
+  adminTakedownSubmission,
+  fetchHeatMeta,
+  SEED_HEAT_NOTICE
 } from '../services/api';
 
 type ExploreTab = 'featured' | 'unridden' | 'submissions';
 
-export const ExplorePanel: React.FC = () => {
+const TRAILHEADS: Trailhead[] = trailheadData.trailheads;
+
+interface ExplorePanelProps {
+  onPlanFrom?: (start: LatLon) => void;
+}
+
+export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
   const [activeTab, setActiveTab] = useState<ExploreTab>('featured');
-  const [activeNetwork, setActiveNetwork] = useState(NH_TRAILHEAD_PRESETS[0]);
-  const [reportedMessage, setReportedMessage] = useState<string | null>(null);
+  const [activeNetwork, setActiveNetwork] = useState<Trailhead>(TRAILHEADS[0]);
+  const [seedHeatNotice, setSeedHeatNotice] = useState(false);
+  useEffect(() => {
+    fetchHeatMeta().then((m) => setSeedHeatNotice(m.seed_data_notice)).catch(() => setSeedHeatNotice(false));
+  }, []);
 
   // Unridden trails state
   const [unriddenTrails, setUnriddenTrails] = useState<UnriddenTrailItem[]>([]);
@@ -34,7 +44,7 @@ export const ExplorePanel: React.FC = () => {
   const [subSport, setSubSport] = useState('mtb');
   const [subDifficulty, setSubDifficulty] = useState('blue');
   const [subDesc, setSubDesc] = useState('');
-  const [subCoords, setSubCoords] = useState('-71.215,44.025\n-71.218,44.029\n-71.221,44.032');
+  const [subCoords, setSubCoords] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
 
@@ -77,19 +87,6 @@ export const ExplorePanel: React.FC = () => {
     }
   }, [activeTab, submissionFilter]);
 
-  const handleConfirmOpen = () => {
-    setReportedMessage('Confirmed open! Thank you for updating trail conditions.');
-    setTimeout(() => setReportedMessage(null), 3000);
-  };
-
-  const handleReportProblem = () => {
-    const issue = prompt('Describe condition or issue (e.g. blowdown, mud, closure):');
-    if (issue) {
-      setReportedMessage(`Report submitted: "${issue}". Local trail stewards notified.`);
-      setTimeout(() => setReportedMessage(null), 4000);
-    }
-  };
-
   const handleCreateSubmission = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!subName.trim()) {
@@ -131,22 +128,6 @@ export const ExplorePanel: React.FC = () => {
       setSubmissionError(err.message || 'Failed to submit trail');
     } finally {
       setIsSubmitting(false);
-    }
-  };
-
-  const handleAddEvidence = async (id: number) => {
-    try {
-      await submitTrailEvidence(id, {
-        activity_id: `act_ev_${Date.now()}`,
-        coordinates: [
-          [-71.215, 44.025],
-          [-71.218, 44.029],
-          [-71.221, 44.032]
-        ]
-      });
-      await loadSubmissions();
-    } catch (err: any) {
-      alert(`Evidence submission failed: ${err.message}`);
     }
   };
 
@@ -275,11 +256,6 @@ export const ExplorePanel: React.FC = () => {
         </button>
       </div>
 
-      {reportedMessage && (
-        <div style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', backgroundColor: 'var(--color-bg-subtle, #E7ECEC)', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--color-divider)' }}>
-          {reportedMessage}
-        </div>
-      )}
 
       {/* TAB 1: Featured Networks */}
       {activeTab === 'featured' && (
@@ -287,12 +263,12 @@ export const ExplorePanel: React.FC = () => {
           {/* Network Selector */}
           <div>
             <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', display: 'block', marginBottom: 4 }}>
-              Featured Trail Network
+              Trail area
             </label>
             <select
               value={activeNetwork.name}
               onChange={(e) => {
-                const found = NH_TRAILHEAD_PRESETS.find((p) => p.name === e.target.value);
+                const found = TRAILHEADS.find((p) => p.name === e.target.value);
                 if (found) setActiveNetwork(found);
               }}
               style={{
@@ -306,56 +282,35 @@ export const ExplorePanel: React.FC = () => {
                 fontWeight: 600
               }}
             >
-              {NH_TRAILHEAD_PRESETS.map((th) => (
+              {TRAILHEADS.map((th) => (
                 <option key={th.name} value={th.name}>
-                  {th.name} ({th.region})
+                  {th.area} ({th.town})
                 </option>
               ))}
             </select>
           </div>
 
-          {/* Trail Card & Conditions */}
+          {/* Trail area card: everything here comes from OSM */}
           <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 6 }}>
-              <div>
-                <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{activeNetwork.name}</h3>
-                <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>{activeNetwork.region}</div>
-              </div>
-              <span style={{ fontSize: 11, fontWeight: 700, backgroundColor: 'var(--color-lichen, #A9BF7A)', color: '#1D3B34', padding: '3px 8px', borderRadius: 4 }}>
-                Open
-              </span>
-            </div>
-
+            <h3 style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>{activeNetwork.area}</h3>
+            <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>{activeNetwork.town}, NH</div>
             <p style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)', lineHeight: 1.4, margin: '8px 0' }}>
-              {activeNetwork.description}
+              Start: {activeNetwork.parking_name || 'public parking'}
+              {activeNetwork.distance_to_area_m > 0 ? `, ${(activeNetwork.distance_to_area_m * 0.000621371).toFixed(1)} mi from the area boundary` : ', inside the area'}.
             </p>
-
-            {/* Trail Trust Info */}
-            <div style={{ backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: 10, borderRadius: 6, fontSize: 12, color: 'var(--color-text-primary, #1D3B34)', display: 'flex', flexDirection: 'column', gap: 4, marginTop: 8, border: '1px solid var(--color-divider)' }}>
-              <div>• <strong>Status:</strong> Confirmed open 2 days ago by 6 local riders.</div>
-              <div>• <strong>Recency Heat:</strong> High usage in the last 12 months.</div>
-              <div>• <strong>Access:</strong> Public multi-use state park. No active DNR restrictions.</div>
+            <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
+              Parking and boundary from © OpenStreetMap contributors ({activeNetwork.parking_osm}).
             </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
+            {onPlanFrom && (
               <button
                 type="button"
-                onClick={handleConfirmOpen}
-                className="btn-secondary"
-                style={{ flex: 1, fontSize: 13, borderColor: 'var(--color-lichen, #A9BF7A)', color: 'var(--color-text-primary, #1D3B34)' }}
+                onClick={() => onPlanFrom({ lat: activeNetwork.lat, lon: activeNetwork.lon, name: activeNetwork.name })}
+                className="btn-primary"
+                style={{ width: '100%', fontSize: 13, marginTop: 12 }}
               >
-                Still Open
+                Plan a route from here
               </button>
-              <button
-                type="button"
-                onClick={handleReportProblem}
-                className="btn-outline"
-                style={{ flex: 1, fontSize: 13, color: 'var(--color-blaze, #C73E00)', borderColor: 'var(--color-divider)' }}
-              >
-                Report Problem
-              </button>
-            </div>
+            )}
           </div>
 
           {/* Heat Layer Guide */}
@@ -366,6 +321,9 @@ export const ExplorePanel: React.FC = () => {
             <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', lineHeight: 1.4 }}>
               Trails are weighted by verified activity over a 12-month window. Ghost trails and overgrown doubletracks are automatically deprioritized.
             </p>
+            {seedHeatNotice && (
+              <p role="note" style={{ fontSize: 12, color: 'var(--color-blaze)', marginTop: 6 }}>{SEED_HEAT_NOTICE}</p>
+            )}
           </div>
         </div>
       )}
@@ -554,17 +512,6 @@ export const ExplorePanel: React.FC = () => {
 
                     {/* Action & Moderation Controls */}
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 6, paddingTop: 6, borderTop: '1px solid var(--color-divider, #F0F0F0)' }}>
-                      {sub.status === 'pending' && (
-                        <button
-                          type="button"
-                          onClick={() => handleAddEvidence(sub.id)}
-                          className="btn-outline"
-                          style={{ fontSize: 11, padding: '3px 8px', minHeight: 26, borderColor: 'var(--color-slate, #0369A1)', color: 'var(--color-slate, #0369A1)' }}
-                          title="Simulate overlapping ride track from a new rider to test auto-verification"
-                        >
-                          + Add GPS Evidence
-                        </button>
-                      )}
                       {sub.status !== 'verified' && (
                         <button
                           type="button"

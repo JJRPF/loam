@@ -27,8 +27,8 @@ def clean_stage6_test_data():
                 cur.execute("DELETE FROM restrictions WHERE name LIKE 'TEST_%';")
                 cur.execute("DELETE FROM activity_edge_visits WHERE user_id LIKE 'test_user_%';")
                 cur.execute("DELETE FROM activities WHERE user_id LIKE 'test_user_%';")
-                cur.execute("DELETE FROM edge_heat WHERE edge_osm_id >= 990000;")
-                cur.execute("DELETE FROM edges WHERE osm_id >= 990000;")
+                cur.execute("DELETE FROM edge_heat WHERE edge_osm_id IN (SELECT osm_id FROM edges WHERE osm_id BETWEEN 990000 AND 999999 AND osm_source IS NOT TRUE);")
+                cur.execute("DELETE FROM edges WHERE osm_id BETWEEN 990000 AND 999999 AND osm_source IS NOT TRUE;")
                 cur.execute("DELETE FROM users WHERE id LIKE 'test_user_%';")
                 conn.commit()
     except Exception:
@@ -82,11 +82,11 @@ async def test_find_new_trails_api_and_exploration_endpoint():
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO edges (osm_id, name, length_m, geom, surface)
-                    VALUES (%s, 'TEST_Podunk_Singletrack', 1200.0,
+                    INSERT INTO edges (osm_id, name, highway, length_m, geom, surface)
+                    VALUES (%s, 'TEST_Podunk_Singletrack', 'path', 1200.0,
                             ST_SetSRID(ST_MakeLine(ST_MakePoint(-71.3520, 43.1300), ST_MakePoint(-71.3530, 43.1310)), 4326),
                             'dirt')
-                    ON CONFLICT (osm_id) DO NOTHING;
+                    ON CONFLICT (osm_id) DO UPDATE SET highway = 'path';
                     """,
                     (edge_id,)
                 )
@@ -101,7 +101,7 @@ async def test_find_new_trails_api_and_exploration_endpoint():
         resp = await client.get(
             "/api/trails/new-to-me",
             params={"lat": 43.1305, "lon": -71.3524, "radius_miles": 15.0, "sport": "mtb"},
-            headers={"X-User-Id": "test_user_newbie"}
+            headers={"X-Test-User": "test_user_newbie"}
         )
         assert resp.status_code == 200
         data = resp.json()
@@ -126,7 +126,7 @@ async def test_find_new_trails_api_and_exploration_endpoint():
         resp2 = await client.get(
             "/api/trails/new-to-me",
             params={"lat": 43.1305, "lon": -71.3524, "radius_miles": 15.0, "sport": "mtb"},
-            headers={"X-User-Id": "test_user_newbie"}
+            headers={"X-Test-User": "test_user_newbie"}
         )
         assert resp2.status_code == 200
         data2 = resp2.json()
@@ -161,7 +161,7 @@ async def test_trail_submission_creation_and_auto_verification():
             "description": "Scenic singletrack connector linking Bobcat trail."
         }
 
-        resp = await client.post("/api/submissions", json=submission_payload, headers={"X-User-Id": "test_user_sub1"})
+        resp = await client.post("/api/submissions", json=submission_payload, headers={"X-Test-User": "test_user_sub1"})
         assert resp.status_code == 200
         data = resp.json()
         sub_id = data["id"]
@@ -173,7 +173,7 @@ async def test_trail_submission_creation_and_auto_verification():
         ev2_resp = await client.post(
             f"/api/submissions/{sub_id}/evidence",
             json={"activity_id": "test_act_ev2"},
-            headers={"X-User-Id": "test_user_sub2"}
+            headers={"X-Test-User": "test_user_sub2"}
         )
         assert ev2_resp.status_code == 200
         ev2_data = ev2_resp.json()
@@ -183,7 +183,7 @@ async def test_trail_submission_creation_and_auto_verification():
         dup_resp = await client.post(
             f"/api/submissions/{sub_id}/evidence",
             json={"activity_id": "test_act_ev2_dup"},
-            headers={"X-User-Id": "test_user_sub2"}
+            headers={"X-Test-User": "test_user_sub2"}
         )
         assert dup_resp.status_code == 200
 
@@ -191,7 +191,7 @@ async def test_trail_submission_creation_and_auto_verification():
         ev3_resp = await client.post(
             f"/api/submissions/{sub_id}/evidence",
             json={"activity_id": "test_act_ev3"},
-            headers={"X-User-Id": "test_user_sub3"}
+            headers={"X-Test-User": "test_user_sub3"}
         )
         assert ev3_resp.status_code == 200
         ev3_data = ev3_resp.json()
@@ -234,7 +234,7 @@ async def test_submission_auto_verification_blocked_by_hard_restriction():
             "description": "Trail passing through restricted nature preserve."
         }
 
-        resp = await client.post("/api/submissions", json=restricted_sub, headers={"X-User-Id": "test_user_violator"})
+        resp = await client.post("/api/submissions", json=restricted_sub, headers={"X-Test-User": "test_user_violator"})
         assert resp.status_code == 200
         data = resp.json()
         assert data["status"] == "rejected"
@@ -251,26 +251,26 @@ async def test_admin_moderation_interface():
             "difficulty": "blue",
             "coordinates": [[-71.3000, 43.1000], [-71.3010, 43.1010]]
         }
-        res = await client.post("/api/submissions", json=sub_payload, headers={"X-User-Id": "test_user_sub"})
+        res = await client.post("/api/submissions", json=sub_payload, headers={"X-Test-User": "test_user_sub"})
         sub_id = res.json()["id"]
 
         # 1. Admin approve
-        app_res = await client.post(f"/api/submissions/{sub_id}/approve")
+        app_res = await client.post(f"/api/submissions/{sub_id}/approve", headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert app_res.status_code == 200
         assert app_res.json()["status"] == "verified"
 
         # 2. Admin takedown
-        td_res = await client.post(f"/api/submissions/{sub_id}/takedown", json={"action": "takedown", "reason": "Land manager request"})
+        td_res = await client.post(f"/api/submissions/{sub_id}/takedown", json={"action": "takedown", "reason": "Land manager request"}, headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert td_res.status_code == 200
         assert td_res.json()["status"] == "taken_down"
 
         # 3. Admin reverse to pending
-        rev_res = await client.post(f"/api/submissions/{sub_id}/reverse")
+        rev_res = await client.post(f"/api/submissions/{sub_id}/reverse", headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert rev_res.status_code == 200
         assert rev_res.json()["status"] == "pending"
 
         # 4. Admin reject
-        rej_res = await client.post(f"/api/submissions/{sub_id}/reject", json={"action": "reject", "reason": "Unsafe terrain"})
+        rej_res = await client.post(f"/api/submissions/{sub_id}/reject", json={"action": "reject", "reason": "Unsafe terrain"}, headers={"X-Test-User": "round7_admin", "X-Test-Admin": "1"})
         assert rej_res.status_code == 200
         assert rej_res.json()["status"] == "rejected"
 
@@ -327,7 +327,7 @@ async def test_connectors_disabled_by_default_and_status_list(monkeypatch):
     monkeypatch.setattr(settings, "enable_cubetrek_connector", False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        resp = await client.get("/api/connectors", headers={"X-User-Id": "test_user_conn"})
+        resp = await client.get("/api/connectors", headers={"X-Test-User": "test_user_conn"})
         assert resp.status_code == 200
         connectors = resp.json()
         assert len(connectors) >= 3
@@ -340,7 +340,7 @@ async def test_connectors_disabled_by_default_and_status_list(monkeypatch):
         g_resp = await client.post(
             "/api/connectors/garmin/login",
             json={"username": "runner@example.com", "password": "supersecretpassword"},
-            headers={"X-User-Id": "test_user_conn"}
+            headers={"X-Test-User": "test_user_conn"}
         )
         assert g_resp.status_code == 400
         assert "disabled" in g_resp.json()["detail"].lower()
@@ -364,7 +364,7 @@ async def test_garmin_encrypted_token_invariant_and_password_non_retention(monke
         login_resp = await client.post(
             "/api/connectors/garmin/login",
             json={"username": "justin@example.com", "password": raw_pw},
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
         assert login_resp.status_code == 200
         assert login_resp.json()["connected"] is True
@@ -385,40 +385,27 @@ async def test_garmin_encrypted_token_invariant_and_password_non_retention(monke
 
         # Decrypt session token to verify validity
         decrypted = decrypt_token(encrypted_token)
-        assert "garmin_session" in decrypted
+        assert "di_token" in decrypted
 
         # Disconnect connector
-        disc_resp = await client.delete("/api/connectors/garmin", headers={"X-User-Id": test_uid})
+        disc_resp = await client.delete("/api/connectors/garmin", headers={"X-Test-User": test_uid})
         assert disc_resp.status_code == 200
         post_disc_record = get_user_connected_service(test_uid, "garmin")
         assert post_disc_record is None, "Disconnect must purge stored encrypted tokens"
 
 @pytest.mark.asyncio
 async def test_strava_connector_flow(monkeypatch):
-    """Validates Strava connector OAuth authorization, sync, and disconnection."""
+    """Strava has no OAuth client: an authorization code alone never connects anything."""
     monkeypatch.setattr(settings, "enable_strava_connector", True)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         test_uid = "test_user_strava_1"
-        
-        # Connect
         auth_resp = await client.post(
             "/api/connectors/strava/auth",
             json={"code": "sample_auth_code_xyz"},
-            headers={"X-User-Id": test_uid}
+            headers={"X-Test-User": test_uid}
         )
-        assert auth_resp.status_code == 200
-        assert auth_resp.json()["connected"] is True
-
-        # Sync activities
-        sync_resp = await client.post(
-            "/api/connectors/strava/sync",
-            headers={"X-User-Id": test_uid}
-        )
-        assert sync_resp.status_code == 200
-        assert sync_resp.json()["status"] == "success"
-
-        # Disconnect
-        disc_resp = await client.delete("/api/connectors/strava", headers={"X-User-Id": test_uid})
+        assert auth_resp.status_code == 400
+        disc_resp = await client.delete("/api/connectors/strava", headers={"X-Test-User": test_uid})
         assert disc_resp.status_code == 200

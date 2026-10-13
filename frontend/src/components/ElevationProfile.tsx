@@ -7,8 +7,8 @@ interface ElevationProfileProps {
   surfaceStrip: SurfaceSegment[];
   surfaceBreakdown: Record<string, number>;
   distanceMiles: number;
-  elevationGainFt: number;
-  elevationLossFt: number;
+  elevationGainFt: number | null;
+  elevationLossFt: number | null;
   onScrub?: (coord: [number, number] | null, index: number | null) => void;
 }
 
@@ -39,8 +39,9 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
     let cumDistM = 0;
     const pts: { distMi: number; eleFt: number; coord: [number, number] }[] = [];
 
-    // Check if real elevation exists in coords
-    const hasEle = coordinates.some(c => c.length > 2 && c[2] > 0);
+    // Only a real DEM sample on every vertex draws a profile; otherwise there is no curve.
+    const hasEle = coordinates.every(c => c.length > 2 && c[2] !== null && Number.isFinite(c[2]));
+    if (!hasEle) return [];
 
     for (let i = 0; i < coordinates.length; i++) {
       const c = coordinates[i];
@@ -52,14 +53,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
         cumDistM += Math.sqrt(dx * dx + dy * dy);
       }
 
-      let eleFt = 650; // base NH trailhead elevation
-      if (hasEle && c.length > 2) {
-        eleFt = c[2] * 3.28084;
-      } else {
-        // Natural synthesized topography curve for preview if raw elevation is missing
-        const prog = i / Math.max(coordinates.length - 1, 1);
-        eleFt = 650 + Math.sin(prog * Math.PI * 2.5) * 220 + Math.sin(prog * Math.PI * 6) * 90;
-      }
+      const eleFt = c[2] * 3.28084;
 
       pts.push({
         distMi: (cumDistM * 0.000621371),
@@ -155,6 +149,22 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
     onScrub?.(null, null);
   };
 
+  const hasProfile = profilePoints.length >= 2 && elevationGainFt !== null && elevationLossFt !== null;
+
+  if (!hasProfile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
+        <div style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}>
+          <span style={{ fontWeight: 700, fontSize: 15 }}>Elevation unavailable</span>
+          <span style={{ marginLeft: 8, color: 'var(--color-text-secondary, #42675E)' }}>
+            No elevation data covers this route.
+          </span>
+        </div>
+        <SurfaceStrip strip={surfaceStrip} breakdown={surfaceBreakdown} totalMiles={distanceMiles} compact={false} />
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, width: '100%' }}>
       {/* Elevation Stats Header */}
@@ -162,7 +172,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
         <div>
           <span style={{ fontWeight: 700, fontSize: 15, color: 'var(--color-text-primary, #1D3B34)' }}>Elevation Profile</span>
           <span style={{ marginLeft: 8, color: 'var(--color-text-secondary, #42675E)' }}>
-            +{Math.round(elevationGainFt)} ft / -{Math.round(elevationLossFt)} ft
+            +{Math.round(elevationGainFt ?? 0)} ft / -{Math.round(elevationLossFt ?? 0)} ft
           </span>
         </div>
         <div className="num-tabular" style={{ color: 'var(--color-text-secondary, #42675E)', fontSize: 12 }}>

@@ -1,7 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import type { SavedRoute, RouteResponse } from '../types';
 import { fetchSavedRoutes, deleteSavedRoute } from '../services/api';
-import { getStoredUser } from '../services/auth';
+import { useAuth } from '../services/auth';
+import { formatGain } from '../format';
+import { recentRoutes } from '../services/offlineRoutes';
 
 interface SavedRoutesPanelProps {
   onLoadRoute: (route: RouteResponse) => void;
@@ -10,14 +12,17 @@ interface SavedRoutesPanelProps {
 export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute }) => {
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const { user, ready } = useAuth();
+  const [recent, setRecent] = useState<RouteResponse[]>([]);
+
+  useEffect(() => {
+    recentRoutes().then(setRecent);
+  }, []);
 
   const loadRoutes = async () => {
     setIsLoading(true);
     try {
-      const user = getStoredUser();
-      const userId = user?.id || 'justin_user';
-      const token = user?.idToken;
-      const data = await fetchSavedRoutes(userId, token);
+      const data = await fetchSavedRoutes();
       setRoutes(data);
     } catch (e) {
       console.error(e);
@@ -28,10 +33,13 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
 
   useEffect(() => {
     let ignore = false;
-    const user = getStoredUser();
-    const userId = user?.id || 'justin_user';
-    const token = user?.idToken;
-    fetchSavedRoutes(userId, token)
+    if (!ready) return;
+    if (!user) {
+      setRoutes([]);
+      setIsLoading(false);
+      return;
+    }
+    fetchSavedRoutes()
       .then(data => {
         if (!ignore) {
           setRoutes(data);
@@ -43,15 +51,12 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
         if (!ignore) setIsLoading(false);
       });
     return () => { ignore = true; };
-  }, []);
+  }, [user, ready]);
 
   const handleDelete = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if (confirm('Delete this saved route?')) {
-      const user = getStoredUser();
-      const userId = user?.id || 'justin_user';
-      const token = user?.idToken;
-      await deleteSavedRoute(id, userId, token);
+      await deleteSavedRoute(id);
       setRoutes(prev => prev.filter(r => r.id !== id));
     }
   };
@@ -105,6 +110,27 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
         </button>
       </div>
 
+      {recent.length > 0 && (
+        <section aria-label="Recently viewed routes">
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
+            Recently viewed (available offline)
+          </div>
+          {recent.map((r, i) => (
+            <div
+              key={`${r.id || r.name}-${i}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => onLoadRoute(r)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onLoadRoute(r); }}
+              style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: '8px 12px', marginBottom: 6, cursor: 'pointer', fontSize: 13, color: 'var(--color-text-primary, #1D3B34)', display: 'flex', justifyContent: 'space-between' }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+              <span className="num-tabular" style={{ flexShrink: 0, marginLeft: 8 }}>{(r.distance_miles ?? 0).toFixed(1)} mi</span>
+            </div>
+          ))}
+        </section>
+      )}
+
       {isLoading && (
         <div style={{ padding: 20, textAlign: 'center', color: 'var(--color-text-secondary, #42675E)', fontSize: 14 }}>
           Loading saved routes from database...
@@ -117,7 +143,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
             No saved routes yet
           </div>
           <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)' }}>
-            Plan a route in the Plan tab and tap "Save to Profile" to store it in your PostgreSQL account and access it offline or sync to Garmin.
+            Plan a route in the Plan tab and tap "Save to Profile" to store it in your account. Routes you view are also kept on this device for offline use.
           </div>
         </div>
       )}
@@ -149,7 +175,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
                 {(r.distance_miles ?? 0).toFixed(1)} mi
               </span>
               <div className="num-tabular" style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
-                +{Math.round(r.elevation_gain_ft ?? 0)} ft
+                {formatGain(r.elevation_gain_ft)}
               </div>
             </div>
           </div>

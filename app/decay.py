@@ -7,6 +7,24 @@ HALF_LIFE_DAYS = 182.5  # ~6 months
 COVERAGE_CELL_SIZE_DEG = 0.05  # ~3.5 miles lat, ~2.5 miles lon
 COVERAGE_THRESHOLD_ACTIVITIES = 3  # min 3 activities for sufficient coverage
 
+HEAT_SPORTS = {
+    "mtb": "mtb", "mtb_hardtail": "mtb", "mtb_fullsus": "mtb", "mtb_fat": "mtb", "mtb_emtb": "mtb",
+    "gravel": "gravel", "mtb_gravel": "gravel", "bike": "gravel",
+    "trail_run": "trail_run", "foot": "trail_run", "run": "trail_run", "hike": "trail_run",
+}
+
+
+def heat_sport(sport_or_profile: Optional[str]) -> str:
+    """Heat is kept per sport (mtb, gravel, trail_run); every profile maps to one of them."""
+    s = (sport_or_profile or "mtb").lower()
+    return HEAT_SPORTS.get(s, "trail_run" if "run" in s or "foot" in s else "mtb")
+
+
+def min_unique_riders() -> int:
+    from app.config import settings
+    return max(1, int(settings.heat_min_unique_riders))
+
+
 def compute_recency_weight(visited_at: datetime.datetime, ref_date: Optional[datetime.datetime] = None) -> float:
     """
     Computes exponential decay weight with 6-month half life over a 12-month window.
@@ -36,7 +54,7 @@ def aggregate_edge_visits(
     Aggregates edge visits for a single edge and sport:
     - Applies exponential decay
     - Counts unique riders
-    - Checks >= 3 unique riders privacy threshold
+    - Checks the unique-riders privacy threshold (HEAT_MIN_UNIQUE_RIDERS, 3 by default)
     - Tracks contributor IDs
     """
     if not visits:
@@ -71,7 +89,7 @@ def aggregate_edge_visits(
                 latest_dt = v_dt
 
     unique_riders = len(contributors)
-    is_public = (unique_riders >= 3)
+    is_public = (unique_riders >= min_unique_riders())
 
     return {
         "unique_riders": unique_riders,

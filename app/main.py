@@ -1,16 +1,18 @@
+import os
 import time
 import uuid
 import datetime
-import base64
 import json
 import httpx
-from fastapi import FastAPI, HTTPException, Header, Response, status, UploadFile, File, Form, Query
+from fastapi import FastAPI, HTTPException, Depends, Response, status, UploadFile, File, Form, Query
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional, List
 
-from app.config import settings
+from app.config import settings, check_production_config
+from app.auth import AuthUser, get_current_user, get_optional_user, get_admin_user
 from app.models import (
+    BadRouteReport, BadRouteReportResponse,
     RouteRequest, RouteResponse, HealthResponse,
     EdgeHeatRecord, SavedRouteCreate, SavedRouteItem,
     ExportRequest, RouteOptionsRequest, RouteOptionsResponse,
@@ -31,7 +33,7 @@ from app.models import (
     CubeTrekAuthRequest, CubeTrekImportRequest,
     ConnectorSyncRequest, ConnectorSyncResponse, DevConsoleStatusResponse
 )
-from app.routing import fetch_route, generate_route_options, generate_route_options_stream
+from app.routing import fetch_route, plan_route_options
 from app.db import (
     get_connection,
     check_db_health, get_edge_heat, record_edge_heat,
@@ -51,8 +53,7 @@ from app.db import (
     get_trail_submission_by_id, get_trail_submissions,
     record_submission_evidence, evaluate_and_verify_submission,
     admin_update_submission_status, list_user_connected_services,
-    recalculate_all_edge_heat, get_heat_trail_geojson, resolve_osm_trail_name,
-    ingest_bow_ride_data_and_trails
+    recalculate_all_edge_heat, get_heat_trail_geojson
 )
 from app.connectors import connector_manager
 from app.gpx_export import build_gpx_track
@@ -61,6 +62,7 @@ from app.activity_parser import parse_activity_file, MAX_FILE_SIZE
 from app.privacy import apply_privacy_filters, haversine_m
 from app.map_matching import map_match_activity
 from app.worker import run_nightly_job
+from app.elevation import tile_count
 
 
 APP_START_TIME = datetime.datetime.now(datetime.timezone.utc)
@@ -71,97 +73,15 @@ app = FastAPI(
     description="Trail Route Builder backend with surface strip profiling and Garmin GPX/FIT export."
 )
 
+check_production_config()
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origins,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
-
-@app.on_event("startup")
-async def startup_event():
-    try:
-        ingest_bow_ride_data_and_trails()
-    except Exception as e:
-        print(f"Startup Bow ingestion notice: {e}")
-
-def verify_google_id_token(token: str) -> Dict[str, Any]:
-    """
-    Verifies a Google Identity Services / Firebase Auth ID token.
-    Decodes the JWT header and payload, verifies signature/claims,
-    and returns the authenticated user info.
-    """
-    token = token.strip()
-    if not token or token in ("undefined", "null"):
-        raise ValueError("Empty or invalid token")
-
-    # Support mock/dev tokens for testing
-    if token.startswith("mock_") or token.startswith("dev_"):
-        uid = token.split("_", 1)[1] if "_" in token else token
-        return {
-            "uid": uid,
-            "email": f"{uid}@example.com",
-            "display_name": uid.replace("_", " ").title(),
-            "photo_url": None,
-            "claims": {"sub": uid, "email": f"{uid}@example.com"}
-        }
-
-    parts = token.split(".")
-    if len(parts) != 3:
-        # Fallback for plain uid or non-JWT tokens
-        return {
-            "uid": token,
-            "email": f"{token}@example.com",
-            "display_name": token.replace("_", " ").title(),
-            "photo_url": None,
-            "claims": {"sub": token}
-        }
-
-    header_b64, payload_b64, sig_b64 = parts
-    # Pad base64url string
-    rem = len(payload_b64) % 4
-    if rem > 0:
-        payload_b64 += "=" * (4 - rem)
-
-    try:
-        payload_json = base64.urlsafe_b64decode(payload_b64.encode("utf-8")).decode("utf-8")
-        claims = json.loads(payload_json)
-    except Exception as e:
-        raise ValueError(f"Malformed JWT payload: {e}")
-
-    # Validate expiration
-    exp = claims.get("exp")
-    if exp is not None:
-        exp_dt = datetime.datetime.fromtimestamp(exp, datetime.timezone.utc)
-        if exp_dt < datetime.datetime.now(datetime.timezone.utc):
-            raise ValueError(f"Google ID token expired at {exp_dt.isoformat()}")
-
-    uid = claims.get("sub") or claims.get("user_id")
-    if not uid:
-        raise ValueError("Google ID token missing subject ('sub') claim")
-
-    return {
-        "uid": str(uid),
-        "email": claims.get("email", f"{uid}@example.com"),
-        "display_name": claims.get("name") or claims.get("display_name") or str(uid),
-        "photo_url": claims.get("picture"),
-        "claims": claims
-    }
-
-def resolve_user_id(authorization: Optional[str] = Header(None), x_user_id: Optional[str] = Header(None)) -> str:
-    """Extracts or assigns user ID from header (Firebase token, Google ID token, or dev ID)."""
-    if x_user_id and x_user_id not in ("undefined", "null"):
-        return x_user_id
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:].strip()
-        if token and token not in ("undefined", "null"):
-            try:
-                user_info = verify_google_id_token(token)
-                return user_info["uid"]
-            except Exception:
-                return token.split("_")[-1] if "_" in token else token[:32]
-    return "justin_default_user"
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
@@ -182,17 +102,16 @@ async def health():
         version=settings.app_version,
         graphhopper=gh_ok,
         postgis=db_ok,
-        elevation_provider=settings.elevation_provider
+        elevation_provider=f"{settings.elevation_provider} ({tile_count()} DEM tiles)"
     )
 
 @app.post("/api/route", response_model=RouteResponse)
 async def calculate_route(
     request: RouteRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: Optional[AuthUser] = Depends(get_optional_user)
 ):
     try:
-        uid = resolve_user_id(authorization, x_user_id)
+        uid = user.uid if user else None
         t0 = time.perf_counter()
         route = await fetch_route(request, user_id=uid)
         elapsed_ms = (time.perf_counter() - t0) * 1000
@@ -206,27 +125,23 @@ async def calculate_route(
 @app.post("/api/route/options", response_model=RouteOptionsResponse)
 async def calculate_route_options(
     request: RouteOptionsRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: Optional[AuthUser] = Depends(get_optional_user)
 ):
     try:
-        uid = resolve_user_id(authorization, x_user_id)
-        options = await generate_route_options(request, count=request.candidate_count, user_id=uid)
+        uid = user.uid if user else None
+        result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+        options = result.options
         is_loop_req = request.is_loop or request.route_mode in ("loop", "round_trip") or (request.end is None and request.route_mode != "out_and_back")
         has_true_loops = any(opt.route_type in ("loop", "lollipop") for opt in options)
-        no_true_loop = bool(is_loop_req and not has_true_loops)
-        nearby_sugg = None
-        if options and options[0].nearby_start_suggestion:
-            nearby_sugg = options[0].nearby_start_suggestion
-
         return RouteOptionsResponse(
             options=options,
             count=len(options),
             requested_target_miles=request.target_distance_miles,
             start_name=request.start.name,
             loops_only=request.loops_only,
-            no_true_loop_near_here=no_true_loop,
-            nearby_start_suggestion=nearby_sugg
+            no_true_loop_near_here=bool(is_loop_req and not has_true_loops),
+            nearby_start_suggestion=result.nearby_suggestion,
+            notice=result.notice,
         )
     except Exception as e:
         raise HTTPException(
@@ -237,20 +152,19 @@ async def calculate_route_options(
 @app.post("/api/route/options/stream")
 async def stream_route_options_post(
     request: RouteOptionsRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: Optional[AuthUser] = Depends(get_optional_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid if user else None
     async def event_generator():
         try:
-            count = 0
-            async for opt in generate_route_options_stream(request, count=request.candidate_count, user_id=uid):
-                count += 1
+            result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+            for opt in result.options:
                 yield f"event: candidate\ndata: {opt.model_dump_json()}\n\n"
-            yield f"event: complete\ndata: {{\"status\": \"complete\", \"count\": {count}}}\n\n"
+            done = {"status": "complete", "count": len(result.options), "notice": result.notice,
+                    "nearby_start_suggestion": result.nearby_suggestion}
+            yield f"event: complete\ndata: {json.dumps(done)}\n\n"
         except Exception as e:
-            yield f"event: error\ndata: {{\"error\": \"{str(e)}\"}}\n\n"
-
+            yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(
         event_generator(),
@@ -278,7 +192,8 @@ async def stream_route_options_get(
         target_distance_miles=target_miles,
         candidate_count=count
     )
-    return await stream_route_options_post(req)
+    # EventSource cannot send an Authorization header, so this GET form is anonymous.
+    return await stream_route_options_post(req, user=None)
 
 # --- GPX and FIT Route Exports ---
 
@@ -377,10 +292,9 @@ async def export_saved_route_fit(route_id: str):
 @app.post("/api/saved-routes")
 async def save_route(
     data: SavedRouteCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    user_id = resolve_user_id(authorization, x_user_id)
+    user_id = user.uid
     route_id = save_route_to_db(user_id, data.model_dump())
     if not route_id:
         raise HTTPException(status_code=500, detail="Failed to save route to database")
@@ -388,21 +302,18 @@ async def save_route(
 
 @app.get("/api/saved-routes")
 async def list_saved_routes(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    user_id = resolve_user_id(authorization, x_user_id)
+    user_id = user.uid
     routes = get_saved_routes_from_db(user_id)
     return {"routes": routes}
 
 @app.get("/api/saved-routes/{route_id}")
 async def get_saved_route(
     route_id: str,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    user_id = resolve_user_id(authorization, x_user_id)
-    route = get_saved_route_by_id(route_id, user_id=None)
+    route = get_saved_route_by_id(route_id, user_id=user.uid)
     if not route:
         raise HTTPException(status_code=404, detail="Saved route not found")
     return route
@@ -410,92 +321,70 @@ async def get_saved_route(
 @app.delete("/api/saved-routes/{route_id}")
 async def delete_saved_route(
     route_id: str,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    user_id = resolve_user_id(authorization, x_user_id)
+    user_id = user.uid
     deleted = delete_saved_route_from_db(route_id, user_id=user_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Route not found or delete unauthorized")
     return {"status": "deleted", "id": route_id}
 
-# --- Google SSO & Auth Verification ---
-
-@app.post("/api/auth/verify")
-async def verify_auth_token(
-    payload: Dict[str, Any],
-    authorization: Optional[str] = Header(None)
-):
-    token = payload.get("token") or payload.get("id_token")
-    if not token and authorization and authorization.startswith("Bearer "):
-        token = authorization[7:].strip()
-
-    if token and token not in ("undefined", "null"):
-        try:
-            user_info = verify_google_id_token(token)
-            uid = user_info["uid"]
-            email = payload.get("email") or user_info.get("email") or "athlete@loam.local"
-            display_name = payload.get("display_name") or user_info.get("display_name") or "Loam Athlete"
-            photo_url = user_info.get("photo_url")
-        except ValueError as e:
-            raise HTTPException(status_code=401, detail=f"Invalid Google ID token: {str(e)}")
-    else:
-        uid = payload.get("uid") or resolve_user_id(authorization, None)
-        email = payload.get("email", "athlete@loam.local")
-        display_name = payload.get("display_name", "Loam Athlete")
-        photo_url = payload.get("photo_url")
-
-    ensure_user_exists(uid, email=email, display_name=display_name)
-    return {
-        "status": "authenticated",
-        "user": {
-            "id": uid,
-            "email": email,
-            "display_name": display_name,
-            "photo_url": photo_url
-        }
-    }
+# --- Auth ---
 
 @app.get("/api/auth/me")
-async def get_current_user(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+async def get_me(
+    user: AuthUser = Depends(get_current_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    """The verified Firebase user behind the bearer token."""
     return {
-        "id": uid,
-        "email": "athlete@loam.local",
-        "display_name": "Loam Athlete",
-        "role": "rider"
+        "id": user.uid,
+        "email": user.email,
+        "email_verified": user.email_verified,
+        "display_name": user.name,
+        "photo_url": user.picture,
+        "is_admin": user.is_admin,
     }
 
 # --- Geocoding / Location Search Endpoint ---
 
-NH_TRAILHEAD_GEOCODE_DATA = [
-    {"name": "Bear Brook State Park", "display_name": "Bear Brook State Park (Podunk Rd, Allenstown, NH)", "lat": 43.1305, "lon": -71.3524},
-    {"name": "Franklin Falls Dam", "display_name": "Franklin Falls Dam Trails (Franklin, NH)", "lat": 43.4650, "lon": -71.6520},
-    {"name": "Highland Mountain Bike Park", "display_name": "Highland Mountain Bike Park (Northfield, NH)", "lat": 43.4682, "lon": -71.5976},
-    {"name": "Green Woodlands", "display_name": "Green Woodlands Foundation Trails (Dorchester, NH)", "lat": 43.8340, "lon": -71.9540},
-    {"name": "Fort Rock / Henderson Swasey", "display_name": "Fort Rock / Henderson Swasey Town Forest (Exeter, NH)", "lat": 42.9860, "lon": -70.9630},
-    {"name": "Ahern State Park", "display_name": "Ahern State Park (Laconia, NH)", "lat": 43.5410, "lon": -71.4980},
-    {"name": "Page Hill", "display_name": "Page Hill Trails (Hill, NH)", "lat": 43.5820, "lon": -71.6720},
-    {"name": "White Mountain National Forest", "display_name": "White Mountain National Forest, NH", "lat": 44.2700, "lon": -71.3030},
-    {"name": "Mount Washington", "display_name": "Mount Washington, NH", "lat": 44.2705, "lon": -71.3033},
-    {"name": "Franconia Notch", "display_name": "Franconia Notch State Park, NH", "lat": 44.1420, "lon": -71.6820},
-    {"name": "Concord", "display_name": "Concord, NH", "lat": 43.2081, "lon": -71.5376},
-    {"name": "Manchester", "display_name": "Manchester, NH", "lat": 42.9956, "lon": -71.4548},
-    {"name": "Portsmouth", "display_name": "Portsmouth, NH", "lat": 43.0718, "lon": -70.7626},
-    {"name": "Hanover", "display_name": "Hanover / Dartmouth, NH", "lat": 43.7022, "lon": -72.2896},
-    {"name": "North Conway", "display_name": "North Conway, NH", "lat": 44.0537, "lon": -71.1284},
-    {"name": "Keene", "display_name": "Keene, NH", "lat": 42.9337, "lon": -72.2781},
-    {"name": "Mine Falls Park", "display_name": "Mine Falls Park (Nashua, NH)", "lat": 42.7654, "lon": -71.4676},
-]
+# OSM-derived trailhead parking (scripts/build_trailheads.py), shared with the frontend.
+TRAILHEADS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "frontend", "src", "data", "trailheads.json")
+
+
+def load_trailheads() -> List[Dict[str, Any]]:
+    try:
+        with open(TRAILHEADS_PATH) as f:
+            return json.load(f).get("trailheads", [])
+    except (OSError, ValueError):
+        return []
+
+async def photon_search(query: str) -> List[Dict[str, Any]]:
+    """Photon (komoot, OSM data) search; [] when it can't be reached."""
+    out = []
+    try:
+        async with httpx.AsyncClient(timeout=2.0) as client:
+            resp = await client.get("https://photon.komoot.io/api/", params={"q": query, "limit": 5})
+        if resp.status_code != 200:
+            return []
+        for feat in resp.json().get("features", []):
+            props = feat.get("properties", {})
+            coords = feat.get("geometry", {}).get("coordinates", [])
+            if len(coords) >= 2:
+                name = props.get("name") or props.get("street") or query
+                city = props.get("city") or props.get("town") or props.get("state") or ""
+                out.append({"name": name, "display_name": f"{name}, {city}".strip(", "),
+                            "lat": coords[1], "lon": coords[0]})
+    except Exception:
+        return []
+    return out
+
 
 @app.get("/api/geocode")
 async def geocode_location(q: str):
     """
-    Geocodes a search string to coordinates for trailheads, towns, and outdoor spots.
-    Matches locally first, then queries OSM Photon/Nominatim with fast timeout.
+    Geocodes a search string: OSM-derived trailhead parking first, then the Photon
+    (OpenStreetMap) geocoder. Returns no results rather than guessed coordinates.
     """
     query = (q or "").strip()
     if not query:
@@ -504,41 +393,20 @@ async def geocode_location(q: str):
     results = []
     q_lower = query.lower()
 
-    # 1. Check curated NH trailheads and hubs
-    for item in NH_TRAILHEAD_GEOCODE_DATA:
-        if q_lower in item["name"].lower() or q_lower in item["display_name"].lower():
+    # 1. OSM-derived trailhead parking
+    for item in load_trailheads():
+        if q_lower in item["area"].lower() or q_lower in item["name"].lower():
             results.append({
                 "name": item["name"],
-                "display_name": item["display_name"],
+                "display_name": f"{item['name']} ({item['town']}, NH)",
                 "lat": item["lat"],
                 "lon": item["lon"]
             })
 
-    # 2. Try OSM Photon geocoder (designed for live search autocomplete)
-    try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
-            resp = await client.get(
-                "https://photon.komoot.io/api/",
-                params={"q": query, "limit": 5}
-            )
-            if resp.status_code == 200:
-                data = resp.json()
-                for feat in data.get("features", []):
-                    props = feat.get("properties", {})
-                    coords = feat.get("geometry", {}).get("coordinates", [])
-                    if len(coords) >= 2:
-                        name = props.get("name") or props.get("street") or query
-                        city = props.get("city") or props.get("town") or props.get("state") or ""
-                        display = f"{name}, {city}".strip(", ")
-                        if not any(abs(r["lat"] - coords[1]) < 0.001 and abs(r["lon"] - coords[0]) < 0.001 for r in results):
-                            results.append({
-                                "name": name,
-                                "display_name": display,
-                                "lat": coords[1],
-                                "lon": coords[0]
-                            })
-    except Exception:
-        pass
+    # 2. Photon (OpenStreetMap geocoder) for everything else
+    for r in await photon_search(query):
+        if not any(abs(x["lat"] - r["lat"]) < 0.001 and abs(x["lon"] - r["lon"]) < 0.001 for x in results):
+            results.append(r)
 
     return {"results": results[:8]}
 
@@ -550,8 +418,7 @@ async def upload_activity(
     sport: Optional[str] = Form(None),
     consent_given: bool = Form(True),
     retain_file: bool = Form(False),
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Defensively parses uploaded GPX or FIT activity traces.
@@ -559,7 +426,7 @@ async def upload_activity(
     Deletes raw file unless explicit user retention is requested.
     Map-matches GPS trackpoints to OSM/GraphHopper edges.
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     content = await file.read()
     if len(content) > MAX_FILE_SIZE:
         raise HTTPException(
@@ -584,11 +451,10 @@ async def upload_activity(
         raw_dist_m += haversine_m(raw_pts[i].lon, raw_pts[i].lat, raw_pts[i+1].lon, raw_pts[i+1].lat)
     raw_dist_mi = round(raw_dist_m * 0.000621371, 2)
 
-    # Estimate duration in minutes
+    # Duration only from the file's own timestamps; unknown otherwise.
+    duration_min = None
     if act_time and raw_pts[-1].time and raw_pts[-1].time > act_time:
         duration_min = round((raw_pts[-1].time - act_time).total_seconds() / 60.0, 1)
-    else:
-        duration_min = round((raw_dist_mi / 10.0) * 60.0, 1)
 
     # Fetch user privacy zones
     user_zones = get_privacy_zones(uid)
@@ -615,7 +481,7 @@ async def upload_activity(
         "sport": chosen_sport,
         "activity_date": act_time,
         "distance_miles": raw_dist_mi,
-        "duration_minutes": max(duration_min, 1.0),
+        "duration_minutes": duration_min,
         "file_format": "fit" if (file.filename or "").lower().endswith(".fit") else "gpx",
         "raw_file_retained": retain_file,
         "raw_file_path": None,  # Deleted per privacy rules unless retain_file requested
@@ -651,10 +517,9 @@ async def upload_activity(
 async def get_edge_info(
     osm_id: int,
     sport: str = "mtb",
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: Optional[AuthUser] = Depends(get_optional_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid if user else None
     heat = get_edge_heat(osm_id, sport, user_id=uid)
     if not heat:
         return EdgeHeatDetailResponse(
@@ -685,14 +550,80 @@ async def get_edge_info(
 @app.post("/api/heat/record")
 async def record_heat(
     record: EdgeHeatRecord,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    admin: AuthUser = Depends(get_admin_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = admin.uid
     ok = record_edge_heat(record.edge_osm_id, record.sport.value, record.weighted_score, user_id=uid)
     if not ok:
         raise HTTPException(status_code=500, detail="Failed to record heat to database")
     return {"status": "recorded", "edge_osm_id": record.edge_osm_id, "sport": record.sport}
+
+# --- Report bad route (Round 7 plan section 9) ---
+
+@app.post("/api/reports/bad-route", response_model=BadRouteReportResponse)
+async def report_bad_route(
+    body: BadRouteReport,
+    user: AuthUser = Depends(get_current_user)
+):
+    """Stores the full snapshot, then files a GitHub issue with the trimmed copy. 5 reports per user per day."""
+    import asyncio
+    from app import reports
+
+    if await asyncio.to_thread(reports.count_recent, user.uid) >= reports.DAILY_LIMIT:
+        raise HTTPException(status_code=429, detail=f"At most {reports.DAILY_LIMIT} reports a day.")
+    request = body.request.model_dump(mode="json")
+    route = body.route.model_dump(mode="json")
+    rid = await asyncio.to_thread(reports.store_report, user.uid, body.comment.strip(), request, route, body.options)
+    stored = await asyncio.to_thread(reports.get_report, rid)
+    filed = await asyncio.to_thread(reports.file_issue, stored)
+    await asyncio.to_thread(reports.mark_attempt, rid, filed)
+    if filed:
+        return BadRouteReportResponse(id=rid, status="filed", issue_url=filed["url"],
+                                      message="Thanks. Your report was filed.")
+    return BadRouteReportResponse(id=rid, status="pending", message="Saved. It will be filed shortly.")
+
+@app.get("/api/admin/reports/{report_id}")
+async def get_bad_route_report(
+    report_id: str,
+    admin: AuthUser = Depends(get_admin_user)
+):
+    """The full stored snapshot of a report (the GitHub issue only has the trimmed copy)."""
+    import asyncio
+    from app import reports
+
+    try:
+        uuid.UUID(report_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Report not found")
+    report = await asyncio.to_thread(reports.get_report, report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    return report
+
+@app.post("/api/admin/heat/bulk-import")
+async def bulk_import_heat(
+    payload: Dict[str, Any],
+    admin: AuthUser = Depends(get_admin_user)
+):
+    """Imports a batch (<= 25) of stripped Garmin-export tracks for the authenticated admin:
+    re-trims, map-matches, records activities and edge visits, derives loop seeds. Raw points
+    are never stored; idempotent by activity id."""
+    from app.heat_import import TrackError, import_tracks
+    tracks = payload.get("tracks")
+    if not isinstance(tracks, list):
+        raise HTTPException(status_code=400, detail="Body must be {\"tracks\": [...]}")
+    try:
+        return await import_tracks(admin.uid, tracks)
+    except TrackError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/api/heat/meta")
+async def heat_meta():
+    """Heat privacy threshold, so the UI can say when the 3-rider minimum is temporarily off."""
+    n = settings.heat_min_unique_riders
+    return {"min_unique_riders": n, "seed_data_notice": n < 3}
+
 
 @app.get("/api/heat/trails")
 async def get_heat_trails(sport: Optional[str] = None):
@@ -706,10 +637,10 @@ from app.otm import fetch_otm_trails_by_bbox, get_otm_trail_details
 
 @app.get("/api/otm/trails")
 async def get_otm_trails(
-    min_lat: float = Query(43.05, description="South bounding latitude"),
-    min_lon: float = Query(-71.45, description="West bounding longitude"),
-    max_lat: float = Query(43.20, description="North bounding latitude"),
-    max_lon: float = Query(-71.25, description="East bounding longitude"),
+    min_lat: float = Query(..., description="South bounding latitude"),
+    min_lon: float = Query(..., description="West bounding longitude"),
+    max_lat: float = Query(..., description="North bounding latitude"),
+    max_lon: float = Query(..., description="East bounding longitude"),
     sport: Optional[str] = Query("mtb", description="Sport preference"),
     limit: int = Query(150, description="Max trail segments")
 ):
@@ -728,27 +659,64 @@ async def get_otm_trails(
 @app.get("/api/otm/trail/{osm_way_id}")
 async def get_otm_trail(osm_way_id: int):
     """
-    Returns detailed OpenTrailMap metadata for a specific trail way.
+    Returns OSM metadata for a specific trail way from the local import.
     """
-    return get_otm_trail_details(osm_way_id)
+    details = get_otm_trail_details(osm_way_id)
+    if details is None:
+        raise HTTPException(status_code=404, detail="Trail not in the local OSM import")
+    return details
+
+@app.get("/api/pois")
+async def get_pois(
+    min_lat: float = Query(...), min_lon: float = Query(...), max_lat: float = Query(...), max_lon: float = Query(...),
+    kinds: str = Query("water,bike_shop,bike_repair", description="comma list of water, bike_shop, bike_repair, toilets"),
+    limit: int = Query(300, ge=1, le=1000)
+):
+    """Water, bike shops, repair stations (and toilets) from the local OSM import, as GeoJSON."""
+    import asyncio
+
+    wanted = [k for k in kinds.split(",") if k in ("water", "bike_shop", "bike_repair", "toilets")]
+    if not wanted or max_lat - min_lat > 1.0 or max_lon - min_lon > 1.5:
+        return {"type": "FeatureCollection", "features": []}
+
+    def query():
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """SELECT osm_type, osm_id, kind, name, ST_X(geom), ST_Y(geom) FROM pois
+                   WHERE kind = ANY(%s) AND geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326) LIMIT %s""",
+                (wanted, min_lon, min_lat, max_lon, max_lat, limit))
+            return cur.fetchall()
+
+    rows = await asyncio.to_thread(query)
+    return {"type": "FeatureCollection", "features": [
+        {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+         "properties": {"id": f"{t}/{i}", "kind": k, "name": n}} for t, i, k, n, lon, lat in rows]}
+
+@app.get("/api/weather")
+async def get_weather(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), hours: int = Query(12, ge=1, le=48)):
+    """Hourly forecast (National Weather Service) for the start of a route; 503 when unavailable."""
+    from app.weather import hourly_forecast
+
+    fc = await hourly_forecast(lat, lon, hours)
+    if fc is None:
+        raise HTTPException(status_code=503, detail="Forecast unavailable")
+    return fc
 
 # --- Privacy Zones & Consent Management ---
 
 @app.get("/api/privacy/zones", response_model=List[PrivacyZoneResponse])
 async def list_privacy_zones(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     return get_privacy_zones(uid)
 
 @app.post("/api/privacy/zones", response_model=PrivacyZoneResponse)
 async def add_privacy_zone(
     zone: PrivacyZoneCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     new_id = create_privacy_zone(uid, zone.name or "Home/Work", zone.lat, zone.lon, zone.radius_m)
     if not new_id:
         raise HTTPException(status_code=500, detail="Failed to create privacy zone")
@@ -765,10 +733,9 @@ async def add_privacy_zone(
 @app.delete("/api/privacy/zones/{zone_id}")
 async def remove_privacy_zone(
     zone_id: int,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     ok = delete_privacy_zone(zone_id, uid)
     if not ok:
         raise HTTPException(status_code=404, detail="Privacy zone not found or deletion failed")
@@ -776,19 +743,17 @@ async def remove_privacy_zone(
 
 @app.get("/api/privacy/consent")
 async def check_consent(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     return {"user_id": uid, "consent_given": get_user_consent(uid)}
 
 @app.post("/api/privacy/consent")
 async def update_consent(
     consent_given: bool = True,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     set_user_consent(uid, consent_given)
     return {"user_id": uid, "consent_given": consent_given}
 
@@ -820,7 +785,9 @@ async def get_regional_coverage(lat: float, lon: float):
     )
 
 @app.post("/api/jobs/recalculate-heat", response_model=RecalculateHeatResponse)
-async def trigger_heat_recalculation():
+async def trigger_heat_recalculation(
+    admin: AuthUser = Depends(get_admin_user)
+):
     result = run_nightly_job()
     return RecalculateHeatResponse(
         status=result.get("status", "success"),
@@ -841,11 +808,10 @@ async def trigger_heat_recalculation():
 @app.post("/api/flags", response_model=FlagResponse)
 async def report_trail_flag(
     flag: FlagCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Submits a community flag for a trail edge (gone, blocked, closed, seasonal)."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     created = create_community_flag(
         edge_osm_id=flag.edge_osm_id,
         flag_type=flag.flag_type.value,
@@ -868,11 +834,10 @@ async def list_flags(
 async def vote_flag(
     flag_id: int,
     vote: FlagVoteCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Registers an abuse-resistant vote (confirm or dispute) on a community flag."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     try:
         updated = vote_community_flag(flag_id=flag_id, user_id=uid, vote_type=vote.vote_type)
         return FlagVoteResponse(
@@ -892,14 +857,13 @@ async def vote_flag(
 async def submit_trail_checkin(
     edge_osm_id: int,
     checkin: TrailCheckinCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     One-tap rider check-in ("still open") verifying active trail status.
     Refreshes trail confidence and recency date.
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     res = record_trail_checkin(
         edge_osm_id=edge_osm_id,
         user_id=uid,
@@ -942,22 +906,20 @@ async def check_trail_status(edge_osm_id: int):
 
 @app.get("/api/user/dnr", response_model=List[UserDNRResponse])
 async def list_user_dnr(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Lists user's configured DNR trails and areas."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     dnrs = get_user_dnr_list(uid)
     return [UserDNRResponse(**d) for d in dnrs]
 
 @app.post("/api/user/dnr", response_model=UserDNRResponse)
 async def add_user_dnr(
     dnr: UserDNRCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Adds a trail or area to the user's personal DNR list."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     created = create_user_dnr(
         user_id=uid,
         name=dnr.name,
@@ -972,11 +934,10 @@ async def add_user_dnr(
 @app.delete("/api/user/dnr/{dnr_id}")
 async def remove_user_dnr(
     dnr_id: int,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Removes an item from the user's DNR list."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     deleted = delete_user_dnr(dnr_id=dnr_id, user_id=uid)
     if not deleted:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="DNR item not found")
@@ -984,19 +945,20 @@ async def remove_user_dnr(
 
 @app.get("/api/user/dnr/overrides", response_model=List[DNROverrideLogItem])
 async def list_dnr_override_logs(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None),
-    limit: int = 50
+    limit: int = 50,
+    user: AuthUser = Depends(get_current_user)
 ):
     """Fetches logged audit records for soft DNR overrides."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     logs = get_dnr_override_logs(user_id=uid, limit=limit)
     return [DNROverrideLogItem(**l) for l in logs]
 
 # --- Admin Restrictions & Land Manager Takedowns ---
 
 @app.get("/api/admin/restrictions", response_model=List[RestrictionResponse])
-async def list_admin_restrictions():
+async def list_admin_restrictions(
+    admin: AuthUser = Depends(get_admin_user)
+):
     """Lists all active land restrictions and closures."""
     restrs = get_all_restrictions()
     return [RestrictionResponse(**r) for r in restrs]
@@ -1004,8 +966,7 @@ async def list_admin_restrictions():
 @app.post("/api/admin/restrictions", response_model=RestrictionResponse)
 async def add_admin_restriction(
     restr: RestrictionCreate,
-    authorization: Optional[str] = Header(None),
-    x_admin_token: Optional[str] = Header(None)
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Creates a land restriction (closure, wildlife, private, wilderness, dnr)."""
     created = create_restriction(
@@ -1025,7 +986,8 @@ async def add_admin_restriction(
 @app.put("/api/admin/restrictions/{restriction_id}", response_model=RestrictionResponse)
 async def modify_admin_restriction(
     restriction_id: int,
-    restr: RestrictionUpdate
+    restr: RestrictionUpdate,
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Updates an existing restriction."""
     updated = update_restriction(
@@ -1046,7 +1008,10 @@ async def modify_admin_restriction(
     return RestrictionResponse(**updated)
 
 @app.delete("/api/admin/restrictions/{restriction_id}")
-async def remove_admin_restriction(restriction_id: int):
+async def remove_admin_restriction(
+    restriction_id: int,
+    admin: AuthUser = Depends(get_admin_user)
+):
     """Deletes a restriction."""
     ok = delete_restriction(restriction_id)
     if not ok:
@@ -1054,7 +1019,10 @@ async def remove_admin_restriction(restriction_id: int):
     return {"status": "deleted", "id": restriction_id}
 
 @app.post("/api/admin/takedowns", response_model=RestrictionResponse)
-async def execute_land_manager_takedown(takedown: TakedownRequest):
+async def execute_land_manager_takedown(
+    takedown: TakedownRequest,
+    admin: AuthUser = Depends(get_admin_user)
+):
     """Fulfills an immediate land manager takedown request per Section 8 & 14."""
     created = create_takedown(
         name=takedown.name,
@@ -1069,28 +1037,26 @@ async def execute_land_manager_takedown(takedown: TakedownRequest):
 
 @app.get("/api/privacy/export", response_model=UserDataExportResponse)
 async def export_my_data(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Exports all personal data stored for the user in a JSON bundle.
     Guarantees strict privacy: never exposes any other rider's data.
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     data = export_user_data(uid)
     return UserDataExportResponse(**data)
 
 @app.delete("/api/privacy/account")
 async def delete_my_account(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Permanently purges all user account records and personal data.
     Deletes privacy zones, DNR entries, override logs, check-ins, flags,
     activities, saved routes, and contribution consent.
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     ok = delete_user_account(uid)
     return {"status": "account_deleted", "user_id": uid}
 
@@ -1103,18 +1069,17 @@ async def delete_my_account(
 
 @app.get("/api/trails/new-to-me", response_model=List[UnriddenTrailItem])
 async def get_unridden_trails(
-    lat: float = 43.1305,
-    lon: float = -71.3524,
+    lat: float,
+    lon: float,
     radius_miles: float = 15.0,
     sport: str = "mtb",
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Highlights trails with strong recent heat that the user has not yet ridden or run
     (tracked via user's activity history / visits in activity_edge_visits).
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     items = get_unridden_high_heat_trails(
         user_id=uid,
         lat=lat,
@@ -1130,15 +1095,14 @@ async def get_unridden_trails(
 @app.post("/api/submissions", response_model=TrailSubmissionResponse)
 async def submit_trail(
     submission: TrailSubmissionCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Trail submission workflow: users trace or upload trail geometry with name,
     sport, and difficulty rating. Automatically verified if >= 3 unique riders'
     activities overlap the geometry within 12 months and no restricted areas are intersected.
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     record = create_trail_submission(
         user_id=uid,
         name=submission.name,
@@ -1167,18 +1131,60 @@ async def get_submission(submission_id: int):
         raise HTTPException(status_code=404, detail="Trail submission not found.")
     return TrailSubmissionResponse(**record)
 
+@app.get("/api/submissions/{submission_id}/osm-gpx")
+async def submission_osm_gpx(submission_id: int):
+    """A verified trail as a GPX track, for tracing it into OpenStreetMap with the rider's own OSM
+    account (JOSM or iD's GPS layer). Loam never edits OSM itself. Only verified submissions."""
+    record = get_trail_submission_by_id(submission_id)
+    coords = (record or {}).get("coordinates")
+    if not record or record.get("status") != "verified" or not coords:
+        raise HTTPException(status_code=404, detail="Only verified trail submissions can be exported.")
+    gpx = build_gpx_track(name=record["name"], sport=record["sport"], coordinates=coords,
+                          distance_miles=float(record.get("length_miles") or 0), duration_minutes=0.0)
+    return Response(content=gpx, media_type="application/gpx+xml",
+                    headers={"Content-Disposition": f'attachment; filename="loam-trail-{submission_id}.gpx"'})
+
+@app.get("/api/me/network")
+async def my_network(
+    lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180),
+    radius_mi: float = Query(10.0, ge=1.0, le=25.0),
+    user: AuthUser = Depends(get_current_user)
+):
+    """Share of the trail network around a point that the signed-in rider has ridden (their own data only)."""
+    import asyncio
+
+    def query():
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH near AS (
+                    SELECT osm_way_id, length_m FROM trail_segments
+                    WHERE category <> 'paved'
+                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s)
+                ), mine AS (
+                    SELECT DISTINCT edge_osm_id FROM activity_edge_visits WHERE user_id = %s
+                )
+                SELECT COALESCE(SUM(length_m), 0), COALESCE(SUM(length_m) FILTER (WHERE osm_way_id IN (SELECT edge_osm_id FROM mine)), 0)
+                FROM near
+                """,
+                (lon, lat, radius_mi * 1609.344, user.uid))
+            return cur.fetchone()
+
+    total_m, ridden_m = await asyncio.to_thread(query)
+    return {"radius_mi": radius_mi, "trail_miles": round(total_m / 1609.344, 1), "ridden_miles": round(ridden_m / 1609.344, 1),
+            "ridden_percent": round(100.0 * ridden_m / total_m, 1) if total_m else None}
+
 @app.post("/api/submissions/{submission_id}/evidence", response_model=TrailSubmissionEvidenceResponse)
 async def submit_trail_evidence(
     submission_id: int,
     evidence: TrailSubmissionEvidenceCreate,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Submits GPS-backed evidence (overlapping ride activity) confirming a trail submission.
     Provides GPS-backed abuse resistance (requiring overlapping ride evidence, not raw votes).
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     sub = get_trail_submission_by_id(submission_id)
     if not sub:
         raise HTTPException(status_code=404, detail="Trail submission not found.")
@@ -1204,7 +1210,10 @@ async def submit_trail_evidence(
     )
 
 @app.post("/api/submissions/{submission_id}/verify-check")
-async def verify_submission_check(submission_id: int):
+async def verify_submission_check(
+    submission_id: int,
+    user: AuthUser = Depends(get_current_user)
+):
     """Runs auto-verification check on a submission."""
     res = evaluate_and_verify_submission(submission_id)
     if "error" in res:
@@ -1215,7 +1224,8 @@ async def verify_submission_check(submission_id: int):
 @app.post("/api/submissions/{submission_id}/approve", response_model=TrailSubmissionResponse)
 async def admin_approve_submission(
     submission_id: int,
-    body: Optional[TrailSubmissionReviewRequest] = None
+    body: Optional[TrailSubmissionReviewRequest] = None,
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Admin moderation endpoint: manually approve a trail submission."""
     ok = admin_update_submission_status(submission_id, "verified")
@@ -1227,7 +1237,8 @@ async def admin_approve_submission(
 @app.post("/api/submissions/{submission_id}/reject", response_model=TrailSubmissionResponse)
 async def admin_reject_submission(
     submission_id: int,
-    body: Optional[TrailSubmissionReviewRequest] = None
+    body: Optional[TrailSubmissionReviewRequest] = None,
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Admin moderation endpoint: reject a trail submission."""
     reason = body.reason if body else "Rejected by admin"
@@ -1240,7 +1251,8 @@ async def admin_reject_submission(
 @app.post("/api/submissions/{submission_id}/reverse", response_model=TrailSubmissionResponse)
 async def admin_reverse_submission(
     submission_id: int,
-    body: Optional[TrailSubmissionReviewRequest] = None
+    body: Optional[TrailSubmissionReviewRequest] = None,
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Admin moderation endpoint: reverse a submission back to pending status."""
     ok = admin_update_submission_status(submission_id, "pending")
@@ -1252,7 +1264,8 @@ async def admin_reverse_submission(
 @app.post("/api/submissions/{submission_id}/takedown", response_model=TrailSubmissionResponse)
 async def admin_takedown_submission(
     submission_id: int,
-    body: Optional[TrailSubmissionReviewRequest] = None
+    body: Optional[TrailSubmissionReviewRequest] = None,
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Admin moderation endpoint: take down a trail submission."""
     reason = body.reason if body else "Taken down by admin / land manager request"
@@ -1267,22 +1280,20 @@ async def admin_takedown_submission(
 
 @app.get("/api/connectors", response_model=List[ConnectorStatus])
 async def get_connectors(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Returns available connectors (Strava, Garmin, Trailforks) and connection status.
     All third-party connectors are decoupled, swappable, and off by default.
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     statuses = connector_manager.list_connectors(uid)
     return [ConnectorStatus(**s) for s in statuses]
 
 @app.post("/api/connectors/garmin/login")
 async def connect_garmin(
     req: GarminLoginRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Garmin login connector: exchanges credentials for session tokens.
@@ -1292,7 +1303,7 @@ async def connect_garmin(
     - Tokens encrypted at rest with AES Fernet.
     - Bulk imports activities to heat if user agrees (import_to_heat=True).
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     res = await connector_manager.authenticate(
         "garmin", uid, username=req.username, password=req.password,
         mfa_code=req.mfa_code, mfa_session_id=req.mfa_session_id
@@ -1311,11 +1322,10 @@ async def connect_garmin(
 @app.post("/api/connectors/garmin/verify-mfa")
 async def verify_garmin_mfa(
     req: GarminMfaVerifyRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Submits Garmin 2FA verification code to complete connection."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     res = await connector_manager.authenticate(
         "garmin", uid, mfa_session_id=req.mfa_session_id, mfa_code=req.mfa_code
     )
@@ -1330,11 +1340,10 @@ async def verify_garmin_mfa(
 @app.post("/api/connectors/garmin/bulk-import", response_model=ConnectorSyncResponse)
 async def garmin_bulk_import(
     req: Optional[ConnectorSyncRequest] = None,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Bulk imports all activities from Garmin Connect to heat layer if user agrees."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     import_heat = req.import_to_heat if req else True
     res = await connector_manager.sync("garmin", uid, import_to_heat=import_heat)
     return ConnectorSyncResponse(**res)
@@ -1342,11 +1351,10 @@ async def garmin_bulk_import(
 @app.post("/api/connectors/trailforks/auth")
 async def connect_trailforks(
     req: TrailforksAuthRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Trailforks connector: authorizes and links trail metadata service (© Trailforks)."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     res = await connector_manager.authenticate("trailforks", uid, token=req.token, username=req.username)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "Trailforks connection failed"))
@@ -1355,14 +1363,13 @@ async def connect_trailforks(
 @app.post("/api/connectors/strava/auth")
 async def connect_strava(
     req: StravaAuthRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """
     Strava connector: connects via user personal API token or authorization code.
     No app-wide OAuth client required.
     """
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     res = await connector_manager.authenticate(
         "strava", uid, code=req.code, personal_token=req.personal_token, scope=req.scope
     )
@@ -1373,11 +1380,10 @@ async def connect_strava(
 @app.post("/api/connectors/cubetrek/auth")
 async def connect_cubetrek(
     req: CubeTrekAuthRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """CubeTrek connector: links account / profile."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     res = await connector_manager.authenticate("cubetrek", uid, username=req.username)
     if not res.get("success"):
         raise HTTPException(status_code=400, detail=res.get("error", "CubeTrek connection failed"))
@@ -1386,11 +1392,10 @@ async def connect_cubetrek(
 @app.post("/api/connectors/cubetrek/import")
 async def import_cubetrek_activity(
     req: CubeTrekImportRequest,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Imports a 3D GPS track from CubeTrek URL or track ID."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     connector = connector_manager.get_connector("cubetrek")
     if not connector:
         raise HTTPException(status_code=404, detail="CubeTrek connector not available")
@@ -1409,11 +1414,10 @@ async def import_cubetrek_activity(
 async def sync_connector_activities(
     provider: str,
     req: Optional[ConnectorSyncRequest] = None,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Syncs activities from a connected third-party provider."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     import_heat = req.import_to_heat if req else True
     res = await connector_manager.sync(provider, uid, import_to_heat=import_heat)
     return ConnectorSyncResponse(**res)
@@ -1421,48 +1425,20 @@ async def sync_connector_activities(
 @app.delete("/api/connectors/{provider}")
 async def disconnect_connector(
     provider: str,
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None)
+    user: AuthUser = Depends(get_current_user)
 ):
     """Disconnects a service and purges stored encrypted tokens."""
-    uid = resolve_user_id(authorization, x_user_id)
+    uid = user.uid
     ok = await connector_manager.disconnect(provider, uid)
     return {"success": ok, "provider": provider, "status": "disconnected"}
 
 # --- Developer Console Routes ---
 
-def verify_developer_auth(
-    authorization: Optional[str] = None,
-    x_user_id: Optional[str] = None,
-    x_dev_key: Optional[str] = None
-) -> bool:
-    """Verifies developer authorization via developer key or admin session."""
-    if x_dev_key and x_dev_key.strip() == settings.developer_admin_key:
-        return True
-
-    if authorization and authorization.startswith("Bearer "):
-        token = authorization[7:].strip()
-        try:
-            user_data = verify_google_id_token(token)
-            if user_data.get("email") in (settings.developer_admin_email, "jjrpfister@gmail.com"):
-                return True
-        except Exception:
-            pass
-
-    if x_user_id and x_user_id.strip() in (settings.developer_admin_email, "jjrpfister@gmail.com"):
-        return True
-
-    return False
-
 @app.get("/api/dev/status", response_model=DevConsoleStatusResponse)
 async def get_developer_status(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None),
-    x_dev_key: Optional[str] = Header(None)
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """System health & developer metrics."""
-    if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
 
     db_ok = check_db_health()
     uptime = (datetime.datetime.now(datetime.timezone.utc) - APP_START_TIME).total_seconds()
@@ -1482,7 +1458,7 @@ async def get_developer_status(
     except Exception:
         pass
 
-    connectors = connector_manager.list_connectors("developer_admin")
+    connectors = connector_manager.list_connectors(admin.uid)
 
     return DevConsoleStatusResponse(
         status="healthy" if db_ok else "degraded",
@@ -1494,46 +1470,24 @@ async def get_developer_status(
         heat_edge_count=heat_cnt,
         saved_route_count=route_cnt,
         connectors=connectors,
-        developer_email=settings.developer_admin_email,
+        developer_email=admin.email or "",
         uptime_seconds=uptime
     )
 
 @app.post("/api/dev/cache/clear")
 async def clear_dev_cache(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None),
-    x_dev_key: Optional[str] = Header(None)
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Developer action: Clears transient route and connector caches."""
-    if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
     return {"status": "success", "message": "All transient caches cleared."}
 
 @app.post("/api/dev/heat/recalculate")
 async def recalculate_dev_heat(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None),
-    x_dev_key: Optional[str] = Header(None)
+    admin: AuthUser = Depends(get_admin_user)
 ):
     """Developer action: Triggers recalculation of the trail heat layer."""
-    if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
     res = recalculate_all_edge_heat()
     return {"status": "success", "updated_edges": res.get("updated_edges", 0), "message": "Heat layer recalculation complete."}
-
-@app.post("/api/dev/bow/ingest")
-async def ingest_dev_bow_data(
-    authorization: Optional[str] = Header(None),
-    x_user_id: Optional[str] = Header(None),
-    x_dev_key: Optional[str] = Header(None)
-):
-    """Developer action: Ingests Bow Town Forest trails, ride data, and sets public heat."""
-    if not verify_developer_auth(authorization, x_user_id, x_dev_key):
-        raise HTTPException(status_code=403, detail="Developer access denied. Developer authentication required.")
-    res = ingest_bow_ride_data_and_trails()
-    return res
-
-
 
 
 # --- Static Files / Frontend PWA ---
@@ -1542,6 +1496,13 @@ from fastapi.staticfiles import StaticFiles
 
 frontend_dist = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend", "dist")
 if os.path.exists(frontend_dist):
+    from fastapi.responses import FileResponse
+
+    @app.get("/auth/finish", include_in_schema=False)
+    async def auth_finish_page():
+        """Landing page for Firebase email sign-in links; the SPA finishes the sign-in."""
+        return FileResponse(os.path.join(frontend_dist, "index.html"))
+
     app.mount("/", StaticFiles(directory=frontend_dist, html=True), name="static")
 
 if __name__ == "__main__":

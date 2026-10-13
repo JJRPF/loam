@@ -11,8 +11,8 @@ interface SurfaceStripProps {
 
 const SURFACE_COLORS: Record<string, { bg: string; label: string }> = {
   singletrack: { bg: '#2E6F40', label: 'Singletrack' },
-  doubletrack: { bg: '#8D6E63', label: 'Doubletrack' },
-  gravel: { bg: '#D4A373', label: 'Gravel' },
+  doubletrack: { bg: '#C9A227', label: 'Doubletrack' },
+  gravel: { bg: '#8D6E63', label: 'Gravel' },
   paved: { bg: '#78909C', label: 'Paved' },
   unpaved: { bg: '#B0BEC5', label: 'Unpaved' },
   unknown: { bg: '#CFD8DC', label: 'Trail' }

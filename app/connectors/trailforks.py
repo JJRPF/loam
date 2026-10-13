@@ -50,68 +50,22 @@ class TrailforksConnector(BaseConnector):
         }
 
     async def authenticate(self, user_id: str, **credentials) -> Dict[str, Any]:
-        if not self.is_enabled():
-            return {
-                "success": False,
-                "error": "Trailforks connector is disabled by configuration (ENABLE_TRAILFORKS_CONNECTOR=false)."
-            }
-
-        token = credentials.get("token") or credentials.get("username") or f"tf_auth_{uuid.uuid4().hex[:12]}"
-
-        try:
-            session_payload = f"trailforks_session_{token}_{int(datetime.datetime.now(datetime.timezone.utc).timestamp())}"
-            encrypted_token = encrypt_token(session_payload)
-            expires_at = datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=60)
-
-            save_user_connected_service(
-                user_id=user_id,
-                provider=self.name,
-                encrypted_token=encrypted_token,
-                expires_at=expires_at
-            )
-
-            return {
-                "success": True,
-                "connected": True,
-                "message": "Connected to Trailforks (© Trailforks). Trail reports and condition metadata active."
-            }
-        except Exception as e:
-            return {"success": False, "error": f"Trailforks connection failed: {str(e)}"}
+        # Loam has no Trailforks API access (no app key, terms not confirmed), so nothing can
+        # be connected. The interface stays so the connector can be switched on later.
+        return {
+            "success": False,
+            "error": "Trailforks isn't available yet: Loam doesn't have Trailforks API access.",
+        }
 
     async def fetch_activities(self, user_id: str, limit: int = 10) -> List[Dict[str, Any]]:
-        # Trailforks supplies trail status/condition reports rather than rider activities
         return []
 
     async def sync_activities(self, user_id: str, import_to_heat: bool = True) -> Dict[str, Any]:
-        if not self.is_enabled():
-            return {
-                "connector": self.name,
-                "status": "disabled",
-                "activities_imported": 0,
-                "message": "Trailforks connector is disabled by configuration."
-            }
-
-        service_record = get_user_connected_service(user_id, self.name)
-        if not service_record:
-            return {
-                "connector": self.name,
-                "status": "failed",
-                "activities_imported": 0,
-                "message": "Trailforks account not connected."
-            }
-
-        # Update last synced timestamp
-        save_user_connected_service(
-            user_id=user_id,
-            provider=self.name,
-            encrypted_token=service_record.get("encrypted_session_token", "")
-        )
-
         return {
             "connector": self.name,
-            "status": "success",
+            "status": "unavailable",
             "activities_imported": 0,
-            "message": "Synchronized trail reports, conditions, and difficulty ratings (© Trailforks)."
+            "message": "Trailforks isn't available yet: Loam doesn't have Trailforks API access.",
         }
 
     async def disconnect(self, user_id: str) -> bool:

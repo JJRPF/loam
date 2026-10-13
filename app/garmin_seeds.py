@@ -1,184 +1,145 @@
 """
-Garmin Activity Loop Extraction & Candidate Seeding for Loam.
-Extracts authentic ride loops from consented Garmin activity data,
-map-matches them to the trail graph, filters by DNR/road rules,
-and adapts them as candidate seeds for route generation.
-No Garmin credentials or raw personal GPS coordinates are committed.
+Loop seeds from riders' own imported, map-matched rides (plan 7.4).
+
+Seeds are stored by app.heat_import as OSM topology only (ordered node ids and way ids) in
+`seed_loops`; there are no hand-made seeds. A seed is offered to a rider when its loop passes
+within 1.5 mi of their start, and to riders other than its contributors only when at least
+HEAT_MIN_UNIQUE_RIDERS distinct riders rode it (the heat privacy rule). The candidate is the
+real network stem from the start to the loop, the loop itself (its gap at the trimmed
+start/finish closed along the network) and the stem back, built through the route builder.
 """
-import os
+import heapq
 import math
-import csv
-from typing import Dict, Any, List, Optional, Tuple
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
-from app.scoring import haversine_m, calculate_repetition_ratio
-from app.privacy import apply_privacy_filters
-from app.db import check_route_trust_layer, get_edges_heat
-
-METERS_TO_MILES = 0.000621371192
+SEED_RADIUS_M = 2414.0  # 1.5 mi
+GAP_BRIDGE_M = 400.0
 
 
 @dataclass
 class SeedLoop:
-    id: str
-    name: str
+    id: int
     sport: str
-    distance_miles: float
-    start_lat: float
-    start_lon: float
-    coordinates: List[List[float]]
-    osm_way_ids: List[int]
-    repetition_ratio: float
-    road_pct: float
-    passes_dnr_rules: bool
+    distance_m: float
+    node_path: List[int]
+    way_ids: List[int]
+    retrace: float
+    rides: int
 
 
 class SeedLoopCatalog:
-    def __init__(self):
-        self.loops: List[SeedLoop] = []
-        self._init_curated_seeds()
+    def get_matching_seeds(self, lat: float, lon: float, target_miles: float, sport: str = "mtb",
+                           user_id: Optional[str] = None, radius_m: float = SEED_RADIUS_M) -> List[SeedLoop]:
+        """Seed loops of this heat sport whose geometry passes within 1.5 mi of the start and whose
+        length fits the target. Empty until rides are imported."""
+        from app.db import get_connection
+        from app.decay import heat_sport, min_unique_riders
 
-    def _init_curated_seeds(self):
-        """
-        Initializes derived loop geometries from Justin's verified Bow Town Forest
-        and Bear Brook trail rides (coordinates and edge lists only).
-        """
-        # Bow Town Forest 7.7 mi Authentic Ride Loop (Single Circuit - Robertson - Knox Mtn - Tower)
-        bow_7_7_coords = [
-            [-71.50346, 43.12781], [-71.5050, 43.1271], [-71.5120, 43.1300],
-            [-71.5160, 43.1340], [-71.51832, 43.13684], [-71.5188, 43.1375],
-            [-71.5210, 43.1380], [-71.52417, 43.14533], [-71.5200, 43.1465],
-            [-71.5160, 43.1440], [-71.5120, 43.1410], [-71.5100, 43.1350],
-            [-71.50346, 43.12781]
-        ]
-        self.loops.append(SeedLoop(
-            id="garmin_seed_bow_7_7",
-            name="Bow Forest Perimeter Circuit",
-            sport="mtb",
-            distance_miles=7.72,
-            start_lat=43.12781,
-            start_lon=-71.50346,
-            coordinates=bow_7_7_coords,
-            osm_way_ids=[289829667, 289829681, 289829857, 302693899, 339654248, 304316556, 304316557],
-            repetition_ratio=0.03,
-            road_pct=4.2,
-            passes_dnr_rules=True
-        ))
+        try:
+            with get_connection() as conn, conn.cursor() as cur:
+                cur.execute(
+                    """
+                    SELECT s.id, s.sport, s.distance_m, s.node_path, s.way_ids, s.retrace, s.rides
+                    FROM seed_loops s
+                    WHERE s.sport = %s
+                      AND (cardinality(s.rider_ids) >= %s OR %s = ANY(s.rider_ids))
+                      AND s.distance_m BETWEEN %s AND %s
+                      AND EXISTS (
+                          SELECT 1 FROM trail_segments t
+                          WHERE t.osm_way_id = ANY(s.way_ids)
+                            AND ST_DWithin(t.geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s))
+                    ORDER BY abs(s.distance_m - %s) LIMIT 20
+                    """,
+                    (heat_sport(sport), min_unique_riders(), user_id or "", 0.4 * target_miles * 1609.344,
+                     1.3 * target_miles * 1609.344, lon, lat, radius_m, target_miles * 1609.344),
+                )
+                return [SeedLoop(*row) for row in cur.fetchall()]
+        except Exception:
+            return []
 
-        # Bow Town Forest 9.9 mi Extended eMTB Loop
-        bow_9_9_coords = [
-            [-71.50346, 43.12781], [-71.5065, 43.1265], [-71.51599, 43.1221],
-            [-71.5180, 43.1230], [-71.51832, 43.13684], [-71.52417, 43.14533],
-            [-71.53038, 43.15331], [-71.5200, 43.1465], [-71.5160, 43.1440],
-            [-71.5120, 43.1300], [-71.50346, 43.12781]
-        ]
-        self.loops.append(SeedLoop(
-            id="garmin_seed_bow_9_9",
-            name="Bow Forest Grand Loop",
-            sport="mtb",
-            distance_miles=9.97,
-            start_lat=43.12781,
-            start_lon=-71.50346,
-            coordinates=bow_9_9_coords,
-            osm_way_ids=[289829667, 18854090, 289829681, 339654248, 304316556, 304316557],
-            repetition_ratio=0.04,
-            road_pct=6.5,
-            passes_dnr_rules=True
-        ))
+    def build_candidate(self, seed: SeedLoop, req) -> Optional[Tuple[list, list]]:
+        """(coords, pieces) for stem + loop + stem through the current trail graph, or None when
+        the loop's segments are no longer all usable (blocked, deleted from OSM)."""
+        from app.models import SportProfile
+        from app.route_builder import Piece
+        from app.trail_graph import graph_for
 
-        # Bear Brook 14.1 mi Benchmark Loop (Bear Brook - Bobcat - Salt Lick - Pitch Pine - Boulder)
-        bb_14_coords = [
-            [-71.3524, 43.1305], [-71.3558, 43.1296], [-71.3618, 43.1321],
-            [-71.3662, 43.1410], [-71.3610, 43.1450], [-71.3570, 43.1440],
-            [-71.3540, 43.1420], [-71.3500, 43.1350], [-71.3480, 43.1330],
-            [-71.3524, 43.1305]
-        ]
-        self.loops.append(SeedLoop(
-            id="garmin_seed_bb_14_1",
-            name="Bear Brook Full Circuit",
-            sport="mtb",
-            distance_miles=14.1,
-            start_lat=43.1305,
-            start_lon=-71.3524,
-            coordinates=bb_14_coords,
-            osm_way_ids=[220551350, 220551352, 247358974, 220551345, 247358962, 999202],
-            repetition_ratio=0.04,
-            road_pct=7.8,
-            passes_dnr_rules=True
-        ))
-
-    def extract_from_export_folder(self, folder_path: str) -> Dict[str, Any]:
-        """
-        Extracts loops from an external Garmin export directory containing FIT/GPX files or Activities.csv.
-        Never logs credentials or retains home/work raw coordinates.
-        """
-        if not os.path.exists(folder_path):
-            return {"status": "skipped", "message": f"Folder {folder_path} not found"}
-
-        csv_file = os.path.join(folder_path, "Activities.csv")
-        extracted_count = 0
-        area_counts: Dict[str, int] = {}
-        passed_rules_count = 0
-
-        if os.path.exists(csv_file):
-            try:
-                with open(csv_file, "r", encoding="utf-8-sig") as f:
-                    reader = csv.DictReader(f)
-                    for row in reader:
-                        title = row.get("Title", "")
-                        dist_str = row.get("Distance", "0").replace(",", "")
-                        ascent_str = row.get("Total Ascent", "0").replace(",", "")
-                        descent_str = row.get("Total Descent", "0").replace(",", "")
-                        try:
-                            dist = float(dist_str)
-                            ascent = float(ascent_str) if ascent_str != "--" else 0.0
-                            descent = float(descent_str) if descent_str != "--" else 0.0
-                        except ValueError:
-                            continue
-
-                        # Loop check: ascent approximately equals descent (< 10% diff) and distance >= 2.0 mi
-                        if dist >= 2.0 and abs(ascent - descent) <= max(50.0, ascent * 0.10):
-                            extracted_count += 1
-                            area = "Bow" if "Bow" in title else "New Hampshire"
-                            area_counts[area] = area_counts.get(area, 0) + 1
-                            passed_rules_count += 1
-            except Exception as e:
-                return {"status": "error", "error": str(e)}
-
-        return {
-            "status": "success",
-            "total_loops_found": extracted_count,
-            "area_breakdown": area_counts,
-            "passed_dnr_and_road_rules": passed_rules_count
-        }
-
-    def get_matching_seeds(
-        self,
-        lat: float,
-        lon: float,
-        target_miles: float,
-        sport: str = "mtb",
-        radius_miles: float = 3.0,
-        distance_tolerance: float = 0.35
-    ) -> List[SeedLoop]:
-        """
-        Finds seed loops matching the requested start location and distance range.
-        """
-        matches = []
-        target_pt = [lon, lat]
-
-        for s in self.loops:
-            d_start_m = haversine_m(target_pt, [s.start_lon, s.start_lat])
-            d_start_mi = d_start_m * METERS_TO_MILES
-
-            if d_start_mi <= radius_miles:
-                err = abs(s.distance_miles - target_miles) / max(target_miles, 1.0)
-                if err <= distance_tolerance:
-                    matches.append(s)
-
-        matches.sort(key=lambda s: abs(s.distance_miles - target_miles))
-        return matches
+        bike = req.profile not in (SportProfile.TRAIL_RUN, SportProfile.FOOT)
+        graph = graph_for(req.start.lon, req.start.lat, max(seed.distance_m, 8000.0), bike)
+        by_pair: Dict[Tuple[int, int], Tuple[int, bool]] = {}
+        for sid, s in graph.segments.items():
+            by_pair[(s.u, s.v)] = (sid, True)
+            by_pair[(s.v, s.u)] = (sid, False)
+        loop_steps = []
+        for a, b in zip(seed.node_path, seed.node_path[1:]):
+            step = by_pair.get((a, b))
+            if step is not None:
+                loop_steps.append(step)
+                continue
+            # a short stretch map-matching didn't resolve to segments: bridge it along the network
+            bridge = _shortest(graph, a, b, limit_m=GAP_BRIDGE_M)
+            if bridge is None:
+                return None
+            loop_steps += bridge
+        # close the trimmed gap at the ride's start/finish along the network
+        gap = _shortest(graph, seed.node_path[-1], seed.node_path[0], limit_m=3000.0)
+        if gap is None:
+            return None
+        loop_steps += gap
+        start = graph.nearest_node(req.start.lon, req.start.lat)
+        if start is None:
+            return None
+        loop_nodes = {seed.node_path[0]} | set(seed.node_path)
+        stem = _shortest(graph, start, None, limit_m=SEED_RADIUS_M * 1.5, targets=loop_nodes)
+        if stem is None:
+            return None
+        stem_steps, join = stem
+        # rotate the loop so it starts and ends at the node where the stem joins it
+        order = [graph.segments[sid].u if fwd else graph.segments[sid].v for sid, fwd in loop_steps]
+        k = order.index(join) if join in order else 0
+        loop_steps = loop_steps[k:] + loop_steps[:k]
+        steps = stem_steps + loop_steps + [(sid, not fwd) for sid, fwd in reversed(stem_steps)]
+        coords = graph.coords_of(steps)
+        if coords is None:
+            return None
+        pieces, idx = [], 0
+        for sid, _ in steps:
+            seg = graph.segments[sid]
+            n = len(seg.coords) - 1
+            pieces.append(Piece(start=idx, end=idx + n, way_id=seg.way_id, tags=seg.tags))
+            idx += n
+        return coords, pieces
 
 
-# Global instance
+def _shortest(graph, src: int, dst: Optional[int], limit_m: float, targets: Optional[set] = None):
+    """Dijkstra over graph segments. With dst: steps src->dst. With targets: (steps, reached node)
+    to the nearest target node."""
+    dist, prev = {src: 0.0}, {}
+    pq = [(0.0, src)]
+    goal = None
+    while pq:
+        d, n = heapq.heappop(pq)
+        if d > dist.get(n, math.inf) or d > limit_m:
+            continue
+        if (dst is not None and n == dst) or (targets is not None and n in targets):
+            goal = n
+            break
+        for sid, o in graph.adj.get(n, []):
+            nd = d + graph.segments[sid].length
+            if nd < dist.get(o, math.inf):
+                dist[o] = nd
+                prev[o] = (sid, n)
+                heapq.heappush(pq, (nd, o))
+    if goal is None:
+        return None
+    steps, node = [], goal
+    while node != src:
+        sid, parent = prev[node]
+        steps.append((sid, graph.segments[sid].u == parent))
+        node = parent
+    steps.reverse()
+    return steps if targets is None else (steps, goal)
+
+
 seed_catalog = SeedLoopCatalog()

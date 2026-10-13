@@ -165,7 +165,7 @@ async def test_saved_routes_crud():
             "surface_breakdown": {"singletrack": 75.0, "gravel": 25.0},
             "verbal_summary": "6.8 mi; 75% singletrack"
         }
-        headers = {"X-User-Id": "test_user_justin"}
+        headers = {"X-Test-User": "test_user_justin"}
         create_resp = await client.post("/api/saved-routes", json=save_payload, headers=headers)
         assert create_resp.status_code == 200
         saved_id = create_resp.json()["id"]
@@ -201,22 +201,15 @@ async def test_saved_routes_crud():
 
 @pytest.mark.asyncio
 async def test_auth_skeleton():
-    """Tests auth token verification and me endpoint."""
+    """/api/auth/me returns the authenticated user and 401 without one."""
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
-        auth_resp = await client.post("/api/auth/verify", json={
-            "uid": "justin_fenix_user",
-            "email": "justin@example.com",
-            "display_name": "Justin Pfister"
-        })
-        assert auth_resp.status_code == 200
-        data = auth_resp.json()
-        assert data["status"] == "authenticated"
-        assert data["user"]["display_name"] == "Justin Pfister"
-
-        me_resp = await client.get("/api/auth/me", headers={"X-User-Id": "justin_fenix_user"})
+        anon = await client.get("/api/auth/me")
+        assert anon.status_code == 401
+        me_resp = await client.get("/api/auth/me", headers={"X-Test-User": "justin_fenix_user"})
         assert me_resp.status_code == 200
         assert me_resp.json()["id"] == "justin_fenix_user"
+        assert me_resp.json()["is_admin"] is False
 
 @pytest.mark.asyncio
 async def test_frontend_static_serving():

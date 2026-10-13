@@ -53,6 +53,14 @@ class SurfaceSegment(BaseModel):
     raw_road_class: Optional[str] = None
     is_unridden: bool = False
 
+class Cue(BaseModel):
+    distance_miles: float  # from the start
+    text: str
+    lat: float
+    lon: float
+    kind: str  # 'start' | 'turn' | 'continue' | 'arrive'
+
+
 class RouteResponse(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = "Loam Route"
@@ -60,8 +68,9 @@ class RouteResponse(BaseModel):
     sector: Optional[str] = None
     distance_miles: float
     duration_minutes: float
-    elevation_gain_ft: float
-    elevation_loss_ft: float
+    # None when no DEM sample is available ("Elevation unavailable"); never estimated.
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     surface_breakdown: Dict[str, float] # percentage per category e.g. {"singletrack": 65.2, "gravel": 25.0, ...}
     surface_strip: List[SurfaceSegment]
     coordinates: List[List[float]] # [[lon, lat], ...] GeoJSON style or [[lon, lat, ele]]
@@ -88,6 +97,13 @@ class RouteResponse(BaseModel):
     unridden_miles: float = 0.0
     unridden_percent: float = 0.0
     unridden_segments_count: int = 0
+    # Round 7: one route builder for every source
+    source: Optional[str] = None  # 'graphhopper' | 'graph_loop' | 'seed_loop'
+    road_pct: Optional[float] = None  # road share excluding the access stretch
+    access_miles: float = 0.0  # road from the start to the first trail (and back), reported separately
+    # Max distance (m) from the route to the OSM ways it claims to follow; None = not checked.
+    cues: List[Cue] = Field(default_factory=list)  # turn-by-turn cue sheet from OSM names (no voice navigation)
+    geometry_max_offset_m: Optional[float] = None
 
 
 class RouteOptionsRequest(RouteRequest):
@@ -101,6 +117,7 @@ class RouteOptionsResponse(BaseModel):
     loops_only: bool = False
     no_true_loop_near_here: bool = False
     nearby_start_suggestion: Optional[str] = None
+    notice: Optional[str] = None  # e.g. "Only 4 routes match; try a different start or distance"
 
 class EdgeHeatRecord(BaseModel):
     edge_osm_id: int
@@ -112,8 +129,8 @@ class SavedRouteCreate(BaseModel):
     name: str
     sport: str = "mtb"
     distance_miles: float
-    elevation_gain_ft: float = 0.0
-    elevation_loss_ft: float = 0.0
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     coordinates: List[List[float]]
     surface_breakdown: Dict[str, float] = Field(default_factory=dict)
     surface_strip: List[SurfaceSegment] = Field(default_factory=list)
@@ -126,8 +143,8 @@ class SavedRouteItem(BaseModel):
     name: str
     sport: str
     distance_miles: float
-    elevation_gain_ft: float
-    elevation_loss_ft: float
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     created_at: str
     surface_breakdown: Optional[Dict[str, float]] = None
     surface_strip: Optional[List[SurfaceSegment]] = None
@@ -140,8 +157,8 @@ class ExportRequest(BaseModel):
     sport: Optional[str] = "mtb"
     distance_miles: float
     duration_minutes: float = 60.0
-    elevation_gain_ft: float = 0.0
-    elevation_loss_ft: float = 0.0
+    elevation_gain_ft: Optional[float] = None
+    elevation_loss_ft: Optional[float] = None
     coordinates: List[List[float]]
     waypoints: Optional[List[Dict[str, Any]]] = None
 
@@ -157,7 +174,7 @@ class ActivityUploadResponse(BaseModel):
     user_id: str
     sport: str
     distance_miles: float
-    duration_minutes: float
+    duration_minutes: Optional[float] = None
     raw_points_count: int
     trimmed_points_count: int
     matched_edges_count: int
@@ -473,3 +490,17 @@ class CubeTrekImportRequest(BaseModel):
     sport: str = "mtb"
     name: Optional[str] = None
     import_to_heat: bool = True
+
+
+class BadRouteReport(BaseModel):
+    comment: str = Field(..., min_length=10, max_length=2000)
+    request: RouteRequest
+    route: RouteResponse
+    options: List[Dict[str, Any]] = Field(default_factory=list, max_length=25)
+
+
+class BadRouteReportResponse(BaseModel):
+    id: str
+    status: str  # 'filed' | 'pending'
+    issue_url: Optional[str] = None
+    message: str

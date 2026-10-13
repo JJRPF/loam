@@ -16,7 +16,15 @@ import { SavedRoutesPanel } from './components/SavedRoutesPanel';
 import { ExplorePanel } from './components/ExplorePanel';
 import { YouPanel } from './components/YouPanel';
 import { DevToolsPage } from './components/DevToolsPage';
+import { EmailLinkFinish } from './components/EmailLinkFinish';
+import trailheadData from './data/trailheads.json';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { decodeSearch, writeSearchUrl } from './urlState';
+import { rememberRoute } from './services/offlineRoutes';
+import { OfflineBanner } from './components/OfflineBanner';
+
+// A shared link carries the whole search in its query string; opening it re-runs the search.
+const initialShared = typeof window !== 'undefined' ? decodeSearch(window.location.search) : null;
 
 export const App: React.FC = () => {
   // Dark mode only: enforce dark theme exclusively across application
@@ -52,16 +60,17 @@ export const App: React.FC = () => {
   const [isMobile, setIsMobile] = useState(window.innerWidth < 800);
 
   // Router Input State
-  const [sport, setSport] = useState<SportProfile>('mtb');
-  const [start, setStart] = useState<LatLon>({
-    lat: 43.1305,
-    lon: -71.3524,
-    name: "Bear Brook State Park"
+  const [sport, setSport] = useState<SportProfile>(initialShared?.sport ?? 'mtb');
+  // Until the browser reports a position, start at the first OSM-derived trailhead.
+  const [start, setStart] = useState<LatLon>(() => {
+    if (initialShared) return initialShared.start;
+    const th = trailheadData.trailheads[0];
+    return { lat: th.lat, lon: th.lon, name: th.name };
   });
 
   // Default Starting Location to GPS (browser geolocation)
   useEffect(() => {
-    if (typeof window !== 'undefined' && 'geolocation' in navigator) {
+    if (!initialShared && typeof window !== 'undefined' && 'geolocation' in navigator) {
       navigator.geolocation.getCurrentPosition(
         (pos) => {
           setStart({
@@ -71,28 +80,30 @@ export const App: React.FC = () => {
           });
         },
         (err) => {
-          // Log softly and keep fallback if permission denied or unavailable
-          console.debug("Browser geolocation unavailable, keeping fallback:", err.message);
+          // Permission denied or unavailable: keep the OSM trailhead start
+          console.debug("Browser geolocation unavailable, keeping the trailhead start:", err.message);
         },
         { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
       );
     }
   }, []);
-  const [end, setEnd] = useState<LatLon | undefined>(undefined);
-  const [waypoints] = useState<LatLon[]>([]);
-  const [routeMode, setRouteMode] = useState<'loop' | 'point_to_point' | 'out_and_back'>('loop');
-  const [targetMiles, setTargetMiles] = useState<number>(10.0);
-  const [terrainPref, setTerrainPref] = useState<TerrainPreference>(TERRAIN_PRESETS[0].weights);
-  const [overrideDnr, setOverrideDnr] = useState<boolean>(false);
+  const [end, setEnd] = useState<LatLon | undefined>(initialShared?.end);
+  const [waypoints, setWaypoints] = useState<LatLon[]>(initialShared?.waypoints ?? []);
+  const [routeMode, setRouteMode] = useState<'loop' | 'point_to_point' | 'out_and_back'>(initialShared?.routeMode ?? 'loop');
+  const [targetMiles, setTargetMiles] = useState<number>(initialShared?.targetMiles ?? 10.0);
+  const [terrainPref, setTerrainPref] = useState<TerrainPreference>(initialShared?.terrainPref ?? TERRAIN_PRESETS[0].weights);
+  const [overrideDnr, setOverrideDnr] = useState<boolean>(initialShared?.overrideDnr ?? false);
 
   // Stage 6: Differentiators state
-  const [findNewTrailsMode, setFindNewTrailsMode] = useState<boolean>(false);
-  const [minNewTrailPercent, setMinNewTrailPercent] = useState<number>(30);
+  const [findNewTrailsMode, setFindNewTrailsMode] = useState<boolean>(initialShared?.findNewTrailsMode ?? false);
+  const [minNewTrailPercent, setMinNewTrailPercent] = useState<number>(initialShared?.minNewTrailPercent ?? 30);
   const [trailRunSteeperGrades, setTrailRunSteeperGrades] = useState<boolean>(true);
   const [trailRunAvoidMtbFlow, setTrailRunAvoidMtbFlow] = useState<boolean>(true);
-  const [loopsOnly, setLoopsOnly] = useState<boolean>(false);
+  const [loopsOnly, setLoopsOnly] = useState<boolean>(initialShared?.loopsOnly ?? false);
   const [noTrueLoopNearHere, setNoTrueLoopNearHere] = useState<boolean>(false);
   const [nearbyStartSuggestion, setNearbyStartSuggestion] = useState<string | null>(null);
+  const [optionsNotice, setOptionsNotice] = useState<string | null>(null);
+  const [searchRequest, setSearchRequest] = useState<Record<string, unknown> | null>(null);
 
   // Route calculation and results
   const [route, setRoute] = useState<RouteResponse | null>(null);
@@ -100,7 +111,18 @@ export const App: React.FC = () => {
   const [hoverRoute, setHoverRoute] = useState<RouteResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [scrubCoord, setScrubCoord] = useState<[number, number] | null>(null);
-  const [pickingTarget, setPickingTarget] = useState<'start' | 'end' | null>(null);
+  const [pickingTarget, setPickingTarget] = useState<'start' | 'end' | 'mid' | null>(null);
+
+  // Opening a shared link re-runs its search once.
+  useEffect(() => {
+    if (initialShared) handleBuildRoutes();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // The last 10 routes viewed stay on the device for offline viewing.
+  useEffect(() => {
+    if (route) void rememberRoute(route);
+  }, [route]);
 
   // Responsive listener
   useEffect(() => {
@@ -119,6 +141,9 @@ export const App: React.FC = () => {
     } else if (pickingTarget === 'end') {
       setEnd({ lat, lon, name: `Custom End (${lat.toFixed(4)}, ${lon.toFixed(4)})` });
       setPickingTarget(null);
+    } else if (pickingTarget === 'mid') {
+      setWaypoints((w) => [...w, { lat, lon, name: `Midpoint (${lat.toFixed(4)}, ${lon.toFixed(4)})` }].slice(0, 5));
+      setPickingTarget(null);
     }
   };
 
@@ -128,6 +153,12 @@ export const App: React.FC = () => {
     setRoute(null);
     setNoTrueLoopNearHere(false);
     setNearbyStartSuggestion(null);
+    setOptionsNotice(null);
+    setSearchRequest(null);
+    writeSearchUrl({
+      sport, start, end: routeMode === 'point_to_point' ? end : undefined, waypoints, routeMode,
+      targetMiles, terrainPref, overrideDnr, findNewTrailsMode, minNewTrailPercent, loopsOnly
+    });
     setActiveTab('results');
     if (isMobile) {
       setSheetSnap('half');
@@ -137,7 +168,7 @@ export const App: React.FC = () => {
       {
         start,
         end: routeMode === 'point_to_point' ? end : undefined,
-        waypoints,
+        waypoints: routeMode === 'out_and_back' ? [] : waypoints,
         profile: sport,
         terrainPreference: terrainPref,
         isLoop: routeMode === 'loop',
@@ -153,6 +184,7 @@ export const App: React.FC = () => {
         loopsOnly
       },
       {
+        onRequest: setSearchRequest,
         onCandidate: (cand) => {
           setOptions(prev => {
             const next = [...prev, cand];
@@ -162,8 +194,9 @@ export const App: React.FC = () => {
             return next;
           });
         },
-        onComplete: () => {
+        onComplete: (_count, info) => {
           setIsLoading(false);
+          setOptionsNotice(info?.notice || null);
           setOptions(currentOpts => {
             const hasLoops = currentOpts.some(o => o.route_type === 'loop' || o.route_type === 'lollipop');
             if (routeMode === 'loop' && (!hasLoops || currentOpts.length === 0)) {
@@ -242,6 +275,8 @@ export const App: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+      <EmailLinkFinish />
+      <OfflineBanner />
       
       {/* =========================================================================
           DESKTOP SIDEBAR PANEL (400px fixed width on >= 800px)
@@ -345,6 +380,8 @@ export const App: React.FC = () => {
                   isLoading={isLoading}
                   onPickOnMap={(target) => setPickingTarget(target)}
                   pickingTarget={pickingTarget}
+                  waypoints={waypoints}
+                  onWaypointsChange={setWaypoints}
                   overrideDnr={overrideDnr}
                   onOverrideDnrChange={setOverrideDnr}
                   findNewTrailsMode={findNewTrailsMode}
@@ -372,10 +409,12 @@ export const App: React.FC = () => {
                   isLoading={isLoading}
                   noTrueLoopNearHere={noTrueLoopNearHere}
                   nearbyStartSuggestion={nearbyStartSuggestion || undefined}
+                  optionsNotice={optionsNotice || undefined}
+                  searchRequest={searchRequest}
                 />
               )}
 
-              {activeTab === 'explore' && <ExplorePanel />}
+              {activeTab === 'explore' && <ExplorePanel onPlanFrom={(s) => { setStart(s); setActiveTab('plan'); }} />}
               {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
               {activeTab === 'you' && (
                 <YouPanel isDarkMode={isDarkMode} />
@@ -418,7 +457,7 @@ export const App: React.FC = () => {
               zIndex: 20
             }}
           >
-            Tap map to set {pickingTarget === 'start' ? 'Starting Location' : 'Destination'}
+            Tap map to set {pickingTarget === 'start' ? 'Starting Location' : pickingTarget === 'mid' ? 'a Midpoint' : 'Destination'}
           </div>
         )}
       </main>
@@ -521,6 +560,8 @@ export const App: React.FC = () => {
                       setSheetSnap('peek');
                     }}
                     pickingTarget={pickingTarget}
+                    waypoints={waypoints}
+                    onWaypointsChange={setWaypoints}
                     overrideDnr={overrideDnr}
                     onOverrideDnrChange={setOverrideDnr}
                     findNewTrailsMode={findNewTrailsMode}
@@ -548,10 +589,12 @@ export const App: React.FC = () => {
                     isLoading={isLoading}
                     noTrueLoopNearHere={noTrueLoopNearHere}
                     nearbyStartSuggestion={nearbyStartSuggestion || undefined}
+                  optionsNotice={optionsNotice || undefined}
+                    searchRequest={searchRequest}
                   />
                 )}
 
-                {activeTab === 'explore' && <ExplorePanel />}
+                {activeTab === 'explore' && <ExplorePanel onPlanFrom={(s) => { setStart(s); setActiveTab('plan'); }} />}
                 {activeTab === 'saved' && <SavedRoutesPanel onLoadRoute={handleLoadSavedRoute} />}
                 {activeTab === 'you' && (
                   <YouPanel isDarkMode={isDarkMode} />

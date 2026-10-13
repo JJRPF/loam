@@ -1,138 +1,226 @@
+import { useSyncExternalStore } from 'react';
+import {
+  GoogleAuthProvider,
+  isSignInWithEmailLink,
+  onAuthStateChanged,
+  sendSignInLinkToEmail,
+  signInWithEmailLink,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
+  signOut as firebaseSignOut,
+  type User
+} from 'firebase/auth';
 import type { AuthUser } from '../types';
-import { verifyAuthToken } from './api';
+import { firebaseConfigured, getFirebaseAuth } from './firebase';
 
-const AUTH_USER_KEY = 'loam_auth_user_v1';
-export const DEFAULT_GOOGLE_CLIENT_ID = '918738912384-sampleloamclientid.apps.googleusercontent.com';
+// Firebase's onAuthStateChanged is the source of truth. The localStorage copy below only
+// pre-renders the avatar before Firebase restores the session; it never authorizes anything.
+const PROFILE_CACHE_KEY = 'loam_profile_cache_v2';
+export const EMAIL_FOR_SIGNIN_KEY = 'loam_email_for_signin';
+const LAST_LINK_SENT_KEY = 'loam_email_link_sent_at';
+export const EMAIL_LINK_COOLDOWN_MS = 60_000;
 
-declare global {
-  interface Window {
-    google?: any;
-  }
+export interface AuthState {
+  user: AuthUser | null;
+  ready: boolean; // Firebase has reported the initial auth state
+  cachedProfile: AuthUser | null;
 }
 
-export function getStoredUser(): AuthUser | null {
+function readCachedProfile(): AuthUser | null {
   try {
-    const raw = localStorage.getItem(AUTH_USER_KEY);
-    if (raw) {
-      return JSON.parse(raw);
-    }
-  } catch (e) {
-    console.error('Failed to read auth user from localStorage', e);
+    const raw = localStorage.getItem(PROFILE_CACHE_KEY);
+    return raw ? (JSON.parse(raw) as AuthUser) : null;
+  } catch {
+    return null;
   }
-  return null;
 }
 
-export function setStoredUser(user: AuthUser | null) {
+function writeCachedProfile(user: AuthUser | null) {
   try {
-    if (user) {
-      localStorage.setItem(AUTH_USER_KEY, JSON.stringify(user));
-    } else {
-      localStorage.removeItem(AUTH_USER_KEY);
-    }
-  } catch (e) {
-    console.error('Failed to save auth user to localStorage', e);
+    if (user) localStorage.setItem(PROFILE_CACHE_KEY, JSON.stringify(user));
+    else localStorage.removeItem(PROFILE_CACHE_KEY);
+  } catch {
+    // storage unavailable (private mode); the cache is only cosmetic
   }
 }
 
-export function getGoogleClientId(): string {
-  return (
-    (typeof import.meta !== 'undefined' && (import.meta as any).env?.VITE_GOOGLE_CLIENT_ID) ||
-    DEFAULT_GOOGLE_CLIENT_ID
-  );
+let state: AuthState = { user: null, ready: !firebaseConfigured, cachedProfile: readCachedProfile() };
+const listeners = new Set<() => void>();
+let firebaseUser: User | null = null;
+
+function setState(next: Partial<AuthState>) {
+  state = { ...state, ...next };
+  listeners.forEach((l) => l());
 }
 
-export async function loginWithGoogleCredential(credentialOrToken: string): Promise<AuthUser> {
-  const verifiedUser = await verifyAuthToken({ token: credentialOrToken });
-  setStoredUser(verifiedUser);
-  return verifiedUser;
+function toAuthUser(u: User): AuthUser {
+  return {
+    id: u.uid,
+    email: u.email || '',
+    displayName: u.displayName || (u.email ? u.email.split('@')[0] : 'Rider'),
+    photoURL: u.photoURL || undefined
+  };
 }
 
-export async function loginWithRealCredentials(
-  email: string,
-  displayName?: string,
-  token?: string
-): Promise<AuthUser> {
-  const cleanEmail = email.trim();
-  const cleanName = displayName?.trim() || cleanEmail.split('@')[0];
-  const uid = `google_${cleanEmail.replace(/[^a-zA-Z0-9]/g, '_')}`;
-
-  const verifiedUser = await verifyAuthToken({
-    token: token || `token_${uid}_${Date.now()}`,
-    uid,
-    email: cleanEmail,
-    displayName: cleanName
+let started = false;
+function start() {
+  if (started) return;
+  started = true;
+  const auth = getFirebaseAuth();
+  if (!auth) return;
+  onAuthStateChanged(auth, (u) => {
+    firebaseUser = u;
+    const user = u ? toAuthUser(u) : null;
+    writeCachedProfile(user);
+    setState({ user, ready: true, cachedProfile: user });
   });
-
-  setStoredUser(verifiedUser);
-  return verifiedUser;
+  getRedirectResult(auth).catch((e) => console.warn('Sign-in redirect:', e));
 }
 
-export function initGoogleIdentityServices(
-  onSuccess: (user: AuthUser) => void,
-  onError?: (err: Error) => void
-): boolean {
-  if (typeof window === 'undefined' || !window.google?.accounts?.id) {
-    return false;
-  }
+function subscribe(listener: () => void) {
+  start();
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
 
+export function useAuth(): AuthState {
+  return useSyncExternalStore(subscribe, () => state, () => state);
+}
+
+export function getAuthState(): AuthState {
+  start();
+  return state;
+}
+
+export function isAuthConfigured(): boolean {
+  return firebaseConfigured;
+}
+
+/** A fresh Firebase ID token for the signed-in user, or null when signed out. */
+export async function getIdToken(forceRefresh = false): Promise<string | null> {
+  start();
+  if (!firebaseUser) return null;
+  return firebaseUser.getIdToken(forceRefresh);
+}
+
+function isIosStandalone(): boolean {
+  const nav = window.navigator as Navigator & { standalone?: boolean };
+  return Boolean(nav.standalone) || window.matchMedia?.('(display-mode: standalone)').matches;
+}
+
+export async function signInWithGoogle(): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error('Sign-in is not configured on this server.');
+  const provider = new GoogleAuthProvider();
+  provider.setCustomParameters({ prompt: 'select_account' });
+  if (isIosStandalone()) {
+    await signInWithRedirect(auth, provider);
+    return;
+  }
   try {
-    window.google.accounts.id.initialize({
-      client_id: getGoogleClientId(),
-      callback: async (response: any) => {
-        if (response?.credential) {
-          try {
-            const user = await loginWithGoogleCredential(response.credential);
-            onSuccess(user);
-          } catch (e: any) {
-            onError?.(e);
-          }
-        }
-      },
-      auto_select: false
-    });
-    return true;
+    await signInWithPopup(auth, provider);
   } catch (e: any) {
-    console.warn('Google Identity Services initialization notice:', e);
-    return false;
-  }
-}
-
-export function renderGoogleButton(
-  container: HTMLElement,
-  onSuccess: (user: AuthUser) => void,
-  onError?: (err: Error) => void
-): boolean {
-  if (typeof window === 'undefined' || !window.google?.accounts?.id) {
-    return false;
-  }
-
-  const initialized = initGoogleIdentityServices(onSuccess, onError);
-  if (!initialized) return false;
-
-  try {
-    window.google.accounts.id.renderButton(container, {
-      type: 'standard',
-      shape: 'rectangular',
-      theme: 'filled_black',
-      text: 'signin_with',
-      size: 'large',
-      logo_alignment: 'left',
-      width: container.clientWidth || 320
-    });
-    return true;
-  } catch (e) {
-    console.warn('Could not render Google button:', e);
-    return false;
-  }
-}
-
-export function logoutUser() {
-  setStoredUser(null);
-  if (typeof window !== 'undefined' && window.google?.accounts?.id) {
-    try {
-      window.google.accounts.id.disableAutoSelect();
-    } catch {
-      // ignore
+    const code = e?.code || '';
+    if (code === 'auth/popup-blocked' || code === 'auth/operation-not-supported-in-this-environment') {
+      await signInWithRedirect(auth, provider);
+      return;
     }
+    if (code === 'auth/popup-closed-by-user' || code === 'auth/cancelled-popup-request') return;
+    throw new Error(friendlyAuthError(e));
+  }
+}
+
+export function emailLinkCooldownRemaining(): number {
+  try {
+    const last = Number(localStorage.getItem(LAST_LINK_SENT_KEY) || 0);
+    return Math.max(0, last + EMAIL_LINK_COOLDOWN_MS - Date.now());
+  } catch {
+    return 0;
+  }
+}
+
+export async function sendEmailLink(email: string): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error('Sign-in is not configured on this server.');
+  const clean = email.trim();
+  if (!clean) throw new Error('Enter your email address.');
+  const wait = emailLinkCooldownRemaining();
+  if (wait > 0) throw new Error(`Please wait ${Math.ceil(wait / 1000)} s before sending another link.`);
+  try {
+    await sendSignInLinkToEmail(auth, clean, {
+      url: `${window.location.origin}/auth/finish`,
+      handleCodeInApp: true
+    });
+  } catch (e) {
+    throw new Error(friendlyAuthError(e));
+  }
+  try {
+    localStorage.setItem(EMAIL_FOR_SIGNIN_KEY, clean);
+    localStorage.setItem(LAST_LINK_SENT_KEY, String(Date.now()));
+  } catch {
+    // without storage the user is asked for the email when the link opens
+  }
+}
+
+/** True when the current URL is a Firebase email sign-in link. */
+export function isEmailLinkInUrl(): boolean {
+  const auth = getFirebaseAuth();
+  return Boolean(auth && isSignInWithEmailLink(auth, window.location.href));
+}
+
+export function storedEmailForSignIn(): string | null {
+  try {
+    return localStorage.getItem(EMAIL_FOR_SIGNIN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+/** Finishes an email-link sign-in, then removes the one-time code from the URL. */
+export async function completeEmailLinkSignIn(email: string): Promise<void> {
+  const auth = getFirebaseAuth();
+  if (!auth) throw new Error('Sign-in is not configured on this server.');
+  try {
+    await signInWithEmailLink(auth, email.trim(), window.location.href);
+  } catch (e) {
+    throw new Error(friendlyAuthError(e));
+  } finally {
+    window.history.replaceState(null, '', '/');
+  }
+  try {
+    localStorage.removeItem(EMAIL_FOR_SIGNIN_KEY);
+  } catch {
+    // ignore
+  }
+}
+
+export async function signOut(): Promise<void> {
+  const auth = getFirebaseAuth();
+  writeCachedProfile(null);
+  if (auth) await firebaseSignOut(auth);
+  setState({ user: null, cachedProfile: null });
+}
+
+function friendlyAuthError(e: any): string {
+  const code: string = e?.code || '';
+  switch (code) {
+    case 'auth/invalid-email':
+      return 'That email address is not valid.';
+    case 'auth/invalid-action-code':
+    case 'auth/expired-action-code':
+      return 'This sign-in link has expired or was already used. Request a new one.';
+    case 'auth/network-request-failed':
+      return 'Network error. Check your connection and try again.';
+    case 'auth/too-many-requests':
+    case 'auth/quota-exceeded':
+      return 'Too many attempts. Wait a few minutes and try again.';
+    case 'auth/unauthorized-domain':
+    case 'auth/unauthorized-continue-uri':
+      return 'This address is not authorized for sign-in yet.';
+    case 'auth/operation-not-allowed':
+      return 'This sign-in method is not enabled yet.';
+    default:
+      return e?.message || 'Sign-in failed.';
   }
 }

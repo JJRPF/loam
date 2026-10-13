@@ -36,6 +36,12 @@ def run_nightly_job(ref_date: Optional[datetime.datetime] = None) -> Dict[str, A
         f"{stats.get('coverage_cells_updated', 0)} regional coverage cells refreshed."
     )
 
+    try:
+        from app.reports import retry_pending
+        stats["reports"] = retry_pending()
+    except Exception as e:  # reports must never fail the heat job
+        logger.warning(f"Retrying pending bad-route reports failed: {type(e).__name__}")
+
     stats["status"] = "success"
     return stats
 
