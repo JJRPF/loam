@@ -30,6 +30,7 @@ interface PlanPanelProps {
   pickingTarget: 'start' | 'end' | 'mid' | null;
   waypoints?: LatLon[];
   onWaypointsChange?: (w: LatLon[]) => void;
+  midpointsEnabled?: boolean;
   overrideDnr?: boolean;
   onOverrideDnrChange?: (override: boolean) => void;
   // Stage 6: Differentiators
@@ -64,6 +65,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   pickingTarget,
   waypoints = [],
   onWaypointsChange,
+  midpointsEnabled = false,
   overrideDnr = false,
   onOverrideDnrChange,
   findNewTrailsMode = false,
@@ -532,7 +534,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         )}
 
         {/* Midpoints (loop and point to point): the route passes through each, in order */}
-        {routeMode !== 'out_and_back' && (
+        {midpointsEnabled && routeMode !== 'out_and_back' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>

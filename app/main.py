@@ -83,6 +83,34 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+MIDPOINTS_OFF_NOTICE = "Midpoints are turned off for now, so this route ignores them."
+
+
+def _join_notices(*notices: Optional[str]) -> Optional[str]:
+    return " ".join(n for n in notices if n) or None
+
+
+def apply_midpoint_flag(request) -> Optional[str]:
+    """With ENABLE_MIDPOINTS off, drop any waypoints (never a 400: old shared links keep working)
+    and return the notice to show when some were sent."""
+    if settings.enable_midpoints or not request.waypoints:
+        return None
+    request.waypoints = []
+    return MIDPOINTS_OFF_NOTICE
+
+
+@app.get("/api/config")
+async def public_config():
+    """Public, non-secret settings the UI needs to decide what to show."""
+    return {
+        "midpoints_enabled": settings.enable_midpoints,
+        "min_unique_riders": settings.heat_min_unique_riders,
+        "seed_heat_public": settings.seed_heat_public,
+        "connectors": connector_manager.enabled_map(),
+        "source_url": settings.source_url,
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     # Check GraphHopper
@@ -112,9 +140,12 @@ async def calculate_route(
 ):
     try:
         uid = user.uid if user else None
+        notice = apply_midpoint_flag(request)
         t0 = time.perf_counter()
         route = await fetch_route(request, user_id=uid)
         elapsed_ms = (time.perf_counter() - t0) * 1000
+        if notice:
+            route = route.model_copy(update={"notice": notice})
         return route
     except Exception as e:
         raise HTTPException(
@@ -129,6 +160,7 @@ async def calculate_route_options(
 ):
     try:
         uid = user.uid if user else None
+        mid_notice = apply_midpoint_flag(request)
         result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
         options = result.options
         is_loop_req = request.is_loop or request.route_mode in ("loop", "round_trip") or (request.end is None and request.route_mode != "out_and_back")
@@ -141,7 +173,7 @@ async def calculate_route_options(
             loops_only=request.loops_only,
             no_true_loop_near_here=bool(is_loop_req and not has_true_loops),
             nearby_start_suggestion=result.nearby_suggestion,
-            notice=result.notice,
+            notice=_join_notices(mid_notice, result.notice),
         )
     except Exception as e:
         raise HTTPException(
@@ -155,12 +187,14 @@ async def stream_route_options_post(
     user: Optional[AuthUser] = Depends(get_optional_user)
 ):
     uid = user.uid if user else None
+    mid_notice = apply_midpoint_flag(request)
     async def event_generator():
         try:
             result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
             for opt in result.options:
                 yield f"event: candidate\ndata: {opt.model_dump_json()}\n\n"
-            done = {"status": "complete", "count": len(result.options), "notice": result.notice,
+            done = {"status": "complete", "count": len(result.options),
+                    "notice": _join_notices(mid_notice, result.notice),
                     "nearby_start_suggestion": result.nearby_suggestion}
             yield f"event: complete\ndata: {json.dumps(done)}\n\n"
         except Exception as e:

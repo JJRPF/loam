@@ -23,6 +23,14 @@ Tests: new `tests/test_round8_heat_privacy.py` (17): rule unit; defaults; one no
 
 ## Phase 2: Midpoints behind a flag (off in production)
 
+What changed:
+- `app/config.py`: `enable_midpoints` from `ENABLE_MIDPOINTS`, default false; `.env.example` has the plan's line; my worktree `.env` has `ENABLE_MIDPOINTS=true` (not printed or committed).
+- `GET /api/config` returns `{midpoints_enabled, min_unique_riders, seed_heat_public, connectors: {provider: enabled}, source_url}` (`ConnectorManager.enabled_map()`). `/api/heat/meta` still works.
+- Server: `apply_midpoint_flag` runs in `/api/route`, `/api/route/options` and the POST stream. With the flag off it empties `waypoints` and the response carries `notice: "Midpoints are turned off for now, so this route ignores them."` (`RouteResponse.notice` is new for `/api/route`; the options response and the stream's `complete` event join it with any existing notice). No 400s. The flag is enforced at the endpoints, not in `plan_route_options`, so Round 7's `test_loop_honors_midpoint` is untouched. The GET stream takes no waypoints at all, so there is nothing to ignore there; a test covers it.
+- Frontend: new `services/config.ts` (`useAppConfig`, `loadAppConfig`; defaults are midpoints and connectors off if `/api/config` is unreachable). The Midpoints block in `PlanPanel` and the `'mid'` tap mode only work when enabled. `urlState.encodeSearch` writes `via=` only when enabled. **Deviation:** the plan says `urlState.ts` drops `via=` on parse; it still parses it, and `App.handleBuildRoutes` ignores shared midpoints while the flag is off (so the same link works in a dev build with the flag on) and adds the notice. A shared-link search waits for `/api/config` before it runs. `MapView` has no midpoint markers (it accepts a `waypoints` prop it never drew), so there was nothing to hide; App passes it `[]` when the flag is off. Saved routes containing waypoints display as before.
+
+Tests: new `tests/test_round8_midpoints_flag.py` (6): flag default; flag off ignores waypoints with the notice on `/api/route`, `/api/route/options` and the POST stream (the builder never sees them); no notice without waypoints; the GET stream; flag on passes them through; `/api/config` shape. `pytest -q`: 198 passed. `npm run build` OK, `npm run lint` clean. The browser check is in Phase 9.
+
 ## Phase 3: Remove the water & shops layer
 
 ## Phase 4: Mobile map layout

@@ -19,6 +19,9 @@ class ConnectorManager:
     def get_connector(self, name: str) -> Optional[BaseConnector]:
         return self._connectors.get(name.lower())
 
+    def enabled_map(self) -> Dict[str, bool]:
+        return {name: bool(c.is_enabled()) for name, c in self._connectors.items()}
+
     def list_connectors(self, user_id: str) -> List[Dict[str, Any]]:
         return [connector.get_status(user_id) for connector in self._connectors.values()]
 

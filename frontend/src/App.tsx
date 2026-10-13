@@ -8,7 +8,7 @@ import type {
 import {
   TERRAIN_PRESETS
 } from './types';
-import { calculateRoute, streamRouteOptions } from './services/api';
+import { API_BASE, calculateRoute, streamRouteOptions } from './services/api';
 import { MapView } from './components/MapView';
 import { PlanPanel } from './components/PlanPanel';
 import { ResultsPanel } from './components/ResultsPanel';
@@ -20,6 +20,7 @@ import { EmailLinkFinish } from './components/EmailLinkFinish';
 import trailheadData from './data/trailheads.json';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { decodeSearch, writeSearchUrl } from './urlState';
+import { getAppConfig, loadAppConfig, MIDPOINTS_OFF_NOTICE, useAppConfig } from './services/config';
 import { rememberRoute } from './services/offlineRoutes';
 import { OfflineBanner } from './components/OfflineBanner';
 
@@ -88,6 +89,7 @@ export const App: React.FC = () => {
     }
   }, []);
   const [end, setEnd] = useState<LatLon | undefined>(initialShared?.end);
+  const { midpoints_enabled: midpointsEnabled } = useAppConfig();
   const [waypoints, setWaypoints] = useState<LatLon[]>(initialShared?.waypoints ?? []);
   const [routeMode, setRouteMode] = useState<'loop' | 'point_to_point' | 'out_and_back'>(initialShared?.routeMode ?? 'loop');
   const [targetMiles, setTargetMiles] = useState<number>(initialShared?.targetMiles ?? 10.0);
@@ -115,7 +117,9 @@ export const App: React.FC = () => {
 
   // Opening a shared link re-runs its search once.
   useEffect(() => {
-    if (initialShared) handleBuildRoutes();
+    // the search waits for /api/config: it decides whether shared midpoints (via=) are used
+    if (initialShared) void loadAppConfig(API_BASE).then(() => handleBuildRoutes());
+    else void loadAppConfig(API_BASE);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -141,13 +145,17 @@ export const App: React.FC = () => {
     } else if (pickingTarget === 'end') {
       setEnd({ lat, lon, name: `Custom End (${lat.toFixed(4)}, ${lon.toFixed(4)})` });
       setPickingTarget(null);
-    } else if (pickingTarget === 'mid') {
+    } else if (pickingTarget === 'mid' && midpointsEnabled) {
       setWaypoints((w) => [...w, { lat, lon, name: `Midpoint (${lat.toFixed(4)}, ${lon.toFixed(4)})` }].slice(0, 5));
       setPickingTarget(null);
     }
   };
 
   const handleBuildRoutes = () => {
+    // Midpoints are used only while the server has them enabled; a shared link's via= is then ignored with a notice
+    const midpointsOn = getAppConfig().midpoints_enabled;
+    const viaIgnored = !midpointsOn && waypoints.length > 0;
+    const searchWaypoints = midpointsOn ? waypoints : [];
     setIsLoading(true);
     setOptions([]);
     setRoute(null);
@@ -156,9 +164,9 @@ export const App: React.FC = () => {
     setOptionsNotice(null);
     setSearchRequest(null);
     writeSearchUrl({
-      sport, start, end: routeMode === 'point_to_point' ? end : undefined, waypoints, routeMode,
+      sport, start, end: routeMode === 'point_to_point' ? end : undefined, waypoints: searchWaypoints, routeMode,
       targetMiles, terrainPref, overrideDnr, findNewTrailsMode, minNewTrailPercent, loopsOnly
-    });
+    }, midpointsOn);
     setActiveTab('results');
     if (isMobile) {
       setSheetSnap('half');
@@ -168,7 +176,7 @@ export const App: React.FC = () => {
       {
         start,
         end: routeMode === 'point_to_point' ? end : undefined,
-        waypoints: routeMode === 'out_and_back' ? [] : waypoints,
+        waypoints: routeMode === 'out_and_back' ? [] : searchWaypoints,
         profile: sport,
         terrainPreference: terrainPref,
         isLoop: routeMode === 'loop',
@@ -196,7 +204,7 @@ export const App: React.FC = () => {
         },
         onComplete: (_count, info) => {
           setIsLoading(false);
-          setOptionsNotice(info?.notice || null);
+          setOptionsNotice([info?.notice, viaIgnored ? MIDPOINTS_OFF_NOTICE : null].filter(Boolean).join(' ') || null);
           setOptions(currentOpts => {
             const hasLoops = currentOpts.some(o => o.route_type === 'loop' || o.route_type === 'lollipop');
             if (routeMode === 'loop' && (!hasLoops || currentOpts.length === 0)) {
@@ -215,7 +223,7 @@ export const App: React.FC = () => {
           calculateRoute({
             start,
             end: routeMode === 'point_to_point' ? end : undefined,
-            waypoints,
+            waypoints: searchWaypoints,
             profile: sport,
             terrainPreference: terrainPref,
             isLoop: routeMode === 'loop',
@@ -381,6 +389,7 @@ export const App: React.FC = () => {
                   onPickOnMap={(target) => setPickingTarget(target)}
                   pickingTarget={pickingTarget}
                   waypoints={waypoints}
+                  midpointsEnabled={midpointsEnabled}
                   onWaypointsChange={setWaypoints}
                   overrideDnr={overrideDnr}
                   onOverrideDnrChange={setOverrideDnr}
@@ -433,7 +442,7 @@ export const App: React.FC = () => {
           hoverRoute={hoverRoute}
           start={start}
           end={end}
-          waypoints={waypoints}
+          waypoints={midpointsEnabled ? waypoints : []}
           scrubCoord={scrubCoord}
           onMapClick={handleMapClick}
           isDarkMode={isDarkMode}
@@ -561,7 +570,8 @@ export const App: React.FC = () => {
                     }}
                     pickingTarget={pickingTarget}
                     waypoints={waypoints}
-                    onWaypointsChange={setWaypoints}
+                    midpointsEnabled={midpointsEnabled}
+                  onWaypointsChange={setWaypoints}
                     overrideDnr={overrideDnr}
                     onOverrideDnrChange={setOverrideDnr}
                     findNewTrailsMode={findNewTrailsMode}

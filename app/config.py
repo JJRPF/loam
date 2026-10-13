@@ -54,6 +54,9 @@ class Settings(BaseModel):
     # Heat privacy: an edge's heat is public (shown to others, influences their routes) with at
     # least this many unique riders, or as seed heat (the owner's imported rides) on trail-class edges.
     heat_min_unique_riders: int = int(os.getenv("HEAT_MIN_UNIQUE_RIDERS", "3"))
+    # Midpoints produce out-and-backs for now: off in production (the Pi), on for development.
+    enable_midpoints: bool = os.getenv("ENABLE_MIDPOINTS", "false").lower() in ("true", "1")
+    source_url: str = "https://github.com/JJRPF/loam"
     seed_heat_public: bool = os.getenv("SEED_HEAT_PUBLIC", "true").lower() in ("true", "1")
 
 

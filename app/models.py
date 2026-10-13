@@ -62,6 +62,7 @@ class Cue(BaseModel):
 
 
 class RouteResponse(BaseModel):
+    notice: Optional[str] = None  # e.g. midpoints are turned off
     id: Optional[str] = None
     name: Optional[str] = "Loam Route"
     sport: str = "mtb"

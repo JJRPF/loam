@@ -19,7 +19,7 @@ import type {
 import { getIdToken } from './auth';
 import { formatGain } from '../format';
 
-const API_BASE = ''; // proxied via vite in dev, relative in production
+export const API_BASE = ''; // proxied via vite in dev, relative in production
 
 /**
  * fetch() that sends the signed-in user's Firebase ID token as a bearer token.
