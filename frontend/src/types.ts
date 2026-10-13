@@ -45,7 +45,16 @@ export interface ScoreBreakdown {
   unridden_percent?: number;
 }
 
+export interface Cue {
+  distance_miles: number;
+  text: string;
+  lat: number;
+  lon: number;
+  kind: 'start' | 'turn' | 'continue' | 'arrive';
+}
+
 export interface RouteResponse {
+  cues?: Cue[];
   id?: string;
   name?: string;
   sport: string;

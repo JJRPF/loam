@@ -168,7 +168,7 @@ export const App: React.FC = () => {
       {
         start,
         end: routeMode === 'point_to_point' ? end : undefined,
-        waypoints: routeMode === 'point_to_point' ? waypoints : [],
+        waypoints: routeMode === 'out_and_back' ? [] : waypoints,
         profile: sport,
         terrainPreference: terrainPref,
         isLoop: routeMode === 'loop',

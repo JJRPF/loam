@@ -1308,7 +1308,7 @@ def check_route_trust_layer(
                         cur.execute(
                             """
                             SELECT id, name, restriction_type, source, is_hard, edge_osm_id,
-                                   seasonal_start_month, seasonal_end_month, seasonal_tag,
+                                   seasonal_start_month, seasonal_end_month, seasonal_tag, applies_to,
                                    ST_AsGeoJSON(geom) as geom_json
                             FROM restrictions
                             WHERE ST_Intersects(geom, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326))
@@ -1320,7 +1320,7 @@ def check_route_trust_layer(
                         cur.execute(
                             """
                             SELECT id, name, restriction_type, source, is_hard, edge_osm_id,
-                                   seasonal_start_month, seasonal_end_month, seasonal_tag,
+                                   seasonal_start_month, seasonal_end_month, seasonal_tag, applies_to,
                                    ST_AsGeoJSON(geom) as geom_json
                             FROM restrictions
                             WHERE ST_Intersects(geom, ST_SetSRID(ST_GeomFromGeoJSON(%s), 4326));
@@ -1331,7 +1331,7 @@ def check_route_trust_layer(
                         cur.execute(
                             """
                             SELECT id, name, restriction_type, source, is_hard, edge_osm_id,
-                                   seasonal_start_month, seasonal_end_month, seasonal_tag,
+                                   seasonal_start_month, seasonal_end_month, seasonal_tag, applies_to,
                                    ST_AsGeoJSON(geom) as geom_json
                             FROM restrictions
                             WHERE edge_osm_id = ANY(%s);
@@ -1352,6 +1352,8 @@ def check_route_trust_layer(
                             if not active_seasonal:
                                 continue
 
+                        if r.get("applies_to") == "bike" and not is_bike_sport:
+                            continue  # e.g. federal wilderness: bicycles prohibited, feet allowed
                         r_hard = bool(r.get("is_hard"))
                         r_name = r.get("name") or "Restricted Area"
                         r_type = r.get("restriction_type") or "restriction"

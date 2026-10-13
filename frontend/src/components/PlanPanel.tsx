@@ -531,8 +531,8 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
           </div>
         )}
 
-        {/* Midpoints (point to point): the route passes through each, in order */}
-        {routeMode === 'point_to_point' && (
+        {/* Midpoints (loop and point to point): the route passes through each, in order */}
+        {routeMode !== 'out_and_back' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>

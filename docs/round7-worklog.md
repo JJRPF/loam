@@ -147,3 +147,32 @@ Built this phase (each was missing or partial in the audit):
 - Connector defaults already match the plan: Strava off, Trailforks off, Garmin login flagged, no CubeTrek demo fallback.
 
 Not built, listed for "Deferred, needs user OK": loops honoring midpoints, DNR overrides weakening others' penalty, PAD-US / wilderness polygons, nightly Pi backup job, weather / water markers / offline map regions / turn-by-turn / friends / contributor perks / OSM export of confirmed trails.
+
+## Deferred items (second pass, after Phase 8)
+
+You asked for all of them. What was built, and what wasn't, with the reason:
+
+Built (each with tests; see the audit):
+- **Loops through midpoints:** a loop with midpoints is a GraphHopper via-loop (start, midpoints in order, start) with detours so the length can reach the target; graph and seed loops are kept only if they pass every midpoint within 150 m. `test_loop_honors_midpoint`. The UI allows midpoints for loops and point-to-point, and the shared URL carries them.
+- **PAD-US wilderness:** `scripts/import_padus.py` queries the USGS PAD-US feature service for designated Wilderness (Des_Tp = WA) around NH and stores bike-only hard blocks (`restrictions.applies_to`, migration 005). Six polygons. Bikes can't be routed through them (graph and trust layer), runners can. **Not imported on purpose:** PAD-US "closed to public" (XA) polygons.
+- **Nightly backup:** `scripts/backup_db.sh`, installed on the Pi in the user crontab (03:15), 7 days kept. Local only; off-device copies need credentials.
+- **Markers:** water, bike shops, repair stations, toilets from the OSM extract (`scripts/import_osm_pois.py`, migration 006), `/api/pois`, map toggle.
+- **Weather:** forecast at the start from the National Weather Service. Only the rounded point leaves the server; nothing is shown when it fails.
+- **Cue sheet** ("Turn right onto X"), from OSM names only; unnamed ways are described by surface.
+- **Network ridden %** in results for signed-in riders (own data only), as a first contributor perk.
+- **Verified trail → GPX** for tracing into OSM with your own account.
+
+Not built, and why:
+- **DNR overrides weakening others' penalty:** the plan sentence is about zero-heat avoidance, and a rider who overrides it creates real heat by riding. Inventing a separate aggregate would be fabricated signal.
+- **Offline map regions:** plan section 3 forbids caching tiles beyond the browser default; self-hosted tiles is its own project.
+- **Friends and leaderboards:** conflict with "never show individual rides to other users"; needs your rules for what may be shared.
+- **Live turn-by-turn navigation and voice:** needs a native app (Capacitor); the cue sheet is the web version.
+- **Extra daily route generations as a perk:** there is no daily limit to extend.
+- **Writing to OSM:** needs an OSM OAuth application only you can register.
+
+## Phase 9 verification (local)
+
+- `pytest -q`: 175 passed. `npm run build`: clean (tsc plus vite, PWA 31 precache entries).
+- Playwright (`tests/test_round7_browser.cjs`, replaces the old dev-console script that tested header sign-in): 19/19 anonymous checks, screenshots kept in the scratchpad. Signed-in UI can't be driven until the Firebase web app exists.
+- Real bad-route report: filed through `reports.file_issue` with the real token as issue #35 (label `in-app feedback`, title in the plan's format, route line starts about 0.5 mi in), commented "test report from Round 7 verification" and closed.
+- `loam_eval real` was not re-run: the routing core is unchanged since Phase 4 except the new via-loop branch, which only runs with midpoints. `benchmark/reports/round7.md` stands.

@@ -1069,3 +1069,50 @@ export async function importCubeTrekActivity(
 
 
 
+
+
+export async function fetchPois(b: { minLat: number; minLon: number; maxLat: number; maxLon: number }): Promise<any> {
+  const q = new URLSearchParams({
+    min_lat: String(b.minLat), min_lon: String(b.minLon), max_lat: String(b.maxLat), max_lon: String(b.maxLon)
+  });
+  const res = await fetch(`${API_BASE}/api/pois?${q}`);
+  if (!res.ok) throw new Error(`POIs unavailable (${res.status})`);
+  return res.json();
+}
+
+export interface WeatherPeriod {
+  start: string;
+  temp_f: number | null;
+  precip_pct: number | null;
+  wind: string | null;
+  summary: string | null;
+}
+
+/** Hourly forecast from the National Weather Service via the API; null when it is unavailable. */
+export async function fetchWeather(lat: number, lon: number): Promise<WeatherPeriod[] | null> {
+  try {
+    const res = await fetch(`${API_BASE}/api/weather?lat=${lat}&lon=${lon}&hours=12`);
+    if (!res.ok) return null;
+    return (await res.json()).periods as WeatherPeriod[];
+  } catch {
+    return null;
+  }
+}
+
+
+export interface NetworkStat {
+  radius_mi: number;
+  trail_miles: number;
+  ridden_miles: number;
+  ridden_percent: number | null;
+}
+
+/** How much of the trail network around a point the signed-in rider has ridden (their own data). */
+export async function fetchMyNetwork(lat: number, lon: number): Promise<NetworkStat | null> {
+  try {
+    const res = await authedFetch(`${API_BASE}/api/me/network?lat=${lat}&lon=${lon}&radius_mi=10`);
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}

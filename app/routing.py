@@ -504,6 +504,17 @@ def _graph_loop_candidates(req: RouteRequest, target_m: float, seed: int, exclud
     return out, suggestion
 
 
+VIA_TOLERANCE_M = 150.0
+
+
+def passes_vias(coords: List[List[float]], vias: List[Tuple[float, float]], tol_m: float = VIA_TOLERANCE_M) -> bool:
+    """True when the route passes within tol_m of every midpoint (lat, lon)."""
+    for lat, lon in vias:
+        if not any(haversine_m(c, [lon, lat]) <= tol_m for c in coords):
+            return False
+    return True
+
+
 async def plan_route_options(
     req: RouteRequest,
     count: int = 10,
@@ -564,7 +575,34 @@ async def plan_route_options(
             specs.append(("route", pts, f"{name} Lollipop"))
         return specs
 
-    if is_loop:
+    vias = [(w.lat, w.lon) for w in (req.waypoints or [])] if is_loop else []
+
+    if is_loop and vias:
+        # A loop through the rider's midpoints: start -> midpoints in order -> start, with a detour
+        # on the longest leg so the length can reach the target. Graph and seed loops are kept only
+        # if they happen to pass every midpoint (checked below with the other candidates).
+        widen = None
+        stops = [(start_lat, start_lon)] + vias + [(start_lat, start_lon)]
+        legs = [haversine_m([stops[i][1], stops[i][0]], [stops[i + 1][1], stops[i + 1][0]]) for i in range(len(stops) - 1)]
+        li = max(range(len(legs)), key=lambda i: legs[i])
+        a, b = stops[li], stops[li + 1]
+        heading = math.degrees(math.atan2((b[1] - a[1]) * math.cos(math.radians(a[0])), b[0] - a[0])) if a != b else 0.0
+        extra = max(500.0, target_m - sum(legs)) / 2.0 if req.target_distance_miles else 500.0
+        specs = [("route", list(stops), "Via Loop")]
+        for frac in (0.3, 0.5, 0.7):
+            mid = (a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac)
+            for off in (-1.2, -0.8, -0.4, 0.4, 0.8, 1.2):
+                side = heading + (90.0 if off > 0 else -90.0)
+                det = _ring(mid[0], mid[1], abs(off) * extra, side)
+                name, _, _ = get_sector_info(side)
+                specs.append(("route", stops[:li + 1] + [det] + stops[li + 1:], f"{name} Via Loop"))
+        seed = int(abs(start_lat * 1e5) + abs(start_lon * 1e5) + target_miles * 10) % (2 ** 31)
+        graph_task = asyncio.to_thread(_graph_loop_candidates, req, target_m, seed, excluded_ways, road_budget_m)
+        (graph_cands, suggestion), _ = await asyncio.gather(graph_task, gh_round(specs))
+        raw.extend((c, p, lbl, "graph_loop") for c, p, lbl in graph_cands)
+        raw.extend(_seed_candidates(req, target_miles, user_id))
+        raw[:] = [r for r in raw if passes_vias(r[0], vias)]
+    elif is_loop:
         seed = int(abs(start_lat * 1e5) + abs(start_lon * 1e5) + target_miles * 10) % (2 ** 31)
         graph_task = asyncio.to_thread(_graph_loop_candidates, req, target_m, seed, excluded_ways, road_budget_m)
         gh_task = gh_round(loop_specs(1.0, [i * 30.0 for i in range(12)], False, [45.0, 135.0, 225.0, 315.0])

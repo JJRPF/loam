@@ -121,7 +121,7 @@ class TrailGraph:
                     (min_lon, min_lat, max_lon, max_lat),
                 )
                 rows = cur.fetchall()
-                hard_blocked = _hard_restricted_segments(cur, min_lon, min_lat, max_lon, max_lat)
+                hard_blocked = _hard_restricted_segments(cur, min_lon, min_lat, max_lon, max_lat, bike)
         for (sid, way, u, v, gj, length, cat, name, hw, surf, tt, acc, bic, foot, informal) in rows:
             tags = {"name": name, "highway": hw, "surface": surf, "tracktype": tt, "access": acc,
                     "bicycle": bic, "foot": foot, "informal": informal}
@@ -381,7 +381,7 @@ class TrailGraph:
         return False
 
 
-def _hard_restricted_segments(cur, min_lon, min_lat, max_lon, max_lat) -> Set[int]:
+def _hard_restricted_segments(cur, min_lon, min_lat, max_lon, max_lat, bike: bool = True) -> Set[int]:
     """Segments under an active hard restriction (by way id or geometry) in the bbox."""
     import datetime
     month = datetime.date.today().month
@@ -389,11 +389,11 @@ def _hard_restricted_segments(cur, min_lon, min_lat, max_lon, max_lat) -> Set[in
         """
         SELECT s.segment_id, r.seasonal_start_month, r.seasonal_end_month
         FROM trail_segments s
-        JOIN restrictions r ON r.is_hard AND (
+        JOIN restrictions r ON r.is_hard AND (r.applies_to = 'all' OR %s) AND (
             r.edge_osm_id = s.osm_way_id OR (r.geom IS NOT NULL AND ST_Intersects(r.geom, s.geom)))
         WHERE s.geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326)
         """,
-        (min_lon, min_lat, max_lon, max_lat),
+        (bike, min_lon, min_lat, max_lon, max_lat),
     )
     out = set()
     for sid, s0, s1 in cur.fetchall():

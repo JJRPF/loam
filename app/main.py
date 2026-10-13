@@ -666,6 +666,42 @@ async def get_otm_trail(osm_way_id: int):
         raise HTTPException(status_code=404, detail="Trail not in the local OSM import")
     return details
 
+@app.get("/api/pois")
+async def get_pois(
+    min_lat: float = Query(...), min_lon: float = Query(...), max_lat: float = Query(...), max_lon: float = Query(...),
+    kinds: str = Query("water,bike_shop,bike_repair", description="comma list of water, bike_shop, bike_repair, toilets"),
+    limit: int = Query(300, ge=1, le=1000)
+):
+    """Water, bike shops, repair stations (and toilets) from the local OSM import, as GeoJSON."""
+    import asyncio
+
+    wanted = [k for k in kinds.split(",") if k in ("water", "bike_shop", "bike_repair", "toilets")]
+    if not wanted or max_lat - min_lat > 1.0 or max_lon - min_lon > 1.5:
+        return {"type": "FeatureCollection", "features": []}
+
+    def query():
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """SELECT osm_type, osm_id, kind, name, ST_X(geom), ST_Y(geom) FROM pois
+                   WHERE kind = ANY(%s) AND geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326) LIMIT %s""",
+                (wanted, min_lon, min_lat, max_lon, max_lat, limit))
+            return cur.fetchall()
+
+    rows = await asyncio.to_thread(query)
+    return {"type": "FeatureCollection", "features": [
+        {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
+         "properties": {"id": f"{t}/{i}", "kind": k, "name": n}} for t, i, k, n, lon, lat in rows]}
+
+@app.get("/api/weather")
+async def get_weather(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), hours: int = Query(12, ge=1, le=48)):
+    """Hourly forecast (National Weather Service) for the start of a route; 503 when unavailable."""
+    from app.weather import hourly_forecast
+
+    fc = await hourly_forecast(lat, lon, hours)
+    if fc is None:
+        raise HTTPException(status_code=503, detail="Forecast unavailable")
+    return fc
+
 # --- Privacy Zones & Consent Management ---
 
 @app.get("/api/privacy/zones", response_model=List[PrivacyZoneResponse])
@@ -1094,6 +1130,49 @@ async def get_submission(submission_id: int):
     if not record:
         raise HTTPException(status_code=404, detail="Trail submission not found.")
     return TrailSubmissionResponse(**record)
+
+@app.get("/api/submissions/{submission_id}/osm-gpx")
+async def submission_osm_gpx(submission_id: int):
+    """A verified trail as a GPX track, for tracing it into OpenStreetMap with the rider's own OSM
+    account (JOSM or iD's GPS layer). Loam never edits OSM itself. Only verified submissions."""
+    record = get_trail_submission_by_id(submission_id)
+    coords = (record or {}).get("coordinates")
+    if not record or record.get("status") != "verified" or not coords:
+        raise HTTPException(status_code=404, detail="Only verified trail submissions can be exported.")
+    gpx = build_gpx_track(name=record["name"], sport=record["sport"], coordinates=coords,
+                          distance_miles=float(record.get("length_miles") or 0), duration_minutes=0.0)
+    return Response(content=gpx, media_type="application/gpx+xml",
+                    headers={"Content-Disposition": f'attachment; filename="loam-trail-{submission_id}.gpx"'})
+
+@app.get("/api/me/network")
+async def my_network(
+    lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180),
+    radius_mi: float = Query(10.0, ge=1.0, le=25.0),
+    user: AuthUser = Depends(get_current_user)
+):
+    """Share of the trail network around a point that the signed-in rider has ridden (their own data only)."""
+    import asyncio
+
+    def query():
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute(
+                """
+                WITH near AS (
+                    SELECT osm_way_id, length_m FROM trail_segments
+                    WHERE category <> 'paved'
+                      AND ST_DWithin(geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s)
+                ), mine AS (
+                    SELECT DISTINCT edge_osm_id FROM activity_edge_visits WHERE user_id = %s
+                )
+                SELECT COALESCE(SUM(length_m), 0), COALESCE(SUM(length_m) FILTER (WHERE osm_way_id IN (SELECT edge_osm_id FROM mine)), 0)
+                FROM near
+                """,
+                (lon, lat, radius_mi * 1609.344, user.uid))
+            return cur.fetchone()
+
+    total_m, ridden_m = await asyncio.to_thread(query)
+    return {"radius_mi": radius_mi, "trail_miles": round(total_m / 1609.344, 1), "ridden_miles": round(ridden_m / 1609.344, 1),
+            "ridden_percent": round(100.0 * ridden_m / total_m, 1) if total_m else None}
 
 @app.post("/api/submissions/{submission_id}/evidence", response_model=TrailSubmissionEvidenceResponse)
 async def submit_trail_evidence(

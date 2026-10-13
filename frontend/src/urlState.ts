@@ -33,7 +33,7 @@ export function encodeSearch(s: SearchState): string {
   q.set('start', pt(s.start));
   if (s.start.name) q.set('sn', s.start.name);
   if (s.end && s.routeMode === 'point_to_point') q.set('end', pt(s.end));
-  if (s.routeMode === 'point_to_point') s.waypoints.forEach((w) => q.append('via', pt(w)));
+  if (s.routeMode !== 'out_and_back') s.waypoints.forEach((w) => q.append('via', pt(w)));
   q.set('mode', s.routeMode);
   q.set('mi', String(s.targetMiles));
   const t = s.terrainPref;

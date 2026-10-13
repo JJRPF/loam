@@ -53,6 +53,14 @@ class SurfaceSegment(BaseModel):
     raw_road_class: Optional[str] = None
     is_unridden: bool = False
 
+class Cue(BaseModel):
+    distance_miles: float  # from the start
+    text: str
+    lat: float
+    lon: float
+    kind: str  # 'start' | 'turn' | 'continue' | 'arrive'
+
+
 class RouteResponse(BaseModel):
     id: Optional[str] = None
     name: Optional[str] = "Loam Route"
@@ -94,6 +102,7 @@ class RouteResponse(BaseModel):
     road_pct: Optional[float] = None  # road share excluding the access stretch
     access_miles: float = 0.0  # road from the start to the first trail (and back), reported separately
     # Max distance (m) from the route to the OSM ways it claims to follow; None = not checked.
+    cues: List[Cue] = Field(default_factory=list)  # turn-by-turn cue sheet from OSM names (no voice navigation)
     geometry_max_offset_m: Optional[float] = None
 
 

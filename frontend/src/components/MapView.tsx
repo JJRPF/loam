@@ -11,7 +11,7 @@ import {
   type GeoJSONSource 
 } from 'maplibre-gl';
 import type { RouteResponse, LatLon } from '../types';
-import { fetchHeatMeta, fetchHeatTrails, fetchOtmTrails, SEED_HEAT_NOTICE } from '../services/api';
+import { fetchHeatMeta, fetchHeatTrails, fetchOtmTrails, fetchPois, SEED_HEAT_NOTICE } from '../services/api';
 import trailheadData from '../data/trailheads.json';
 
 const DEFAULT_TRAILHEAD = trailheadData.trailheads[0];
@@ -118,6 +118,9 @@ export const MapView: React.FC<MapViewProps> = ({
   const [showOtmTrails, setShowOtmTrails] = useState<boolean>(false);
   const [otmTrailCount, setOtmTrailCount] = useState<number>(0);
   const otmDataRef = useRef<any>(null);
+  const [showPois, setShowPois] = useState<boolean>(false);
+  const showPoisRef = useRef<boolean>(false);
+  const poiDataRef = useRef<any>(null);
 
   useEffect(() => {
     onMapClickRef.current = onMapClick;
@@ -260,6 +263,19 @@ export const MapView: React.FC<MapViewProps> = ({
       });
   };
 
+  // Water, bike shops and repair stations (OSM) for the visible area, only while the toggle is on.
+  const loadPoisForView = (map: Map) => {
+    if (!showPoisRef.current || map.getZoom() < 11) return;
+    const b = map.getBounds();
+    fetchPois({ minLat: b.getSouth(), minLon: b.getWest(), maxLat: b.getNorth(), maxLon: b.getEast() })
+      .then((geojson) => {
+        poiDataRef.current = geojson;
+        const src = map.getSource('pois-source') as GeoJSONSource;
+        if (src) src.setData(geojson);
+      })
+      .catch((err) => console.warn('Failed to load map markers:', err));
+  };
+
   // Initialize MapLibre
   useEffect(() => {
     if (!mapContainer.current || mapRef.current) return;
@@ -287,6 +303,31 @@ export const MapView: React.FC<MapViewProps> = ({
 
     map.on('load', () => {
       loadTrailsForView(map);
+      map.addSource('pois-source', { type: 'geojson', data: poiDataRef.current || { type: 'FeatureCollection', features: [] } });
+      map.addLayer({
+        id: 'pois-circles',
+        type: 'circle',
+        source: 'pois-source',
+        layout: { visibility: showPoisRef.current ? 'visible' : 'none' },
+        paint: {
+          'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 4, 15, 8],
+          'circle-color': ['match', ['get', 'kind'], 'water', '#3F6C8F', 'bike_shop', '#FF5B14', 'bike_repair', '#C9A227', '#78909C'],
+          'circle-stroke-width': 1.5,
+          'circle-stroke-color': '#FFFFFF'
+        }
+      });
+      map.addLayer({
+        id: 'pois-labels',
+        type: 'symbol',
+        source: 'pois-source',
+        minzoom: 13,
+        layout: {
+          visibility: showPoisRef.current ? 'visible' : 'none',
+          'text-field': ['coalesce', ['get', 'name'], ['match', ['get', 'kind'], 'water', 'Water', 'bike_shop', 'Bike shop', 'bike_repair', 'Bike repair', '']],
+          'text-size': 11, 'text-offset': [0, 1.1], 'text-anchor': 'top', 'text-optional': true
+        },
+        paint: { 'text-color': '#E7ECEC', 'text-halo-color': '#0B1D18', 'text-halo-width': 1.2 }
+      });
       // 1. Heat trail GeoJSON source & layers (rendered below active route)
       map.addSource('heat-trails-source', {
         type: 'geojson',
@@ -546,7 +587,7 @@ export const MapView: React.FC<MapViewProps> = ({
     });
 
     (window as any).__loamMap = map;
-    map.on('moveend', () => loadTrailsForView(map));
+    map.on('moveend', () => { loadTrailsForView(map); loadPoisForView(map); });
     mapRef.current = map;
 
     return () => {
@@ -600,6 +641,23 @@ export const MapView: React.FC<MapViewProps> = ({
       console.warn('Error toggling heatmap layer visibility:', err);
     }
   }, [showHeatmap]);
+
+  // Sync marker layer visibility (and load markers when switched on)
+  useEffect(() => {
+    showPoisRef.current = showPois;
+    const map = mapRef.current;
+    if (!map) return;
+    try {
+      const vis = showPois ? 'visible' : 'none';
+      for (const id of ['pois-circles', 'pois-labels']) {
+        if (map.getLayer(id)) map.setLayoutProperty(id, 'visibility', vis);
+      }
+      if (showPois) loadPoisForView(map);
+    } catch (err) {
+      console.warn('Error toggling marker layers:', err);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showPois]);
 
   // Sync OpenTrailMap layer visibility
   useEffect(() => {
@@ -776,6 +834,24 @@ export const MapView: React.FC<MapViewProps> = ({
             {SEED_HEAT_NOTICE}
           </span>
         )}
+
+        {/* Water & shops markers toggle */}
+        <button
+          type="button"
+          onClick={() => setShowPois(!showPois)}
+          aria-pressed={showPois}
+          style={{
+            backgroundColor: showPois ? 'var(--color-header-bg)' : 'var(--color-card-bg)',
+            color: showPois ? '#FFFFFF' : 'var(--color-text-secondary)',
+            border: showPois ? '1px solid #3F6C8F' : '1px solid var(--color-divider)',
+            borderRadius: 20, padding: '6px 14px', fontSize: 12, fontWeight: 700, minHeight: 32,
+            boxShadow: '0 2px 8px rgba(0,0,0,0.18)', display: 'flex', alignItems: 'center', gap: 6, cursor: 'pointer'
+          }}
+          title="Water, bike shops and repair stations from OpenStreetMap (zoom in to see them)"
+        >
+          <span>💧</span>
+          <span>{showPois ? 'Water & shops ON' : 'Water & shops OFF'}</span>
+        </button>
 
         {/* OpenTrailMap Layer Toggle Badge */}
         <button

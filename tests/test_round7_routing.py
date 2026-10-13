@@ -253,6 +253,27 @@ def test_point_to_point_honors_midpoint():
 
 
 @live
+def test_loop_honors_midpoint():
+    from app.db import get_connection
+    from app.routing import VIA_TOLERANCE_M
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT ST_X(ST_EndPoint(geom)), ST_Y(ST_EndPoint(geom)) FROM trail_segments "
+                    "WHERE osm_way_id = 220551352 ORDER BY seq LIMIT 1")
+        mid_lon, mid_lat = cur.fetchone()
+    start = TRAILHEADS[BEAR_BROOK_PARKING]
+    req = RouteOptionsRequest(start=LatLon(lat=start["lat"], lon=start["lon"]), profile="mtb_hardtail",
+                              waypoints=[LatLon(lat=mid_lat, lon=mid_lon)], route_mode="loop",
+                              target_distance_miles=10.0, candidate_count=10)
+    res = asyncio.run(plan_route_options(req, count=10))
+    assert res.options, res.notice
+    for o in res.options:
+        nearest = min(haversine_m(c, [mid_lon, mid_lat]) for c in o.coordinates)
+        assert nearest <= VIA_TOLERANCE_M, f"{o.name} misses the midpoint by {nearest:.0f} m"
+        assert o.geometry_max_offset_m is not None and o.geometry_max_offset_m <= 15.0
+        assert o.coordinates[0] == o.coordinates[-1] or haversine_m(o.coordinates[0], o.coordinates[-1]) < 60
+
+
+@live
 def test_screenshot_route_fails_the_geometry_gate():
     """The deleted 'Bow Forest Grand Loop' drew straight lines between ~10 typed points while
     claiming OSM ways; the gate measures that and the route can never be shown."""
@@ -271,3 +292,23 @@ def test_round4_round5_shape_regressions_in_builder():
     assert _shape(10.8 * mi, 0.57 * 10.8 * mi, 0.0) == "out_and_back"
     assert _shape(14.1 * mi, 0.04 * 14.1 * mi, 0.0) == "loop"
     assert _shape(10.0 * mi, 0.36 * 10.0 * mi, 0.0) == "out_and_back"  # over the lollipop cap
+
+
+def test_cue_sheet_names_turns_from_osm_tags():
+    from app.route_builder import build_cues, haversine_m as hv
+    # east along "Alpha Trail", then south (a right turn) onto "Beta Trail", then a hairpin back north
+    pts = [[-71.5 + i * 0.0005, 43.1] for i in range(11)]
+    pts += [[-71.495, 43.1 - j * 0.0004] for j in range(1, 11)]
+    pts += [[-71.495, 43.1 - 10 * 0.0004 + j * 0.0004] for j in range(1, 6)]
+    lens = [hv(pts[i], pts[i + 1]) for i in range(len(pts) - 1)]
+    cats = ["singletrack"] * len(lens)
+    tags = [{"name": "Alpha Trail"}] * 10 + [{"name": "Beta Trail"}] * 10 + [{"name": "Beta Trail"}] * 5
+    cues = build_cues(pts, lens, cats, tags)
+    texts = [c.text for c in cues]
+    assert texts[0] == "Start on Alpha Trail" and texts[-1] == "Arrive"
+    assert "Turn right onto Beta Trail" in texts
+    assert any(t.startswith("Sharp") for t in texts)  # the doubling back
+    assert [c.distance_miles for c in cues] == sorted(c.distance_miles for c in cues)
+    # unnamed ways are described by surface, never given an invented name
+    unnamed = build_cues(pts[:11], lens[:10], ["doubletrack"] * 10, [{}] * 10)
+    assert unnamed[0].text == "Start on unnamed doubletrack"

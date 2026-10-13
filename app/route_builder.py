@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from app.elevation import gain_loss, route_elevation
 from app.engine_config import get_config
-from app.models import RouteRequest, RouteResponse, SportProfile, SurfaceSegment
+from app.models import Cue, RouteRequest, RouteResponse, SportProfile, SurfaceSegment
 from app.scoring import calculate_composite_score, generate_minimap
 from app.surface import surface_category
 
@@ -44,6 +44,69 @@ class BuiltRoute:
     route: RouteResponse
     way_lengths: Dict[int, float]  # meters along each OSM way (dedup by shared length)
     way_ids: List[int]
+
+
+def _bearing(a: Sequence[float], b: Sequence[float]) -> float:
+    p1, p2 = math.radians(a[1]), math.radians(b[1])
+    dl = math.radians(b[0] - a[0])
+    return math.degrees(math.atan2(math.sin(dl) * math.cos(p2),
+                                   math.cos(p1) * math.sin(p2) - math.sin(p1) * math.cos(p2) * math.cos(dl))) % 360.0
+
+
+def _point_at(pts: Sequence[Sequence[float]], cum: Sequence[float], i: int, back: bool, span_m: float = 30.0):
+    """A vertex about span_m before (back) or after vertex i along the line."""
+    j = i
+    if back:
+        while j > 0 and cum[i] - cum[j] < span_m:
+            j -= 1
+    else:
+        while j < len(pts) - 1 and cum[j] - cum[i] < span_m:
+            j += 1
+    return pts[j]
+
+
+def _trail_label(tags: Dict[str, Optional[str]], cat: str) -> str:
+    name = (tags.get("name") or "").strip()
+    if name:
+        return name
+    return {"singletrack": "unnamed singletrack", "doubletrack": "unnamed doubletrack",
+            "gravel": "unnamed gravel road", "paved": "unnamed road"}.get(cat, "unnamed trail")
+
+
+def build_cues(pts: Sequence[Sequence[float]], step_len: Sequence[float], step_cat: Sequence[str],
+               step_tags: Sequence[Dict[str, Optional[str]]], limit: int = 200) -> List[Cue]:
+    """A cue sheet: where the route changes trail (or doubles back sharply) and which way to turn.
+    Names come from OSM tags only; unnamed ways are described by their surface."""
+    n = len(pts)
+    if n < 2:
+        return []
+    cum = [0.0]
+    for L in step_len:
+        cum.append(cum[-1] + L)
+    labels = [_trail_label(step_tags[i], step_cat[i]) for i in range(n - 1)]
+
+    def cue(i: int, kind: str, text: str) -> Cue:
+        return Cue(distance_miles=round(cum[i] * METERS_TO_MILES, 2), text=text, lat=pts[i][1], lon=pts[i][0], kind=kind)
+
+    cues = [cue(0, "start", f"Start on {labels[0]}")]
+    for i in range(1, n - 1):
+        changed = labels[i] != labels[i - 1]
+        before = _bearing(_point_at(pts, cum, i, True), pts[i])
+        after = _bearing(pts[i], _point_at(pts, cum, i, False))
+        delta = (after - before + 540.0) % 360.0 - 180.0  # -180..180, positive = right
+        sharp = abs(delta) >= 70.0
+        if not (changed or sharp) or (cum[i] - (cues[-1].distance_miles / METERS_TO_MILES)) < 40.0:
+            continue
+        side = "right" if delta > 0 else "left"
+        if abs(delta) >= 25.0:
+            how = "Sharp " + side if abs(delta) >= 120.0 else "Turn " + side
+            cues.append(cue(i, "turn", f"{how} onto {labels[i]}" if changed else f"{how} (stay on {labels[i]})"))
+        elif changed:
+            cues.append(cue(i, "continue", f"Continue onto {labels[i]}"))
+        if len(cues) >= limit - 1:
+            break
+    cues.append(cue(n - 1, "arrive", "Arrive"))
+    return cues
 
 
 def haversine_m(a: Sequence[float], b: Sequence[float]) -> float:
@@ -328,6 +391,7 @@ def build_route_response(
         road_pct=road_pct,
         access_miles=round(access_m * METERS_TO_MILES, 2),
         geometry_max_offset_m=geometry_offset_m(pts, way_ids) if check_geometry else None,
+        cues=build_cues(pts, step_len, step_cat, step_tags),
     )
     if route.access_miles >= 0.1:
         route.verbal_summary = f"{route.verbal_summary} {route.access_miles:.1f} mi road to trail."
