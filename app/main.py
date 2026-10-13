@@ -544,7 +544,7 @@ async def get_edge_info(
         last_ridden_date=heat.get("last_ridden_date"),
         is_contributor=heat.get("is_contributor", False),
         coverage_sufficient=True,
-        message=None if heat.get("is_accessible") else "Private to contributor (< 3 unique riders)"
+        message=None if heat.get("is_accessible") else "Not enough riders to show heat on this trail"
     )
 
 @app.post("/api/heat/record")
@@ -620,9 +620,8 @@ async def bulk_import_heat(
 
 @app.get("/api/heat/meta")
 async def heat_meta():
-    """Heat privacy threshold, so the UI can say when the 3-rider minimum is temporarily off."""
-    n = settings.heat_min_unique_riders
-    return {"min_unique_riders": n, "seed_data_notice": n < 3}
+    """Heat privacy rule, so the UI can describe it: riders needed, and whether the creator's seed heat is shown."""
+    return {"min_unique_riders": settings.heat_min_unique_riders, "seed_heat_public": settings.seed_heat_public}
 
 
 @app.get("/api/heat/trails")

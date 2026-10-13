@@ -102,6 +102,7 @@ def main(pbf):
         print(f"{name}: parking {kind}/{ref} ({pname or 'unnamed'}) {d:.0f} m from the area", file=sys.stderr)
 
     dest = os.path.join(os.path.dirname(__file__), "..", "frontend", "src", "data", "trailheads.json")
+    os.makedirs(os.path.dirname(dest), exist_ok=True)
     with open(dest, "w") as f:
         json.dump({
             "source": "OpenStreetMap contributors (ODbL), extracted by scripts/build_trailheads.py",

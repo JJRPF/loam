@@ -1001,10 +1001,14 @@ export async function disconnectConnector(
   return await res.json();
 }
 
-export const SEED_HEAT_NOTICE =
-  "Heat from one rider's seed data. The 3-rider privacy minimum is temporarily off.";
+export interface HeatMeta { min_unique_riders: number; seed_heat_public: boolean }
 
-export async function fetchHeatMeta(): Promise<{ min_unique_riders: number; seed_data_notice: boolean }> {
+export function heatInfoText(meta: HeatMeta): string {
+  const base = `Heat shows trails ridden by ${meta.min_unique_riders} or more people in the past year.`;
+  return meta.seed_heat_public ? `${base} To get started, it also includes Loam's creator's own rides on trails.` : base;
+}
+
+export async function fetchHeatMeta(): Promise<HeatMeta> {
   const res = await authedFetch(`${API_BASE}/api/heat/meta`);
   if (!res.ok) throw new Error(`Heat settings unavailable (${res.status})`);
   return await res.json();

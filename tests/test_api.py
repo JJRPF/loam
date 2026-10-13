@@ -69,7 +69,10 @@ async def test_heat_record_and_query():
         assert resp.status_code == 200
         
         # Query edge
-        get_resp = await client.get("/api/edges/999999999?sport=mtb")
+        # one rider is below the 3-rider minimum: hidden from others, visible to the contributor
+        anon = await client.get("/api/edges/999999999?sport=mtb")
+        assert anon.status_code == 200 and anon.json()["weighted_score"] == 0.0
+        get_resp = await client.get("/api/edges/999999999?sport=mtb", headers={"X-Test-User": "round7_admin"})
         assert get_resp.status_code == 200
         edge_data = get_resp.json()
         assert edge_data["edge_osm_id"] == 999999999

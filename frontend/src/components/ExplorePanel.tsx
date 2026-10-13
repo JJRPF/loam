@@ -10,7 +10,8 @@ import {
   adminReverseSubmission,
   adminTakedownSubmission,
   fetchHeatMeta,
-  SEED_HEAT_NOTICE
+  heatInfoText,
+  type HeatMeta
 } from '../services/api';
 
 type ExploreTab = 'featured' | 'unridden' | 'submissions';
@@ -24,9 +25,9 @@ interface ExplorePanelProps {
 export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
   const [activeTab, setActiveTab] = useState<ExploreTab>('featured');
   const [activeNetwork, setActiveNetwork] = useState<Trailhead>(TRAILHEADS[0]);
-  const [seedHeatNotice, setSeedHeatNotice] = useState(false);
+  const [heatMeta, setHeatMeta] = useState<HeatMeta | null>(null);
   useEffect(() => {
-    fetchHeatMeta().then((m) => setSeedHeatNotice(m.seed_data_notice)).catch(() => setSeedHeatNotice(false));
+    fetchHeatMeta().then(setHeatMeta).catch(() => setHeatMeta(null));
   }, []);
 
   // Unridden trails state
@@ -321,8 +322,8 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
             <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', lineHeight: 1.4 }}>
               Trails are weighted by verified activity over a 12-month window. Ghost trails and overgrown doubletracks are automatically deprioritized.
             </p>
-            {seedHeatNotice && (
-              <p role="note" style={{ fontSize: 12, color: 'var(--color-blaze)', marginTop: 6 }}>{SEED_HEAT_NOTICE}</p>
+            {heatMeta && (
+              <p role="note" style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 6 }}>{heatInfoText(heatMeta)}</p>
             )}
           </div>
         </div>

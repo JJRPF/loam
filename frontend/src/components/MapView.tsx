@@ -11,7 +11,7 @@ import {
   type GeoJSONSource 
 } from 'maplibre-gl';
 import type { RouteResponse, LatLon } from '../types';
-import { fetchHeatMeta, fetchHeatTrails, fetchOtmTrails, fetchPois, SEED_HEAT_NOTICE } from '../services/api';
+import { fetchHeatMeta, fetchHeatTrails, fetchOtmTrails, fetchPois, heatInfoText, type HeatMeta } from '../services/api';
 import trailheadData from '../data/trailheads.json';
 
 const DEFAULT_TRAILHEAD = trailheadData.trailheads[0];
@@ -107,10 +107,11 @@ export const MapView: React.FC<MapViewProps> = ({
   // Heat trail state & cached GeoJSON
   const [showHeatmap, setShowHeatmap] = useState<boolean>(true);
   const [heatTrailCount, setHeatTrailCount] = useState<number>(0);
-  const [seedHeatNotice, setSeedHeatNotice] = useState<boolean>(false);
+  const [heatMeta, setHeatMeta] = useState<HeatMeta | null>(null);
+  const [showHeatInfo, setShowHeatInfo] = useState<boolean>(false);
 
   useEffect(() => {
-    fetchHeatMeta().then((m) => setSeedHeatNotice(m.seed_data_notice)).catch(() => setSeedHeatNotice(false));
+    fetchHeatMeta().then(setHeatMeta).catch(() => setHeatMeta(null));
   }, []);
   const heatDataRef = useRef<any>(null);
 
@@ -822,17 +823,32 @@ export const MapView: React.FC<MapViewProps> = ({
           )}
         </button>
 
-        {showHeatmap && seedHeatNotice && (
-          <span
+        {showHeatmap && heatMeta && (
+          <button
+            type="button"
+            aria-label="About heat"
+            aria-expanded={showHeatInfo}
+            onClick={() => setShowHeatInfo((v) => !v)}
+            style={{
+              backgroundColor: 'var(--color-card-bg)', color: 'var(--color-text-primary)', borderRadius: 22,
+              width: 44, height: 44, fontSize: 16, fontWeight: 700, boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+              border: '1px solid var(--color-divider)', cursor: 'pointer'
+            }}
+          >
+            ⓘ
+          </button>
+        )}
+        {showHeatmap && heatMeta && showHeatInfo && (
+          <p
             role="note"
             style={{
-              backgroundColor: 'var(--color-card-bg)', color: 'var(--color-text-primary)', borderRadius: 8,
-              padding: '4px 10px', fontSize: 11, maxWidth: 240, boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+              flexBasis: '100%', margin: 0, backgroundColor: 'var(--color-card-bg)', color: 'var(--color-text-primary)',
+              borderRadius: 8, padding: '6px 10px', fontSize: 12, maxWidth: 280, boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
               border: '1px solid var(--color-divider)'
             }}
           >
-            {SEED_HEAT_NOTICE}
-          </span>
+            {heatInfoText(heatMeta)}
+          </p>
         )}
 
         {/* Water & shops markers toggle */}

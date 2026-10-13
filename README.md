@@ -208,7 +208,7 @@ Set `GITHUB_FEEDBACK_TOKEN` (a fine-grained token limited to this repository wit
 
 ## Pre-launch checklist
 
-- [ ] `HEAT_MIN_UNIQUE_RIDERS` is **3** (the Pi runs with 1 while heat comes from one rider; unset it before opening Loam to others). The app shows a seed-data notice while it is below 3.
+- [ ] `HEAT_MIN_UNIQUE_RIDERS` is unset (default **3**) on the Pi. The creator's imported rides are public as seed heat on trail-class edges only (`SEED_HEAT_PUBLIC`, default true).
 - [ ] Strava and Trailforks connectors stay off until their current terms are confirmed.
 - [ ] Terms of service and privacy policy are in place; the repository's code becomes public, so re-read what issue reports include.
 - [ ] A known ghost-trail and good-trail list for an area you know is run through the benchmark.
