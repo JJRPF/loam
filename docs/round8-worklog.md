@@ -33,6 +33,10 @@ Tests: new `tests/test_round8_midpoints_flag.py` (6): flag default; flag off ign
 
 ## Phase 3: Remove the water & shops layer
 
+What changed: `MapView.tsx` lost `showPois` and its ref/data ref, `loadPoisForView`, the `pois-source`/`pois-circles`/`pois-labels` layers, the `moveend` hook part, the sync effect and the "Water & shops" toggle; `api.ts` lost `fetchPois` (there were no separate POI types). Backend: `GET /api/pois` and `scripts/import_osm_pois.py` are deleted; migration `008_round8_drop_pois.sql` runs `DROP TABLE IF EXISTS pois` (006 stays as history; the Pi gets a `pg_dump` first in Phase 10). Tests: `test_pois_come_from_the_osm_import` removed from `test_round7_extras.py`; `test_round7_browser.cjs` now asserts the toggle is absent. README: the colour table no longer lists water as the Slate use. The feature audit's "marked removed by owner in Round 8" row is written in Phase 9 (`docs/round8-feature-audit.md`).
+
+`grep -rniw "poi\|pois\|water\|shop\|shops" app frontend/src scripts tests README.md`: only the Garmin activity-type comment "Water sports & golf" (unrelated), the new absence assertion and a docstring remark. Note: `test_round7_browser.cjs` still exercises the midpoint UI, so it must run against a dev server with `ENABLE_MIDPOINTS=true`; Phase 9 folds it into the new suite. `pytest -q`: 197 passed (the POI test is gone). `npm run build` OK, lint clean.
+
 ## Phase 4: Mobile map layout
 
 ## Phase 5: Hide disabled connectors

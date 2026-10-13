@@ -69,19 +69,7 @@ const check = (name, ok, detail = '') => {
     await shot('results');
 
     check('results have a Directions list of steps', (await page.locator('summary:has-text("Directions")').count()) === 1);
-    const waterBtn = page.locator('button:has-text("Water & shops")');
-    // Bear Brook's own view has no mapped water or shops; look at Concord, where OSM has some
-    await page.evaluate(() => window.__loamMap.jumpTo({ center: [-71.5376, 43.2081], zoom: 12.5 }));
-    await page.waitForTimeout(1500);
-    const poiResp = page.waitForResponse((r) => r.url().includes('/api/pois'), { timeout: 15000 });
-    await waterBtn.click();
-    check('water & shops toggle turns on', (await waterBtn.innerText()).includes('ON'));
-    const pr = await poiResp;
-    const poiJson = await pr.json();
-    check('markers load for the view', pr.status() === 200 && poiJson.features.length > 0, `${poiJson.features.length} markers`);
-    await page.waitForTimeout(1000);
-    await shot('markers');
-    await waterBtn.click();
+    check('no water & shops toggle (removed in Round 8)', (await page.locator('button:has-text("Water & shops")').count()) === 0);
 
     check('signed out: no Report bad route button, a sign-in hint instead',
       (await page.locator('button:has-text("Report bad route")').count()) === 0 &&

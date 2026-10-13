@@ -1,4 +1,4 @@
-"""Round 7 (GH-34): map markers (OSM POIs), weather, and the nightly backup script."""
+"""Round 7 (GH-34): weather and the nightly backup script. (The OSM POI markers were removed in Round 8.)"""
 import pathlib
 import subprocess
 
@@ -8,25 +8,6 @@ from httpx import ASGITransport, AsyncClient
 
 from app import weather
 from app.main import app
-
-
-@pytest.mark.asyncio
-async def test_pois_come_from_the_osm_import():
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as client:
-        # all of southern NH is more than a town: bounded to one degree of latitude
-        r = await client.get("/api/pois", params=dict(min_lat=42.7, min_lon=-72.0, max_lat=43.4, max_lon=-71.0,
-                                                      kinds="bike_shop,water,toilets"))
-        assert r.status_code == 200
-        feats = r.json()["features"]
-        if not feats:
-            pytest.skip("run `python -m scripts.import_osm_pois` first")
-        assert {f["properties"]["kind"] for f in feats} <= {"bike_shop", "water", "toilets"}
-        assert all(f["properties"]["id"].split("/")[0] in ("node", "way") for f in feats)
-        too_big = await client.get("/api/pois", params=dict(min_lat=40, min_lon=-75, max_lat=46, max_lon=-70))
-        assert too_big.json()["features"] == []
-        unknown = await client.get("/api/pois", params=dict(min_lat=43, min_lon=-71.5, max_lat=43.2, max_lon=-71.3, kinds="casino"))
-        assert unknown.json()["features"] == []
 
 
 def _nws_transport(fail_points=False):

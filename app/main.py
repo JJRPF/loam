@@ -699,32 +699,6 @@ async def get_otm_trail(osm_way_id: int):
         raise HTTPException(status_code=404, detail="Trail not in the local OSM import")
     return details
 
-@app.get("/api/pois")
-async def get_pois(
-    min_lat: float = Query(...), min_lon: float = Query(...), max_lat: float = Query(...), max_lon: float = Query(...),
-    kinds: str = Query("water,bike_shop,bike_repair", description="comma list of water, bike_shop, bike_repair, toilets"),
-    limit: int = Query(300, ge=1, le=1000)
-):
-    """Water, bike shops, repair stations (and toilets) from the local OSM import, as GeoJSON."""
-    import asyncio
-
-    wanted = [k for k in kinds.split(",") if k in ("water", "bike_shop", "bike_repair", "toilets")]
-    if not wanted or max_lat - min_lat > 1.0 or max_lon - min_lon > 1.5:
-        return {"type": "FeatureCollection", "features": []}
-
-    def query():
-        with get_connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                """SELECT osm_type, osm_id, kind, name, ST_X(geom), ST_Y(geom) FROM pois
-                   WHERE kind = ANY(%s) AND geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326) LIMIT %s""",
-                (wanted, min_lon, min_lat, max_lon, max_lat, limit))
-            return cur.fetchall()
-
-    rows = await asyncio.to_thread(query)
-    return {"type": "FeatureCollection", "features": [
-        {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
-         "properties": {"id": f"{t}/{i}", "kind": k, "name": n}} for t, i, k, n, lon, lat in rows]}
-
 @app.get("/api/weather")
 async def get_weather(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), hours: int = Query(12, ge=1, le=48)):
     """Hourly forecast (National Weather Service) for the start of a route; 503 when unavailable."""

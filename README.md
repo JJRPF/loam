@@ -126,7 +126,7 @@ Loam is built from the ground up to adhere to high-standard outdoor design token
 | **Spruce** | `#1D3B34` | Primary brand deep evergreen tone for panels and text |
 | **Blaze** | `#FF5B14` | High-contrast trail marker orange for active route lines and CTAs |
 | **Lichen** | `#A9BF7A` | Secondary muted accent for singletrack surfaces and badges |
-| **Slate** | `#3F6C8F` | Water, info and secondary route options |
+| **Slate** | `#3F6C8F` | Info and secondary route options |
 
 - **Phone-First, Map-First**: Responsive Progressive Web App: a service worker precaches the app shell and the last 10 routes you viewed stay available offline. Map tiles and live routing need a connection.
 - **Imperial by Default**: All distances, climbs, and paces display in miles and feet.

@@ -1075,15 +1075,6 @@ export async function importCubeTrekActivity(
 
 
 
-export async function fetchPois(b: { minLat: number; minLon: number; maxLat: number; maxLon: number }): Promise<any> {
-  const q = new URLSearchParams({
-    min_lat: String(b.minLat), min_lon: String(b.minLon), max_lat: String(b.maxLat), max_lon: String(b.maxLon)
-  });
-  const res = await fetch(`${API_BASE}/api/pois?${q}`);
-  if (!res.ok) throw new Error(`POIs unavailable (${res.status})`);
-  return res.json();
-}
-
 export interface WeatherPeriod {
   start: string;
   temp_f: number | null;
