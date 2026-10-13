@@ -835,7 +835,7 @@ async def list_flags(
 ):
     """Lists community trail flags with optional edge_osm_id and status filters."""
     flags = get_community_flags(edge_osm_id=edge_osm_id, status=status, limit=limit)
-    return [FlagResponse(**f) for f in flags]
+    return [FlagResponse(**{**f, "user_id": None}) for f in flags]  # public: never who flagged
 
 @app.post("/api/flags/{flag_id}/vote", response_model=FlagVoteResponse)
 async def vote_flag(
@@ -891,7 +891,7 @@ async def submit_trail_checkin(
 async def list_trail_checkins(edge_osm_id: int, limit: int = 20):
     """Returns recent check-in history for an edge."""
     checkins = get_trail_checkins(edge_osm_id=edge_osm_id, limit=limit)
-    return [TrailCheckinResponse(confidence_score=1.0, **c) for c in checkins]
+    return [TrailCheckinResponse(confidence_score=1.0, **{**c, "user_id": None}) for c in checkins]  # public: never who
 
 @app.get("/api/trails/{edge_osm_id}/status", response_model=TrailStatusResponse)
 async def check_trail_status(edge_osm_id: int):
@@ -906,7 +906,7 @@ async def check_trail_status(edge_osm_id: int):
         access=st.get("access"),
         bicycle=st.get("bicycle"),
         recent_checkins_count=st["recent_checkins_count"],
-        active_flags=[FlagResponse(**f) for f in st["active_flags"]]
+        active_flags=[FlagResponse(**{**f, "user_id": None}) for f in st["active_flags"]]
     )
 
 # --- User DNR (Do Not Ride) System ---
@@ -1061,10 +1061,13 @@ async def delete_my_account(
     """
     Permanently purges all user account records and personal data.
     Deletes privacy zones, DNR entries, override logs, check-ins, flags,
-    activities, saved routes, and contribution consent.
+    activities, saved routes, contribution consent, bad-route report snapshots and unverified submissions.
     """
     uid = user.uid
-    ok = delete_user_account(uid)
+    try:
+        delete_user_account(uid)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Account deletion failed; nothing was removed. Please try again.")
     return {"status": "account_deleted", "user_id": uid}
 
 
@@ -1128,7 +1131,7 @@ async def list_submissions(
 ):
     """Lists trail submissions (filtered by status: pending, verified, rejected, taken_down, or all)."""
     records = get_trail_submissions(status_filter=status)
-    return [TrailSubmissionResponse(**r) for r in records]
+    return [TrailSubmissionResponse(**{**r, "user_id": None}) for r in records]  # public: never who
 
 @app.get("/api/submissions/{submission_id}", response_model=TrailSubmissionResponse)
 async def get_submission(submission_id: int):
@@ -1136,7 +1139,7 @@ async def get_submission(submission_id: int):
     record = get_trail_submission_by_id(submission_id)
     if not record:
         raise HTTPException(status_code=404, detail="Trail submission not found.")
-    return TrailSubmissionResponse(**record)
+    return TrailSubmissionResponse(**{**record, "user_id": None})
 
 @app.get("/api/submissions/{submission_id}/osm-gpx")
 async def submission_osm_gpx(submission_id: int):

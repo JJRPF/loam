@@ -1837,6 +1837,20 @@ def export_user_data(user_id: str) -> Dict[str, Any]:
             for sr in saved:
                 sr["created_at"] = sr["created_at"].isoformat() if sr.get("created_at") else ""
 
+            # 9. Bad-route reports (the private snapshot) and trail submissions
+            cur.execute(
+                "SELECT id, created_at, comment, status, github_issue_url, request_json, route_json "
+                "FROM route_reports WHERE user_id = %s ORDER BY created_at DESC;", (user_id,))
+            reports = [dict(r) for r in cur.fetchall()]
+            for r in reports:
+                r["id"] = str(r["id"])
+                r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else ""
+            cur.execute("SELECT id, name, sport, difficulty, status, description, created_at "
+                        "FROM trail_submissions WHERE user_id = %s;", (user_id,))
+            submissions = [dict(r) for r in cur.fetchall()]
+            for r in submissions:
+                r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else ""
+
             return {
                 "user_id": user_id,
                 "email": profile.get("email"),
@@ -1849,6 +1863,8 @@ def export_user_data(user_id: str) -> Dict[str, Any]:
                 "activities": activities,
                 "saved_routes": saved,
                 "heat_trail_contributions": heat_contributions,
+                "route_reports": reports,
+                "trail_submissions": submissions,
                 "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
 
@@ -1856,8 +1872,9 @@ def delete_user_account(user_id: str) -> bool:
     """
     Purges all user account records and personal data across all tables.
     Deletes privacy zones, DNR entries, override logs, check-ins, flag votes, flags,
-    saved routes, activity edge visits, activities, consent settings, and user entity.
-    Triggers heat recalculation.
+    saved routes, activity edge visits, activities, consent settings, bad-route report snapshots,
+    unverified trail submissions (verified ones lose their author) and the user entity (which
+    cascades to connector tokens, seed loops and submission evidence). Triggers heat recalculation.
     """
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -1872,6 +1889,11 @@ def delete_user_account(user_id: str) -> bool:
             cur.execute("DELETE FROM activity_edge_visits WHERE user_id = %s;", (user_id,))
             cur.execute("DELETE FROM activities WHERE user_id = %s;", (user_id,))
             cur.execute("DELETE FROM contribution_consent WHERE user_id = %s;", (user_id,))
+            # Bad-route reports: the full private snapshot goes (the trimmed public GitHub issue stays)
+            cur.execute("DELETE FROM route_reports WHERE user_id = %s;", (user_id,))
+            # Trail submissions: unverified ones go; a verified trail stays on the map without its author
+            cur.execute("DELETE FROM trail_submissions WHERE user_id = %s AND status <> 'verified';", (user_id,))
+            cur.execute("UPDATE trail_submissions SET user_id = NULL WHERE user_id = %s;", (user_id,))
             cur.execute("DELETE FROM users WHERE id = %s;", (user_id,))
             conn.commit()
 

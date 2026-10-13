@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { SignInAgreement } from './LegalLinks';
 import {
   emailLinkCooldownRemaining,
   isAuthConfigured,
@@ -160,6 +161,8 @@ export const SignInCard: React.FC = () => {
           </button>
         </form>
       )}
+
+      <SignInAgreement />
 
       {error && (
         <div role="alert" style={{ fontSize: 13, color: 'var(--color-blaze)' }}>

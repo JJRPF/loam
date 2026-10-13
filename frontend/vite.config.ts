@@ -17,7 +17,7 @@ export default defineConfig({
         globIgnores: ['**/*.map', '**/maplibre-gl-worker-dev.mjs'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api\//, /^\/health/],
+        navigateFallbackDenylist: [/^\/api\//, /^\/health/, /^\/legal\//],
         cleanupOutdatedCaches: true
       }
     })

@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Privacy policy | Loam</title>
+<meta name="description" content="Loam keeps your account, your saved routes and what you choose to upload. It shows no ads, uses no analytics and sells nothing.">
+<meta name="theme-color" content="#1D3B34">
+<link rel="icon" href="/brand/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/legal/legal.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<header>
+  <a class="brand" href="/" aria-label="Loam, back to the app"><img src="/brand/loam-logo-horizontal-reversed.svg" alt="Loam" height="36"></a>
+  <nav aria-label="Legal">
+    <a href="/legal/privacy/">Privacy</a>
+    <a href="/legal/terms/">Terms</a>
+    <a href="/legal/attributions/">Attributions</a>
+    <a href="https://github.com/JJRPF/loam">Source code</a>
+  </nav>
+</header>
+<main id="main">
+<h1>Privacy policy</h1>
+
+<p class="meta">Effective October 13, 2026</p>
+<p class="summary">In short: Loam keeps what you give it (your account, uploads you choose to make, saved routes, flags and zones), shows other people only trail-level heat that three or more riders share (plus the creator's own rides on trails), runs no ads or analytics, and lets you export or delete your data.</p>
+
+<h2>Who runs Loam</h2>
+<p>Loam is run by Justin Pfister in New Hampshire, USA. Contact: <span data-contact>jjrpfister at gmail dot com</span>. It runs on a home server; the web app itself is served by Google Firebase Hosting.</p>
+
+<h2>What Loam collects</h2>
+<ul>
+  <li><strong>Your account.</strong> You sign in with Google or an email link, through Google Firebase Authentication. Loam stores your Firebase user ID, your email address and your display name. Your Google profile photo is shown in your browser and is not stored on Loam's server.</li>
+  <li><strong>Activities you upload</strong> (GPX or FIT files). Loam reads the file in memory, cuts off the first and last 0.2 mile and anything inside your privacy zones, and matches what is left to trails. It stores the activity's date, sport, distance, duration, file type, and which trail segments it passed over and when. It does <em>not</em> store the original file or the GPS points. If you uncheck the contribution box when uploading, the activity is recorded in your account but does not add to heat.</li>
+  <li><strong>Saved routes</strong> you choose to save, including the route line, so they include where the route starts.</li>
+  <li><strong>Trail flags and check-ins</strong> you submit, and <strong>trail submissions</strong> you propose. Other people can see the flag, check-in or submission, but Loam does not show who made it.</li>
+  <li><strong>Privacy zones</strong> you create (a point and a radius, for example around your home), and your <strong>contribution consent</strong> setting.</li>
+  <li><strong>Connected services.</strong> If you connect Garmin Connect, your Garmin password is sent to Garmin to log in and is not stored; the session token Loam keeps is encrypted. Other connected-service records (such as a CubeTrek link) are stored with your account.</li>
+  <li><strong>Server logs.</strong> The server's standard request log records the time, the web address requested (which can include a search text or the start point of a route request), the response code and the network address of the connection. It is kept in the server's system journal, which the operating system rotates automatically. Loam does not analyse it.</li>
+</ul>
+
+<h2 id="heat">How heat works, and what it shows about you</h2>
+<p>Heat is the layer on the map that shows which trails have been ridden or run recently.</p>
+<ul>
+  <li>It is aggregated per trail segment over the past 12 months, with newer rides counting more.</li>
+  <li>Every ride loses its first and last 0.2 mile, and anything inside your privacy zones, before it is used.</li>
+  <li><strong>Three-rider minimum:</strong> a trail's heat is shown to others, and used to shape their routes, only when at least 3 different people have ridden it. Below that, only you see your own contribution.</li>
+  <li><strong>The creator's own rides are included.</strong> To get the map started, Loam also shows heat from the creator's own imported rides on trails (paths, tracks, bridleways and cycleways), never on roads or sidewalks, even though that is one rider. Everyone else's heat still needs 3 riders.</li>
+  <li>Heat shows how much a trail is used, never who rode it. A route suggested from the creator's rides starts from your own start point, not the original one.</li>
+</ul>
+
+<h2 id="reports">Reporting a bad route</h2>
+<p>The "Report bad route" button files a <strong>public issue on GitHub</strong>. It includes your comment (word for word), the settings you used and the route line with the first and last 0.5 mile removed. It does not include your start, end or midpoint coordinates, and it carries a short code derived from your account instead of your name or email. Loam keeps the full report, including the complete route, privately on its server. Anything on GitHub is public and may be copied by others.</p>
+
+<h2>Who else handles data</h2>
+<p>Loam has no ads and no analytics, and does not sell or share your data for marketing. To work, it uses these services:</p>
+<ul>
+  <li><strong>Google Firebase</strong> (Authentication and Hosting) serves the web app and signs you in. Google receives your IP address and standard request information, and your email address when you sign in.</li>
+  <li><strong>Google Fonts</strong> supplies the typeface; your browser requests it from Google, which receives your IP address.</li>
+  <li><strong>CARTO</strong> supplies the map tiles. Your browser requests tiles directly from CARTO, which receives your IP address and the area you are looking at.</li>
+  <li><strong>Photon by komoot</strong> (OpenStreetMap search). When you search for a place, Loam's server sends your search text to Photon. Your IP address is not sent.</li>
+  <li><strong>US National Weather Service</strong> (api.weather.gov). For a forecast, Loam's server sends the start point of your route to it.</li>
+  <li><strong>Overpass API</strong> (OpenTrailMap data). Loam's server sends the map area you are viewing to get trail details.</li>
+  <li><strong>GitHub</strong> receives bad-route reports, as above.</li>
+  <li><strong>Loam's server</strong> is a computer in the creator's home, reached over the internet through Tailscale Funnel. Tailscale carries the connection.</li>
+  <li><strong>Garmin Connect</strong>, if you connect it, as above.</li>
+</ul>
+
+<h2>Browser storage</h2>
+<p>Loam sets no tracking cookies. Your browser stores your Firebase sign-in state, a small cached copy of your profile, the email address you typed while signing in by email link, your last few routes for offline viewing, and the app's own files (a service worker cache). You can clear them in your browser settings.</p>
+
+<h2>Your choices</h2>
+<ul>
+  <li><strong>Export:</strong> in the You tab, "Export my data" downloads everything Loam holds about you as a JSON file (<code>/api/privacy/export</code>).</li>
+  <li><strong>Delete:</strong> in the You tab, "Delete account" permanently deletes your activities, trail visit records, saved routes, flags, check-ins, privacy zones, consent, connected services and the private copies of your bad-route reports (<code>/api/privacy/account</code>). Heat is then recalculated without you, so your contribution disappears from the map. Trail submissions that were not verified are deleted; a verified one stays on the map without your name. Public GitHub issues you filed stay on GitHub. Deleting here does not delete your Google account, and the sign-in record at Firebase Authentication stays until you ask <span data-contact>jjrpfister at gmail dot com</span> to remove it.</li>
+  <li><strong>Backups:</strong> a nightly database backup is kept on the server for 7 days, so deleted data can remain in those backups for up to 7 days. A one-off backup made before a risky change is deleted once the change is verified.</li>
+</ul>
+
+<h2>Age</h2>
+<p>Loam is for people 13 and older.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes, the new version is posted here with a new effective date. The source code is public, so changes to what Loam does can be checked against it.</p>
+
+<h2>Contact</h2>
+<p><span data-contact>jjrpfister at gmail dot com</span></p>
+
+</main>
+<footer>
+  <p>Loam is free software under the <a href="https://www.gnu.org/licenses/agpl-3.0.html">GNU AGPL v3 or later</a>.
+  <a href="https://github.com/JJRPF/loam">Source code</a> &middot; <a href="/legal/">Legal</a> &middot; <a href="/">Back to the app</a></p>
+</footer>
+<script src="/legal/contact.js" defer></script>
+</body>
+</html>

@@ -20,6 +20,7 @@ import { EmailLinkFinish } from './components/EmailLinkFinish';
 import trailheadData from './data/trailheads.json';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { decodeSearch, writeSearchUrl } from './urlState';
+import { LegalLinks } from './components/LegalLinks';
 import { getAppConfig, loadAppConfig, MIDPOINTS_OFF_NOTICE, useAppConfig } from './services/config';
 import { rememberRoute } from './services/offlineRoutes';
 import { OfflineBanner } from './components/OfflineBanner';
@@ -431,6 +432,11 @@ export const App: React.FC = () => {
                 <YouPanel isDarkMode={isDarkMode} />
               )}
             </ErrorBoundary>
+          </div>
+
+          {/* Desktop sidebar footer */}
+          <div style={{ borderTop: '1px solid var(--color-divider, #264A42)', padding: '0 20px' }}>
+            <LegalLinks />
           </div>
         </aside>
       )}

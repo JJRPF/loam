@@ -8,6 +8,7 @@ import {
 import { signOut, useAuth } from '../services/auth';
 import { SignInCard } from './SignInCard';
 import { PrivacyControls } from './PrivacyControls';
+import { LegalLinks } from './LegalLinks';
 import type { UserDNR, ConnectorStatus } from '../types';
 
 interface YouPanelProps {
@@ -323,6 +324,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
       <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.6, marginTop: 16 }}>
         <div>loam Trail Route Builder</div>
         <div>Built with MapLibre GL JS, GraphHopper & PostGIS</div>
+        <LegalLinks style={{ justifyContent: 'center', marginTop: 4 }} />
         <div style={{ marginTop: 8 }}>
           <a
             href="#/dev"
@@ -397,6 +399,7 @@ const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
           />
           Contribute Heat
         </label>
+        <a href="/legal/privacy/#heat" target="_blank" rel="noopener" style={{ fontSize: 12, color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>How heat works</a>
       </div>
 
       <button
