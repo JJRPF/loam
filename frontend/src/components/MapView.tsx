@@ -310,10 +310,10 @@ export const MapView: React.FC<MapViewProps> = ({
             'interpolate',
             ['linear'],
             ['get', 'heat_score'],
-            0, '#FFA726',
-            40, '#FF7043',
-            75, '#E63946',
-            100, '#D90429'
+            0, '#BFE3DD',
+            40, '#6FBFB5',
+            75, '#2A9D9A',
+            100, '#0B6E6E'
           ],
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 3, 14, 8, 17, 14],
           'line-blur': 3,
@@ -335,10 +335,10 @@ export const MapView: React.FC<MapViewProps> = ({
             'interpolate',
             ['linear'],
             ['get', 'heat_score'],
-            0, '#FFB74D',
-            40, '#FF7043',
-            75, '#E63946',
-            100, '#B71C1C'
+            0, '#9FD6CD',
+            40, '#4DB3AA',
+            75, '#178C8A',
+            100, '#075555'
           ],
           'line-width': ['interpolate', ['linear'], ['zoom'], 10, 1.5, 13, 3, 16, 5],
           'line-opacity': 0.85

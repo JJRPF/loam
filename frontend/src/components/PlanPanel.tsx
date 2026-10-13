@@ -9,6 +9,7 @@ import {
   TERRAIN_PRESETS
 } from '../types';
 import { geocodeLocations } from '../services/api';
+import { TerrainMixBar } from './TerrainMixBar';
 
 interface PlanPanelProps {
   sport: SportProfile;
@@ -25,8 +26,10 @@ interface PlanPanelProps {
   onTerrainPrefChange: (pref: TerrainPreference) => void;
   onBuildRoutes: () => void;
   isLoading: boolean;
-  onPickOnMap: (target: 'start' | 'end') => void;
-  pickingTarget: 'start' | 'end' | null;
+  onPickOnMap: (target: 'start' | 'end' | 'mid') => void;
+  pickingTarget: 'start' | 'end' | 'mid' | null;
+  waypoints?: LatLon[];
+  onWaypointsChange?: (w: LatLon[]) => void;
   overrideDnr?: boolean;
   onOverrideDnrChange?: (override: boolean) => void;
   // Stage 6: Differentiators
@@ -59,6 +62,8 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   isLoading,
   onPickOnMap,
   pickingTarget,
+  waypoints = [],
+  onWaypointsChange,
   overrideDnr = false,
   onOverrideDnrChange,
   findNewTrailsMode = false,
@@ -525,6 +530,42 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
             )}
           </div>
         )}
+
+        {/* Midpoints (point to point): the route passes through each, in order */}
+        {routeMode === 'point_to_point' && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+              <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
+                Midpoints ({waypoints.length}/5)
+              </label>
+              <button
+                type="button"
+                disabled={waypoints.length >= 5}
+                onClick={() => onPickOnMap('mid')}
+                style={{
+                  fontSize: 12, padding: '2px 8px', minHeight: 28,
+                  backgroundColor: pickingTarget === 'mid' ? 'var(--color-blaze, #FF5B14)' : 'var(--color-slate-light, #E2ECF3)',
+                  color: pickingTarget === 'mid' ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)'
+                }}
+              >
+                {pickingTarget === 'mid' ? 'Tap Map...' : 'Add midpoint'}
+              </button>
+            </div>
+            {waypoints.map((w, i) => (
+              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)', marginBottom: 4, fontSize: 12 }}>
+                <span>{i + 1}. {w.name || 'Midpoint'}</span>
+                <button
+                  type="button"
+                  aria-label={`Remove midpoint ${i + 1}`}
+                  onClick={() => onWaypointsChange?.(waypoints.filter((_, k) => k !== i))}
+                  style={{ minHeight: 28, minWidth: 28, padding: 0 }}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* 4. Target Distance in Miles (Strictly Miles!) */}
@@ -599,36 +640,11 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
           ))}
         </div>
 
-        {/* Segmented Terrain Visual Preview Bar */}
-        <div style={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', marginBottom: 12, backgroundColor: 'var(--color-divider, #E0E0E0)' }}>
-          <div style={{ width: `${terrainPref.singletrack * 100}%`, backgroundColor: '#2E6F40' }} title="Singletrack" />
-          <div style={{ width: `${terrainPref.doubletrack * 100}%`, backgroundColor: '#8D6E63' }} title="Doubletrack" />
-          <div style={{ width: `${terrainPref.gravel * 100}%`, backgroundColor: '#D4A373' }} title="Gravel" />
-          <div style={{ width: `${terrainPref.paved * 100}%`, backgroundColor: '#78909C' }} title="Paved" />
-        </div>
-
-        {/* Individual Adjusters */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          {[
-            { key: 'singletrack', label: 'Singletrack', color: '#2E6F40' },
-            { key: 'doubletrack', label: 'Doubletrack', color: '#8D6E63' },
-            { key: 'gravel', label: 'Gravel', color: '#D4A373' },
-            { key: 'paved', label: 'Paved / Road', color: '#78909C' }
-          ].map(t => {
-            const val = (terrainPref as any)[t.key] as number;
-            return (
-              <div key={t.key} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 13 }}>
-                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-                  <span style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: t.color }} />
-                  {t.label}
-                </span>
-                <span className="num-tabular" style={{ fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)' }}>
-                  {Math.round(val * 100)}%
-                </span>
-              </div>
-            );
-          })}
-        </div>
+        {/* One stacked bar; drag a divider (or use the arrow keys on it) to shift terrain between neighbours */}
+        <TerrainMixBar
+          value={terrainPref}
+          onChange={(next) => { setSelectedPresetName(''); onTerrainPrefChange(next); }}
+        />
       </section>
 
       {/* 5b. Trust & DNR Settings */}

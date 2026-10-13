@@ -554,6 +554,47 @@ export async function submitBadRouteReport(
   return await res.json();
 }
 
+export interface PrivacyZone {
+  id: number;
+  name: string;
+  lat: number;
+  lon: number;
+  radius_m: number;
+}
+
+export async function listPrivacyZones(): Promise<PrivacyZone[]> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/zones`);
+  if (!res.ok) throw new Error(`Failed to load privacy zones (${res.status})`);
+  return await res.json();
+}
+
+export async function createPrivacyZone(zone: { name: string; lat: number; lon: number; radius_m: number }): Promise<PrivacyZone> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/zones`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(zone)
+  });
+  if (!res.ok) throw new Error(`Failed to save the privacy zone (${res.status})`);
+  return await res.json();
+}
+
+export async function deletePrivacyZone(id: number): Promise<void> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/zones/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`Failed to delete the privacy zone (${res.status})`);
+}
+
+export async function getContribution(): Promise<boolean> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/consent`);
+  if (!res.ok) throw new Error(`Failed to load consent (${res.status})`);
+  return Boolean((await res.json()).consent_given);
+}
+
+export async function setContribution(consentGiven: boolean): Promise<boolean> {
+  const res = await authedFetch(`${API_BASE}/api/privacy/consent?consent_given=${consentGiven}`, { method: 'POST' });
+  if (!res.ok) throw new Error(`Failed to save consent (${res.status})`);
+  return Boolean((await res.json()).consent_given);
+}
+
 export async function listFlags(
   edgeOsmId?: number,
   status: string = 'active'

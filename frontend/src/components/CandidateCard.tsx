@@ -270,8 +270,8 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
         }}
       >
         <div style={{ width: `${route.surface_breakdown?.singletrack || 0}%`, backgroundColor: '#2E6F40' }} title="Singletrack" />
-        <div style={{ width: `${route.surface_breakdown?.doubletrack || 0}%`, backgroundColor: '#8D6E63' }} title="Doubletrack" />
-        <div style={{ width: `${route.surface_breakdown?.gravel || 0}%`, backgroundColor: '#D4A373' }} title="Gravel" />
+        <div style={{ width: `${route.surface_breakdown?.doubletrack || 0}%`, backgroundColor: '#C9A227' }} title="Doubletrack" />
+        <div style={{ width: `${route.surface_breakdown?.gravel || 0}%`, backgroundColor: '#8D6E63' }} title="Gravel" />
         <div style={{ width: `${route.surface_breakdown?.paved || 0}%`, backgroundColor: '#78909C' }} title="Paved" />
       </div>
     </article>

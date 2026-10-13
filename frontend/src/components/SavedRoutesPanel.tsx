@@ -3,6 +3,7 @@ import type { SavedRoute, RouteResponse } from '../types';
 import { fetchSavedRoutes, deleteSavedRoute } from '../services/api';
 import { useAuth } from '../services/auth';
 import { formatGain } from '../format';
+import { recentRoutes } from '../services/offlineRoutes';
 
 interface SavedRoutesPanelProps {
   onLoadRoute: (route: RouteResponse) => void;
@@ -12,6 +13,11 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
   const [routes, setRoutes] = useState<SavedRoute[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user, ready } = useAuth();
+  const [recent, setRecent] = useState<RouteResponse[]>([]);
+
+  useEffect(() => {
+    recentRoutes().then(setRecent);
+  }, []);
 
   const loadRoutes = async () => {
     setIsLoading(true);
@@ -104,6 +110,27 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
         </button>
       </div>
 
+      {recent.length > 0 && (
+        <section aria-label="Recently viewed routes">
+          <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
+            Recently viewed (available offline)
+          </div>
+          {recent.map((r, i) => (
+            <div
+              key={`${r.id || r.name}-${i}`}
+              role="button"
+              tabIndex={0}
+              onClick={() => onLoadRoute(r)}
+              onKeyDown={(e) => { if (e.key === 'Enter') onLoadRoute(r); }}
+              style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: '8px 12px', marginBottom: 6, cursor: 'pointer', fontSize: 13, color: 'var(--color-text-primary, #1D3B34)', display: 'flex', justifyContent: 'space-between' }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.name}</span>
+              <span className="num-tabular" style={{ flexShrink: 0, marginLeft: 8 }}>{(r.distance_miles ?? 0).toFixed(1)} mi</span>
+            </div>
+          ))}
+        </section>
+      )}
+
       {isLoading && (
         <div style={{ padding: 20, textAlign: 'center', color: 'var(--color-text-secondary, #42675E)', fontSize: 14 }}>
           Loading saved routes from database...
@@ -116,7 +143,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
             No saved routes yet
           </div>
           <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)' }}>
-            Plan a route in the Plan tab and tap "Save to Profile" to store it in your PostgreSQL account and access it offline or sync to Garmin.
+            Plan a route in the Plan tab and tap "Save to Profile" to store it in your account. Routes you view are also kept on this device for offline use.
           </div>
         </div>
       )}

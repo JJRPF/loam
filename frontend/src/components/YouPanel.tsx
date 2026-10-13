@@ -7,6 +7,7 @@ import {
 } from '../services/api';
 import { signOut, useAuth } from '../services/auth';
 import { SignInCard } from './SignInCard';
+import { PrivacyControls } from './PrivacyControls';
 import type { UserDNR, ConnectorStatus } from '../types';
 
 interface YouPanelProps {
@@ -149,6 +150,8 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
         <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: 0 }}>
           We always trim 0.2 mi from the start and end of uploaded rides. Public heat only shows trails ridden by enough different riders to keep any one of them anonymous.
         </p>
+
+        {isSignedIn && <PrivacyControls />}
 
         <div style={{ borderTop: '1px solid var(--color-divider, #E7ECEC)', paddingTop: 10, fontSize: 13 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

@@ -131,3 +131,19 @@ Built as written. `POST /api/reports/bad-route` (auth, 5 per user per 24 h, then
 - Tests: `tests/test_round7_reports.py` (6): 401 anonymous, 422 short comment, GitHub mocked, none of the first or last 90 points in the body, no start/end/midpoint coordinates, mentions neutralized, size limit, pending then filed by the worker, 5/day limit, admin-only read.
 - `GITHUB_FEEDBACK_TOKEN` is read from the environment only; copied to the Pi in Phase 9 without echoing.
 - Fixed `'activity_id'` in `recalculate_regional_coverage` (it selected `a.id`, read `activity_id`, and indexed a dict cursor as a tuple). It now computes centroids in SQL; 29 cells locally.
+
+## Phase 8: README and feature audit (plan section 10)
+
+`docs/round7-feature-audit.md` has one row per README feature, API row and plan decision, with status and evidence. It is honest about UI rows: the code is built and compiles, but a row is only "works" once the Playwright check in Phase 9 has run, so those say *UI check pending*.
+
+Built this phase (each was missing or partial in the audit):
+- **PWA:** `vite-plugin-pwa` **1.3.0**, pinned exactly with `workbox-build`/`workbox-window` 7.4.1. **Deviation:** 2.0.0 is the newest but was published 10 days ago, so I used the previous minor. Precaches the app shell (31 entries, 2.2 MB); API and tiles are not cached by the service worker (tile provider terms). The last 10 viewed routes go to IndexedDB (`services/offlineRoutes.ts`) and are listed under Saved as "Recently viewed (available offline)"; an offline banner shows when the browser is offline. GPX download already had a client-side fallback. FIT needs a connection. Icons and manifest were already wired to `frontend/public/brand`.
+- **Midpoints:** up to 5, in order, point-to-point only (the plan says midpoints are honored by point-to-point routing; loops ignore them, listed under Deferred). The UI used a constant empty `waypoints` array before.
+- **Terrain mix:** `TerrainMixBar.tsx`, one stacked bar with 3 draggable dividers (pointer and keyboard), 4 groups, 5% steps.
+- **Shareable URL:** `urlState.ts`. Building routes writes the whole search to the query string; opening such a link re-runs the search once, and skips GPS lookup.
+- **Surface colors:** singletrack green, doubletrack yellow `#C9A227`, gravel brown `#8D6E63`, paved grey (they were brown/tan). Heat layer ramp changed from red/orange to teal-to-pale, as the plan says.
+- **Privacy controls in the You panel (README "missing"):** account-level contribution consent and privacy zones (add at my location, radius 0.25/0.5/1 mi, remove). The plan keeps both in the panel; neither had UI.
+- **README:** removed the fake "55 tests" badge and the invented "verified NH datasets" claim; fixed the stream path, color tokens, the "exactly 10" wording, the offline claim; added data setup (migrate, 3DEP, OSM import, Garmin strip/upload), Firebase setup, bad-route reports and the pre-launch checklist (including `HEAT_MIN_UNIQUE_RIDERS` back to 3).
+- Connector defaults already match the plan: Strava off, Trailforks off, Garmin login flagged, no CubeTrek demo fallback.
+
+Not built, listed for "Deferred, needs user OK": loops honoring midpoints, DNR overrides weakening others' penalty, PAD-US / wilderness polygons, nightly Pi backup job, weather / water markers / offline map regions / turn-by-turn / friends / contributor perks / OSM export of confirmed trails.
