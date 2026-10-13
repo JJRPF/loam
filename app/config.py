@@ -40,8 +40,12 @@ class Settings(BaseModel):
     admin_emails: list = _csv(os.getenv("ADMIN_EMAILS", ""))
     cors_origins: list = _csv(os.getenv(
         "CORS_ORIGINS",
-        "https://core-node.tailcd5892.ts.net,http://localhost:5173",
+        "https://loam.thepfisters.com,https://core-node.tailcd5892.ts.net,http://localhost:5173",
     ))
+    # Where the web app lives (Firebase Hosting). When set, browser navigations that reach the API's own
+    # public host (the Tailscale Funnel) are redirected there. Unset in dev; LAN hosts are never redirected.
+    public_app_origin: str = os.getenv("PUBLIC_APP_ORIGIN", "").strip().rstrip("/")
+    api_public_host: str = os.getenv("API_PUBLIC_HOST", "core-node.tailcd5892.ts.net").strip().lower()
 
     # Feature Flags & Connector Configuration
     # Strava and Trailforks stay off until their current terms are confirmed (plan section 10.7).

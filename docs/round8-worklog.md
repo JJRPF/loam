@@ -89,6 +89,20 @@ Tests: `tests/test_round8_ratelimit.py` (12). The legal-claims test no longer ex
 
 ## Phase 8: Hosting on loam.thepfisters.com
 
+Frontend: every API call already went through `API_BASE`; it now reads `VITE_API_BASE` (empty in dev). `services/origin.ts` + `main.tsx`: in a production build, a page loaded from any origin other than `VITE_PUBLIC_APP_ORIGIN` (not localhost, 127.0.0.1, core-node.local) does `location.replace(origin + path + search + hash)` before React renders. `scripts/web-build-env.sh` sets the production `VITE_*` values (API base, public origin, `VITE_FIREBASE_AUTH_DOMAIN=loam.thepfisters.com`); the email-link URL is `window.location.origin + /auth/finish`, so it follows the origin. `index.html` has the production title, description, canonical, Open Graph and Twitter tags (absolute social-card URL) and JSON-LD (`WebSite` and `SoftwareApplication`, free); `robots.txt` and `sitemap.xml` added.
+
+API: `CORS_ORIGINS` default and `.env.example` now include `https://loam.thepfisters.com`; new `PUBLIC_APP_ORIGIN` (and `API_PUBLIC_HOST`, default the Funnel host). When set, GET/HEAD requests whose Host is the Funnel host (other than `/api/*` and `/health`) get a 301 to the public origin with path and query; `/sw.js` on that host is a no-store kill-switch worker (unregisters itself, navigates open tabs). LAN hosts are not redirected.
+
+Hosting: `firebase.json` (hosting block only, site `thepfisters`, `frontend/dist`, SPA rewrite, cache headers, security headers and a CSP), `.firebaserc`, `scripts/deploy-web.sh` (pinned `firebase-tools@15.33.0`, `deploy --only hosting --project thepfisters`, refuses source maps, checks the bundle carries the API base). `deploy-pi.sh` builds through the same `web-build-env.sh`, so the Pi's bundle matches.
+
+Deviations:
+- The repo tracked `frontend/public/assets/maplibre-gl-worker-dev.mjs` and three `.map` files (about 6 MB) that the deploy would publish; I removed the dev worker and the maps from the repo and stripped the `sourceMappingURL` comment from the production worker. The oxlint config now ignores the vendored worker.
+- The CSP is a first version from the code's known hosts (CARTO tiles, Funnel API, Google/Firebase auth hosts, Google Fonts); Phase 9 records real loads and zero CSP violations before it is final.
+- The Playwright test for the kill-switch worker (plan 8.2) is part of Phase 9; Phase 8 tests the endpoint itself.
+- Offline routes saved on the old Funnel origin do not carry over (different origin storage); the owner is the only user, so no migration.
+
+Tests: `tests/test_round8_hosting.py` (7: redirect, exclusions, kill switch, CORS, firebase.json and deploy script hosting-only).
+
 ## Phase 9: Playwright UI testing, screenshots, README
 
 ## Phase 10: Deploy and verify

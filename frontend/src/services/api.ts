@@ -19,7 +19,8 @@ import type {
 import { getIdToken } from './auth';
 import { formatGain } from '../format';
 
-export const API_BASE = ''; // proxied via vite in dev, relative in production
+// '' in dev (proxied by Vite); the production build sets VITE_API_BASE to the API's public origin
+export const API_BASE: string = ((import.meta.env.VITE_API_BASE as string | undefined) ?? '').replace(/\/+$/, '');
 
 /** A 429 from the server: its message is friendly and safe to show to people as is. */
 export class RateLimitError extends Error {

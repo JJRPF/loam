@@ -14,7 +14,7 @@ export default defineConfig({
       manifest: false, // public/manifest.json is the manifest
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,json,mjs}'],
-        globIgnores: ['**/*.map', '**/maplibre-gl-worker-dev.mjs'],
+        globIgnores: ['**/*.map'],
         maximumFileSizeToCacheInBytes: 6 * 1024 * 1024,
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/health/, /^\/legal\//],

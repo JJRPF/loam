@@ -84,6 +84,36 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+# An old PWA installed from the Funnel origin keeps a service worker there. A redirected /sw.js would not
+# update it, so that host serves this one: it unregisters itself and sends open tabs to the new origin.
+KILL_SWITCH_SW = """self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    await self.registration.unregister();
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const c of clients) { try { c.navigate(%s); } catch (e) {} }
+  })());
+});
+"""
+
+
+@app.middleware("http")
+async def old_origin_redirect(request, call_next):
+    origin = settings.public_app_origin
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    if origin and host == settings.api_public_host:
+        path = request.url.path
+        if path == "/sw.js":
+            from fastapi.responses import Response
+            body = KILL_SWITCH_SW % json.dumps(origin + "/")
+            return Response(body, media_type="text/javascript", headers={"Cache-Control": "no-store"})
+        if request.method in ("GET", "HEAD") and not (path.startswith("/api/") or path == "/health"):
+            from fastapi.responses import RedirectResponse
+            query = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse(origin + path + query, status_code=301)
+    return await call_next(request)
+
+
 MIDPOINTS_OFF_NOTICE = "Midpoints are turned off for now, so this route ignores them."
 
 

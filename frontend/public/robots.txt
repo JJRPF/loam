@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://loam.thepfisters.com/sitemap.xml
