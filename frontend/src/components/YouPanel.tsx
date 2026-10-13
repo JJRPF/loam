@@ -646,14 +646,24 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     }
   };
 
+  // A disabled connector is invisible (no card, no modal, no mention): only enabled ones render.
+  const enabledConnectors = connectors.filter((c) => c.enabled === true);
+  const isEnabled = (name: string) => enabledConnectors.some((c) => c.name === name);
+  const enabledNames = enabledConnectors.map((c) => c.display_name);
+  const namesText = enabledNames.length > 1
+    ? `${enabledNames.slice(0, -1).join(', ')} and ${enabledNames[enabledNames.length - 1]}`
+    : enabledNames[0];
+
   return (
     <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
-          Connected Services (Connectors)
+          Connected services
         </h3>
         <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: '4px 0 0 0' }}>
-          Connect Garmin Connect and Trailforks to sync activities into your private heat layer and view condition reports. Passwords are never stored; tokens are AES-encrypted at rest.
+          {namesText
+            ? `Connect ${namesText} to sync your activities into your private heat. Passwords are never stored; tokens are encrypted at rest.`
+            : 'No services are available to connect right now.'}
         </p>
       </div>
 
@@ -667,7 +677,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
         <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Loading connectors...</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {connectors.map((c) => (
+          {enabledConnectors.map((c) => (
             <div
               key={c.name}
               style={{
@@ -683,22 +693,6 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <strong style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}>{c.display_name}</strong>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '1px 5px',
-                      borderRadius: 3,
-                      backgroundColor: c.enabled 
-                        ? (isDarkMode ? '#163826' : '#E8F5E9') 
-                        : (isDarkMode ? '#243431' : '#ECEFF1'),
-                      color: c.enabled 
-                        ? (isDarkMode ? '#86EFAC' : '#2E6F40') 
-                        : (isDarkMode ? '#94A3B8' : '#78909C')
-                    }}
-                  >
-                    {c.enabled ? 'Enabled' : 'Disabled'}
-                  </span>
                   {c.connected && (
                     <span
                       style={{
@@ -789,7 +783,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* Garmin Connect Modal */}
-      {showGarminModal && (
+      {showGarminModal && isEnabled('garmin') && (
         <div
           style={{
             position: 'fixed',
@@ -968,7 +962,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* Trailforks Connect Modal */}
-      {showTrailforksModal && (
+      {showTrailforksModal && isEnabled('trailforks') && (
         <div
           style={{
             position: 'fixed',
@@ -1069,7 +1063,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* Strava Connect Modal (Personal API Token) */}
-      {showStravaModal && (
+      {showStravaModal && isEnabled('strava') && (
         <div
           style={{
             position: 'fixed',
@@ -1182,7 +1176,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* CubeTrek Modal */}
-      {showCubeTrekModal && (
+      {showCubeTrekModal && isEnabled('cubetrek') && (
         <div
           style={{
             position: 'fixed',

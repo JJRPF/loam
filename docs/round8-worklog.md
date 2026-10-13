@@ -50,6 +50,8 @@ What changed:
 
 ## Phase 5: Hide disabled connectors
 
+`YouPanel.tsx` renders only connectors whose status has `enabled === true` (from `/api/connectors`): no card, no "Disabled" badge (the "Enabled" badge went too, since it would always say so), and the Garmin, Trailforks, Strava and CubeTrek modals open only for an enabled connector. The section title is "Connected services", and the intro is built from the enabled names ("Connect Garmin Connect and CubeTrek to sync your activities into your private heat. Passwords are never stored; tokens are encrypted at rest."; "No services are available to connect right now." if none). `grep -rni "strava\|trailforks" frontend/src`: only `api.ts` (client functions) and `YouPanel.tsx` code reachable from an enabled connector; there is no Trailforks attribution elsewhere in the UI. Backend unchanged apart from `/api/config` (Phase 2). New `tests/test_round8_connectors_hidden.py` (2): `/api/config` connectors follow each flag; the signed-in connector list agrees with it and Strava/Trailforks default off. The browser check (absent with flags off, present with flags on) is in Phase 9. `npm run build` OK, lint clean.
+
 ## Phase 6: Legal pages, license, source link
 
 ## Phase 7: Production hardening for a public launch
