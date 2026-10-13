@@ -90,7 +90,7 @@ class StravaConnector(BaseConnector):
         async with httpx.AsyncClient(timeout=6.0) as client:
             resp = await client.get(
                 "https://www.strava.com/api/v3/athlete",
-                headers={"Authorization": f"Bearer {token}"}
+                headers={"Authorization": f"Bearer {token}", "User-Agent": settings.user_agent}
             )
         return resp.status_code, (resp.json() if resp.status_code == 200 else {})
 

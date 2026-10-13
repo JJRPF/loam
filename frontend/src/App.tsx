@@ -8,7 +8,7 @@ import type {
 import {
   TERRAIN_PRESETS
 } from './types';
-import { API_BASE, calculateRoute, streamRouteOptions } from './services/api';
+import { API_BASE, calculateRoute, RateLimitError, streamRouteOptions } from './services/api';
 import { MapView } from './components/MapView';
 import { PlanPanel } from './components/PlanPanel';
 import { ResultsPanel } from './components/ResultsPanel';
@@ -220,6 +220,10 @@ export const App: React.FC = () => {
         onError: (err) => {
           console.error('Route options stream error:', err);
           setIsLoading(false);
+          if (err instanceof RateLimitError) {
+            setOptionsNotice(err.message);  // inline, in the results panel; a fallback request would hit the same limit
+            return;
+          }
           // Fallback to single calculation if stream fails
           calculateRoute({
             start,
@@ -239,7 +243,7 @@ export const App: React.FC = () => {
           }).then(res => {
             setRoute(res);
             setOptions([res]);
-          }).catch(e => alert(`Route calculation failed: ${e.message}`));
+          }).catch(e => setOptionsNotice(e instanceof RateLimitError ? e.message : `Route calculation failed: ${e.message}`));
         }
       }
     );

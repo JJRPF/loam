@@ -66,9 +66,6 @@ def test_claims_audit_references_real_code():
     assert len(refs) > 40
     for path, symbol in refs:
         f = ROOT / path
-        if not f.exists():
-            continue  # planned or deployment-side files (Phase 7 modules) are checked by their own tests
+        assert f.exists(), f"{path} is cited by the legal claims but missing"
         if symbol:
             assert symbol in f.read_text(), f"{path} has no {symbol}"
-    missing = [p for p, _ in refs if not (ROOT / p).exists()]
-    assert set(missing) <= {"app/ratelimit.py", "tests/test_round8_ratelimit.py"}, missing

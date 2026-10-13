@@ -67,6 +67,13 @@ def _migrated_db():
 
 
 @pytest.fixture(autouse=True)
+def _fresh_rate_limits():
+    from app.ratelimit import limiter
+    limiter.reset()
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _test_auth_overrides():
     assert settings.loam_env == "test", "test auth overrides need LOAM_ENV=test"
     app.dependency_overrides[get_current_user] = _test_current_user

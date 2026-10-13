@@ -4,7 +4,11 @@
 # Orchestrates local services (Vite PWA & FastAPI) and exposes unified HTTPS
 # ingress via Tailscale Serve / Funnel for mobile dev testing and GPS validation.
 #
-# NOTE: Tailscale Funnel is strictly for developer testing, NEVER for production.
+# How Funnel is used: in production the Raspberry Pi exposes the API (port 8085) at
+# https://core-node.tailcd5892.ts.net through Tailscale Funnel, and the web app itself is served by
+# Firebase Hosting at https://loam.thepfisters.com, calling that API cross-origin. This script sets up
+# the same kind of public HTTPS ingress for a development machine, e.g. to test GPS on a phone. It resets
+# whatever Serve/Funnel mappings the machine has, so do not run it on the Pi.
 # ==============================================================================
 
 set -euo pipefail

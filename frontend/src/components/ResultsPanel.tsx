@@ -8,7 +8,6 @@ import { fetchWeather, fetchMyNetwork, type WeatherPeriod, type NetworkStat } fr
 import { ReportBadRouteModal } from './ReportBadRouteModal';
 import { 
   downloadGpx, downloadFit, shareRouteGarmin, saveRouteApi,
-  submitTrailCheckin, createFlag
 } from '../services/api';
 
 interface ResultsPanelProps {
@@ -79,12 +78,6 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
   const [showScoreBreakdown, setShowScoreBreakdown] = useState(true);
 
   // Trust Layer States
-  const [checkinStatus, setCheckinStatus] = useState<string | null>(null);
-  const [isCheckinLoading, setIsCheckinLoading] = useState(false);
-  const [showFlagModal, setShowFlagModal] = useState(false);
-  const [flagType, setFlagType] = useState<'gone' | 'blocked' | 'closed' | 'seasonal'>('blocked');
-  const [flagDetails, setFlagDetails] = useState('');
-  const [flagStatus, setFlagStatus] = useState<string | null>(null);
 
   // Loading skeleton while initial candidates are streaming
   if (!route && isLoading && options.length === 0) {
@@ -195,35 +188,6 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       </div>
     );
   }
-
-  const handleCheckin = async () => {
-    setIsCheckinLoading(true);
-    try {
-      const edgeId = 999202;
-      const res = await submitTrailCheckin(edgeId, 'still_open', 'Checked in via Loam UI');
-      setCheckinStatus(`✓ Trail checked in as still open! (Confidence: ${Math.round(res.confidence_score * 100)}%)`);
-      setTimeout(() => setCheckinStatus(null), 4000);
-    } catch (e: any) {
-      setCheckinStatus(`Check-in: ${e.message}`);
-    } finally {
-      setIsCheckinLoading(false);
-    }
-  };
-
-  const handleReportFlag = async () => {
-    try {
-      const edgeId = 999101;
-      await createFlag(edgeId, flagType, flagDetails);
-      setFlagStatus('✓ Flag submitted to community!');
-      setTimeout(() => {
-        setFlagStatus(null);
-        setShowFlagModal(false);
-        setFlagDetails('');
-      }, 2000);
-    } catch (e: any) {
-      alert(`Flag failed: ${e.message}`);
-    }
-  };
 
   const handleDownloadGpx = async () => {
     setIsExportingGpx(true);
@@ -455,26 +419,6 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           </div>
         )}
 
-        {/* Trail Trust Actions: 1-Tap Check-in & Flag Report */}
-        <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-          <button
-            type="button"
-            onClick={handleCheckin}
-            disabled={isCheckinLoading}
-            className="btn-secondary"
-            style={{ flex: 1, fontSize: 12, minHeight: 32, borderColor: 'var(--color-lichen, #A9BF7A)', color: 'var(--color-text-primary, #1D3B34)', fontWeight: 600 }}
-          >
-            {isCheckinLoading ? 'Checking in...' : '✓ "Still Open" Check-in'}
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowFlagModal(!showFlagModal)}
-            className="btn-secondary"
-            style={{ flex: 1, fontSize: 12, minHeight: 32, borderColor: 'var(--color-divider, #D1D8D8)', color: 'var(--color-text-primary, #1D3B34)' }}
-          >
-            🚩 Report Trail Issue
-          </button>
-        </div>
         <div style={{ marginTop: 8 }}>
           {signedInUser ? (
             <button
@@ -498,61 +442,6 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             request={searchRequest}
             onClose={() => setReportTarget(null)}
           />
-        )}
-
-        {checkinStatus && (
-          <div style={{ fontSize: 12, color: '#2E6F40', backgroundColor: 'rgba(46, 111, 64, 0.15)', padding: '6px 10px', borderRadius: 4, marginTop: 6 }}>
-            {checkinStatus}
-          </div>
-        )}
-
-        {showFlagModal && (
-          <div style={{ backgroundColor: 'var(--color-bg-subtle, #F8F9FA)', border: '1px solid var(--color-divider, #D1D8D8)', borderRadius: 6, padding: 10, marginTop: 8, display: 'flex', flexDirection: 'column', gap: 8 }}>
-            <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>Report Trail Condition</div>
-            <div style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
-              <label>
-                Type:{' '}
-                <select
-                  value={flagType}
-                  onChange={(e) => setFlagType(e.target.value as any)}
-                  style={{ padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)' }}
-                >
-                  <option value="blocked">Blocked (Trees/Mud)</option>
-                  <option value="gone">Gone / Overgrown</option>
-                  <option value="closed">Closed</option>
-                  <option value="seasonal">Seasonal Mud Alert</option>
-                </select>
-              </label>
-            </div>
-            <input
-              type="text"
-              placeholder="Optional details (e.g. large oak down 0.5mi in)"
-              value={flagDetails}
-              onChange={(e) => setFlagDetails(e.target.value)}
-              style={{ padding: '6px 8px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 12 }}
-            />
-            <div style={{ display: 'flex', gap: 6, justifyContent: 'flex-end' }}>
-              <button
-                type="button"
-                onClick={() => setShowFlagModal(false)}
-                className="btn-outline"
-                style={{ fontSize: 11, minHeight: 28, padding: '2px 8px' }}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleReportFlag}
-                className="btn-primary"
-                style={{ fontSize: 11, minHeight: 28, padding: '2px 10px' }}
-              >
-                Submit Flag
-              </button>
-            </div>
-            {flagStatus && (
-              <div style={{ fontSize: 11, color: 'var(--color-lichen, #2E6F40)' }}>{flagStatus}</div>
-            )}
-          </div>
         )}
       </div>
 

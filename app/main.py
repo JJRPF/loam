@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional, List
 
 from app.config import settings, check_production_config
+from app.ratelimit import rate_limited, route_slot
 from app.auth import AuthUser, get_current_user, get_optional_user, get_admin_user
 from app.models import (
     BadRouteReport, BadRouteReportResponse,
@@ -133,7 +134,7 @@ async def health():
         elevation_provider=f"{settings.elevation_provider} ({tile_count()} DEM tiles)"
     )
 
-@app.post("/api/route", response_model=RouteResponse)
+@app.post("/api/route", response_model=RouteResponse, dependencies=[Depends(rate_limited("route", "building routes"))])
 async def calculate_route(
     request: RouteRequest,
     user: Optional[AuthUser] = Depends(get_optional_user)
@@ -142,18 +143,21 @@ async def calculate_route(
         uid = user.uid if user else None
         notice = apply_midpoint_flag(request)
         t0 = time.perf_counter()
-        route = await fetch_route(request, user_id=uid)
+        async with route_slot():
+            route = await fetch_route(request, user_id=uid)
         elapsed_ms = (time.perf_counter() - t0) * 1000
         if notice:
             route = route.model_copy(update={"notice": notice})
         return route
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
 
-@app.post("/api/route/options", response_model=RouteOptionsResponse)
+@app.post("/api/route/options", response_model=RouteOptionsResponse, dependencies=[Depends(rate_limited("route", "building routes"))])
 async def calculate_route_options(
     request: RouteOptionsRequest,
     user: Optional[AuthUser] = Depends(get_optional_user)
@@ -161,7 +165,8 @@ async def calculate_route_options(
     try:
         uid = user.uid if user else None
         mid_notice = apply_midpoint_flag(request)
-        result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+        async with route_slot():
+            result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
         options = result.options
         is_loop_req = request.is_loop or request.route_mode in ("loop", "round_trip") or (request.end is None and request.route_mode != "out_and_back")
         has_true_loops = any(opt.route_type in ("loop", "lollipop") for opt in options)
@@ -175,13 +180,15 @@ async def calculate_route_options(
             nearby_start_suggestion=result.nearby_suggestion,
             notice=_join_notices(mid_notice, result.notice),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
 
-@app.post("/api/route/options/stream")
+@app.post("/api/route/options/stream", dependencies=[Depends(rate_limited("route", "building routes"))])
 async def stream_route_options_post(
     request: RouteOptionsRequest,
     user: Optional[AuthUser] = Depends(get_optional_user)
@@ -190,13 +197,16 @@ async def stream_route_options_post(
     mid_notice = apply_midpoint_flag(request)
     async def event_generator():
         try:
-            result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+            async with route_slot():
+                result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
             for opt in result.options:
                 yield f"event: candidate\ndata: {opt.model_dump_json()}\n\n"
             done = {"status": "complete", "count": len(result.options),
                     "notice": _join_notices(mid_notice, result.notice),
                     "nearby_start_suggestion": result.nearby_suggestion}
             yield f"event: complete\ndata: {json.dumps(done)}\n\n"
+        except HTTPException as e:  # 429 from the concurrency cap: tell the client why, with the status
+            yield f"event: error\ndata: {json.dumps({'error': e.detail, 'status': e.status_code, 'retry_after': (e.headers or {}).get('Retry-After')})}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
@@ -210,7 +220,7 @@ async def stream_route_options_post(
         }
     )
 
-@app.get("/api/route/options/stream")
+@app.get("/api/route/options/stream", dependencies=[Depends(rate_limited("route", "building routes"))])
 async def stream_route_options_get(
     lat: float,
     lon: float,
@@ -393,14 +403,32 @@ def load_trailheads() -> List[Dict[str, Any]]:
     except (OSError, ValueError):
         return []
 
+PHOTON_TTL_S = 3600
+_photon_cache: Dict[str, tuple] = {}
+
+
 async def photon_search(query: str) -> List[Dict[str, Any]]:
-    """Photon (komoot, OSM data) search; [] when it can't be reached."""
+    """Photon (komoot, OSM data) search, cached for an hour per query; [] when it can't be reached."""
+    key = " ".join(query.lower().split())
+    hit = _photon_cache.get(key)
+    if hit and time.time() - hit[0] < PHOTON_TTL_S:
+        return hit[1]
+    out = await _photon_fetch(query)
+    if out is not None:
+        if len(_photon_cache) > 500:
+            _photon_cache.clear()
+        _photon_cache[key] = (time.time(), out)
+    return out or []
+
+
+async def _photon_fetch(query: str) -> Optional[List[Dict[str, Any]]]:
+    """None when Photon can't answer (not cached), else the results."""
     out = []
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, headers={"User-Agent": settings.user_agent}) as client:
             resp = await client.get("https://photon.komoot.io/api/", params={"q": query, "limit": 5})
         if resp.status_code != 200:
-            return []
+            return None
         for feat in resp.json().get("features", []):
             props = feat.get("properties", {})
             coords = feat.get("geometry", {}).get("coordinates", [])
@@ -410,11 +438,11 @@ async def photon_search(query: str) -> List[Dict[str, Any]]:
                 out.append({"name": name, "display_name": f"{name}, {city}".strip(", "),
                             "lat": coords[1], "lon": coords[0]})
     except Exception:
-        return []
+        return None
     return out
 
 
-@app.get("/api/geocode")
+@app.get("/api/geocode", dependencies=[Depends(rate_limited("geocode", "searching"))])
 async def geocode_location(q: str):
     """
     Geocodes a search string: OSM-derived trailhead parking first, then the Photon
@@ -446,7 +474,7 @@ async def geocode_location(q: str):
 
 # --- Stage 4: Activity Ingestion, Heat & Privacy Endpoints ---
 
-@app.post("/api/activities/upload", response_model=ActivityUploadResponse)
+@app.post("/api/activities/upload", response_model=ActivityUploadResponse, dependencies=[Depends(rate_limited("upload", "uploading"))])
 async def upload_activity(
     file: UploadFile = File(...),
     sport: Optional[str] = Form(None),
@@ -604,7 +632,11 @@ async def report_bad_route(
     from app import reports
 
     if await asyncio.to_thread(reports.count_recent, user.uid) >= reports.DAILY_LIMIT:
-        raise HTTPException(status_code=429, detail=f"At most {reports.DAILY_LIMIT} reports a day.")
+        raise HTTPException(status_code=429, detail=f"You can send {reports.DAILY_LIMIT} reports a day. Please try again tomorrow.",
+                            headers={"Retry-After": "3600"})
+    if await asyncio.to_thread(reports.count_recent_global) >= settings.report_daily_limit_global:
+        raise HTTPException(status_code=429, detail="Loam has reached its daily limit for reports. Please try again tomorrow.",
+                            headers={"Retry-After": "3600"})
     request = body.request.model_dump(mode="json")
     route = body.route.model_dump(mode="json")
     rid = await asyncio.to_thread(reports.store_report, user.uid, body.comment.strip(), request, route, body.options)
@@ -812,7 +844,7 @@ async def trigger_heat_recalculation(
 
 # --- Community Trail Flags ---
 
-@app.post("/api/flags", response_model=FlagResponse)
+@app.post("/api/flags", response_model=FlagResponse, dependencies=[Depends(rate_limited("flag", "submitting"))])
 async def report_trail_flag(
     flag: FlagCreate,
     user: AuthUser = Depends(get_current_user)
@@ -837,7 +869,7 @@ async def list_flags(
     flags = get_community_flags(edge_osm_id=edge_osm_id, status=status, limit=limit)
     return [FlagResponse(**{**f, "user_id": None}) for f in flags]  # public: never who flagged
 
-@app.post("/api/flags/{flag_id}/vote", response_model=FlagVoteResponse)
+@app.post("/api/flags/{flag_id}/vote", response_model=FlagVoteResponse, dependencies=[Depends(rate_limited("flag", "submitting"))])
 async def vote_flag(
     flag_id: int,
     vote: FlagVoteCreate,
@@ -860,7 +892,7 @@ async def vote_flag(
 
 # --- Rider Trail Check-ins ("still open") ---
 
-@app.post("/api/trails/{edge_osm_id}/checkin", response_model=TrailCheckinResponse)
+@app.post("/api/trails/{edge_osm_id}/checkin", response_model=TrailCheckinResponse, dependencies=[Depends(rate_limited("flag", "submitting"))])
 async def submit_trail_checkin(
     edge_osm_id: int,
     checkin: TrailCheckinCreate,

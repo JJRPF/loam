@@ -123,7 +123,7 @@ class CubeTrekConnector(BaseConnector):
             f"https://cubetrek.com/view/data/{track_id}"
         ]
 
-        async with httpx.AsyncClient(timeout=5.0) as client:
+        async with httpx.AsyncClient(timeout=5.0, headers={"User-Agent": settings.user_agent}) as client:
             for endpoint in candidate_urls:
                 try:
                     resp = await client.get(endpoint)

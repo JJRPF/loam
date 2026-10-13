@@ -135,6 +135,13 @@ def count_recent(user_id: str) -> int:
         return cur.fetchone()[0]
 
 
+def count_recent_global() -> int:
+    """Reports from everyone in the last 24 hours (the cap that keeps GitHub issue spam bounded)."""
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT count(*) FROM route_reports WHERE created_at > NOW() - INTERVAL '24 hours'")
+        return cur.fetchone()[0]
+
+
 def store_report(user_id: str, comment: str, request: Dict[str, Any], route: Dict[str, Any],
                  options: List[Dict[str, Any]]) -> str:
     rid = str(uuid.uuid4())
@@ -161,7 +168,7 @@ def get_report(report_id: str) -> Optional[Dict[str, Any]]:
 
 def _headers() -> Dict[str, str]:
     return {"Authorization": f"Bearer {settings.github_feedback_token}", "Accept": "application/vnd.github+json",
-            "X-GitHub-Api-Version": "2022-11-28"}
+            "X-GitHub-Api-Version": "2022-11-28", "User-Agent": settings.user_agent}
 
 
 def _post_issue(client: httpx.Client, title: str, body: str) -> httpx.Response:

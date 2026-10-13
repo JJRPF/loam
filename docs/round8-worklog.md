@@ -71,6 +71,22 @@ Tests: new `tests/test_round8_legal.py` (7), `tests/test_round8_public_privacy.p
 
 ## Phase 7: Production hardening for a public launch
 
+Rate limits: `app/ratelimit.py` (token bucket per client IP; `client_ip` trusts the last X-Forwarded-For entry only when the peer is loopback, i.e. the Funnel/proxy). Limits via env (`RATE_LIMIT_ROUTE=20/600`, `GEOCODE=60/60`, `UPLOAD=30/3600`, `FLAG=60/3600`) on route generation (all four endpoints), geocode, upload, flags, flag vote, check-in; a global cap of 30 bad-route reports per day (counted from the DB via `reports.count_recent_global`); a route-generation semaphore (2 at a time, waits up to 20 s, then 429). 429s carry `Retry-After` and a friendly message. Photon geocode results are cached for 1 hour; Overpass fallback uses a 0.05 degree tile cache (24 h; failures 5 min); NWS cache honors Cache-Control within 900 to 3600 s. One User-Agent (`settings.user_agent`) on every outbound call (NWS, Overpass, Photon, GitHub reports, Strava, CubeTrek). A test walks the route table and requires `get_admin_user` on every `/api/dev` and `/api/admin` route.
+
+Frontend: `RateLimitError` handling in `services/api.ts`; rate-limit and route failures show inline (`setOptionsNotice`) instead of `alert`; geocode is debounced 350 ms with an inline notice; the "Developer Tools and Operations" link shows only for admins.
+
+Scripts: `scripts/deploy-pi.sh` is key-auth only (`BatchMode`, preflight for the key and for passwordless `sudo systemctl restart loam-api`), builds via the new `scripts/web-build-env.sh`; `scripts/funnel-start.sh` header describes the real architecture; the password wording in `docs/round7-worklog.md` was removed.
+
+Deviations:
+- Removed the ResultsPanel "Still Open check-in" and "Report Trail Issue" buttons: they posted to fabricated edge IDs (999202, 999101), which breaks the no-fabrication rule. The YouPanel DNR placeholder no longer suggests a fake ID.
+- Geocode debounce added (not itemised in the plan) because per-keystroke calls would burn the geocode limit.
+- The global report cap is counted from the DB rather than kept in memory, so it survives restarts.
+- The stream endpoint reports a 429 as an `event: error` (status, retry_after) since headers are already sent once streaming starts.
+- Overpass tiles enlarge the queried bbox to tile bounds (more data per call, far fewer calls).
+- The XFF "last entry" choice is verified through Funnel in Phase 10.
+
+Tests: `tests/test_round8_ratelimit.py` (12). The legal-claims test no longer exempts the Phase 7 files. `pytest -q`: 220 passed. `npm run build` OK.
+
 ## Phase 8: Hosting on loam.thepfisters.com
 
 ## Phase 9: Playwright UI testing, screenshots, README

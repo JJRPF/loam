@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import type { 
   SportProfile, 
   TerrainPreference, 
@@ -8,7 +8,7 @@ import type {
 import { 
   TERRAIN_PRESETS
 } from '../types';
-import { geocodeLocations } from '../services/api';
+import { geocodeLocations, RateLimitError } from '../services/api';
 import { TerrainMixBar } from './TerrainMixBar';
 
 interface PlanPanelProps {
@@ -119,17 +119,27 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     }
   };
 
-  const handleStartSearch = async (val: string) => {
+  // Searches wait for a pause in typing (350 ms), so ordinary typing stays far under the server's search limit.
+  const startTimer = useRef<number | undefined>(undefined);
+  const endTimer = useRef<number | undefined>(undefined);
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
+
+  const handleStartSearch = (val: string) => {
     setStartQuery(val);
+    window.clearTimeout(startTimer.current);
     if (val.trim().length >= 2) {
-      setIsSearchingStart(true);
       setShowStartResults(true);
-      try {
-        const results = await geocodeLocations(val.trim());
-        setStartResults(results);
-      } finally {
-        setIsSearchingStart(false);
-      }
+      startTimer.current = window.setTimeout(async () => {
+        setIsSearchingStart(true);
+        try {
+          setStartResults(await geocodeLocations(val.trim()));
+          setSearchNotice(null);
+        } catch (e) {
+          if (e instanceof RateLimitError) setSearchNotice(e.message);
+        } finally {
+          setIsSearchingStart(false);
+        }
+      }, 350);
     } else {
       setStartResults([]);
       setShowStartResults(false);
@@ -147,17 +157,22 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     setStartResults([]);
   };
 
-  const handleEndSearch = async (val: string) => {
+  const handleEndSearch = (val: string) => {
     setEndQuery(val);
+    window.clearTimeout(endTimer.current);
     if (val.trim().length >= 2) {
-      setIsSearchingEnd(true);
       setShowEndResults(true);
-      try {
-        const results = await geocodeLocations(val.trim());
-        setEndResults(results);
-      } finally {
-        setIsSearchingEnd(false);
-      }
+      endTimer.current = window.setTimeout(async () => {
+        setIsSearchingEnd(true);
+        try {
+          setEndResults(await geocodeLocations(val.trim()));
+          setSearchNotice(null);
+        } catch (e) {
+          if (e instanceof RateLimitError) setSearchNotice(e.message);
+        } finally {
+          setIsSearchingEnd(false);
+        }
+      }, 350);
     } else {
       setEndResults([]);
       setShowEndResults(false);
@@ -356,6 +371,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
               <span style={{ position: 'absolute', right: 10, top: 8, fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
                 Searching...
               </span>
+            )}
+            {searchNotice && (
+              <div role="status" style={{ fontSize: 12, color: 'var(--color-blaze, #FF5B14)', marginTop: 4 }}>{searchNotice}</div>
             )}
 
             {/* Geocode Results Dropdown */}

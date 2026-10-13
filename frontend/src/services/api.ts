@@ -21,6 +21,28 @@ import { formatGain } from '../format';
 
 export const API_BASE = ''; // proxied via vite in dev, relative in production
 
+/** A 429 from the server: its message is friendly and safe to show to people as is. */
+export class RateLimitError extends Error {
+  retryAfter?: number;
+  constructor(message: string, retryAfter?: number) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.retryAfter = retryAfter;
+  }
+}
+
+/** Builds the RateLimitError for a 429 response (the server's `detail` is the message). */
+export async function rateLimitError(res: Response): Promise<RateLimitError> {
+  let detail = 'Too many requests. Please wait a moment and try again.';
+  try {
+    const body = await res.json();
+    if (typeof body?.detail === 'string') detail = body.detail;
+  } catch {
+    // not JSON: keep the generic message
+  }
+  return new RateLimitError(detail, Number(res.headers.get('Retry-After')) || undefined);
+}
+
 /**
  * fetch() that sends the signed-in user's Firebase ID token as a bearer token.
  * On a 401 it refreshes the token once and retries. Signed out, it sends no Authorization header.
@@ -80,6 +102,7 @@ export async function calculateRoute(params: {
     body: JSON.stringify(payload)
   });
 
+  if (res.status === 429) throw await rateLimitError(res);
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`Routing calculation failed (${res.status}): ${errorText}`);
@@ -133,6 +156,7 @@ export async function calculateRouteOptions(params: {
     body: JSON.stringify(payload)
   });
 
+  if (res.status === 429) throw await rateLimitError(res);
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`Route options calculation failed (${res.status}): ${errorText}`);
@@ -201,6 +225,7 @@ export function streamRouteOptions(
         signal: abortController.signal
       });
 
+      if (res.status === 429) throw await rateLimitError(res);
       if (!res.ok) {
         throw new Error(`Streaming failed (${res.status}): ${await res.text()}`);
       }
@@ -253,7 +278,13 @@ export function streamRouteOptions(
             callbacks.onComplete(count, info);
             completed = true;
           } else if (eventName === 'error') {
-            callbacks.onError(new Error(dataStr || 'Streaming error'));
+            let info: any = null;
+            try { info = JSON.parse(dataStr); } catch { /* plain text error */ }
+            if (info?.status === 429) {
+              callbacks.onError(new RateLimitError(info.error, Number(info.retry_after) || undefined));
+            } else {
+              callbacks.onError(new Error(info?.error || dataStr || 'Streaming error'));
+            }
           }
         }
       }
@@ -380,11 +411,13 @@ export async function geocodeLocations(query: string): Promise<GeocodeResult[]> 
   if (!query || !query.trim()) return [];
   try {
     const res = await authedFetch(`${API_BASE}/api/geocode?q=${encodeURIComponent(query.trim())}`);
+    if (res.status === 429) throw await rateLimitError(res);
     if (res.ok) {
       const data = await res.json();
       return data.results || [];
     }
   } catch (err) {
+    if (err instanceof RateLimitError) throw err;  // shown inline by the search box
     console.warn('Geocoding request failed:', err);
   }
   return [];
@@ -488,6 +521,7 @@ export async function uploadActivityFile(
     body: formData
   });
 
+  if (res.status === 429) throw await rateLimitError(res);
   if (!res.ok) {
     const errorText = await res.text();
     throw new Error(`Upload failed (${res.status}): ${errorText}`);
@@ -516,6 +550,7 @@ export async function createFlag(
       details
     })
   });
+  if (res.status === 429) throw await rateLimitError(res);
   if (!res.ok) {
     throw new Error(`Failed to submit flag (${res.status}): ${await res.text()}`);
   }
@@ -548,7 +583,7 @@ export async function submitBadRouteReport(
       }))
     })
   });
-  if (res.status === 429) throw new Error('You have sent 5 reports today. Please try again tomorrow.');
+  if (res.status === 429) throw await rateLimitError(res);
   if (res.status === 401) throw new Error('Sign in to report a route.');
   if (!res.ok) throw new Error(`Could not send the report (${res.status}).`);
   return await res.json();
@@ -619,6 +654,7 @@ export async function voteFlag(
     },
     body: JSON.stringify({ vote_type: voteType })
   });
+  if (res.status === 429) throw await rateLimitError(res);
   if (!res.ok) {
     throw new Error(`Vote failed (${res.status}): ${await res.text()}`);
   }
@@ -637,6 +673,7 @@ export async function submitTrailCheckin(
     },
     body: JSON.stringify({ status, note })
   });
+  if (res.status === 429) throw await rateLimitError(res);
   if (!res.ok) {
     throw new Error(`Check-in failed (${res.status}): ${await res.text()}`);
   }

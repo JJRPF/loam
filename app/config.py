@@ -54,6 +54,20 @@ class Settings(BaseModel):
     # Heat privacy: an edge's heat is public (shown to others, influences their routes) with at
     # least this many unique riders, or as seed heat (the owner's imported rides) on trail-class edges.
     heat_min_unique_riders: int = int(os.getenv("HEAT_MIN_UNIQUE_RIDERS", "3"))
+    # Rate limits ("count/window seconds", per Firebase uid or client IP), env RATE_LIMIT_<NAME>.
+    rate_limits: dict = {
+        "route": os.getenv("RATE_LIMIT_ROUTE", "20/600"),          # route, options, stream
+        "geocode": os.getenv("RATE_LIMIT_GEOCODE", "60/60"),
+        "upload": os.getenv("RATE_LIMIT_UPLOAD", "30/3600"),
+        "flag": os.getenv("RATE_LIMIT_FLAG", "60/3600"),           # flags, check-ins, votes
+    }
+    report_daily_limit_global: int = int(os.getenv("RATE_LIMIT_REPORTS_GLOBAL_DAILY", "30"))
+    route_concurrency: int = int(os.getenv("ROUTE_CONCURRENCY", "2"))
+    route_wait_s: float = float(os.getenv("ROUTE_WAIT_S", "20"))
+
+    # One User-Agent for every outbound request to third parties (NWS, Overpass, Photon, GitHub, ...).
+    user_agent: str = "Loam/1.0 (+https://loam.thepfisters.com; jjrpfister@gmail.com)"
+
     # Midpoints produce out-and-backs for now: off in production (the Pi), on for development.
     enable_midpoints: bool = os.getenv("ENABLE_MIDPOINTS", "false").lower() in ("true", "1")
     source_url: str = "https://github.com/JJRPF/loam"

@@ -3,7 +3,7 @@ import {
   uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
   exportMyData, deleteMyAccount,
   getConnectors, connectGarmin, verifyGarminMfa, connectStrava, connectTrailforks, bulkImportGarmin,
-  syncConnector, disconnectConnector, importCubeTrekActivity
+  syncConnector, disconnectConnector, importCubeTrekActivity, getAuthMe
 } from '../services/api';
 import { signOut, useAuth } from '../services/auth';
 import { SignInCard } from './SignInCard';
@@ -19,6 +19,14 @@ interface YouPanelProps {
 export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
   const { user: currentUser } = useAuth();
   const isSignedIn = !!currentUser;
+  // The Operations page link is for admins only (the server decides who is one; the page also checks).
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let ignore = false;
+    if (!currentUser) { setIsAdmin(false); return; }
+    getAuthMe().then((me) => { if (!ignore) setIsAdmin(!!me.is_admin); }).catch(() => { if (!ignore) setIsAdmin(false); });
+    return () => { ignore = true; };
+  }, [currentUser]);
   const [dnrList, setDnrList] = useState<UserDNR[]>([]);
   const [showAddDnr, setShowAddDnr] = useState(false);
   const [newDnrName, setNewDnrName] = useState('');
@@ -195,7 +203,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
                 {newDnrType === 'trail' && (
                   <input
                     type="number"
-                    placeholder="OSM Edge ID (e.g. 999101)"
+                    placeholder="OSM way ID"
                     value={newDnrEdgeId}
                     onChange={(e) => setNewDnrEdgeId(e.target.value)}
                     style={{ flex: 1, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 12 }}
@@ -325,18 +333,20 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
         <div>loam Trail Route Builder</div>
         <div>Built with MapLibre GL JS, GraphHopper & PostGIS</div>
         <LegalLinks style={{ justifyContent: 'center', marginTop: 4 }} />
-        <div style={{ marginTop: 8 }}>
-          <a
-            href="#/dev"
-            style={{
-              fontSize: 11,
-              color: 'var(--color-text-secondary, #42675E)',
-              textDecoration: 'underline'
-            }}
-          >
-            Developer Tools & Operations
-          </a>
-        </div>
+        {isAdmin && (
+          <div style={{ marginTop: 8 }}>
+            <a
+              href="#/dev"
+              style={{
+                fontSize: 11,
+                color: 'var(--color-text-secondary, #42675E)',
+                textDecoration: 'underline'
+              }}
+            >
+              Developer Tools & Operations
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
