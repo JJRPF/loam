@@ -176,3 +176,15 @@ Not built, and why:
 - Playwright (`tests/test_round7_browser.cjs`, replaces the old dev-console script that tested header sign-in): 19/19 anonymous checks, screenshots kept in the scratchpad. Signed-in UI can't be driven until the Firebase web app exists.
 - Real bad-route report: filed through `reports.file_issue` with the real token as issue #35 (label `in-app feedback`, title in the plan's format, route line starts about 0.5 mi in), commented "test report from Round 7 verification" and closed.
 - `loam_eval real` was not re-run: the routing core is unchanged since Phase 4 except the new via-loop branch, which only runs with midpoints. `benchmark/reports/round7.md` stands.
+
+## Phase 9: Pi deploy (second pass)
+
+Done with the SSH key (not `scripts/deploy-pi.sh`, which uses a password path), after a fresh `pg_dump -Fc` (131 MB, `~/loam-backups/pre-deploy2/`):
+- rsync of the code and built frontend (`.env` and `data/` untouched), `REVISION` written for the bad-route git sha. Migrations 004-006 applied. `import_padus` (6 wilderness polygons) and `import_osm_pois` (591 points) run on the Pi.
+- Pi `.env` now also has `GITHUB_FEEDBACK_TOKEN` (copied without printing it). `ADMIN_EMAILS` is `jjrpfister@gmail.com`, confirmed by you.
+- Nightly backup in the user crontab at 03:15 (`scripts/backup_db.sh`, 7 days kept, on the Pi's disk). The crontab was empty before.
+- Restart: `sudo` needs a password, so I ended the uvicorn process and systemd's `Restart=always` relaunched it on the new code.
+- From outside, through the tailnet URL: `/health` 200; forged bearer token 401; `X-User-Id` alone 401; bad-route and admin-report endpoints 401 when anonymous; no CORS header for `loam.thepfisters.com`.
+- Bow Town Forest 10 mi mtb on the Pi: **6 options in 10.3 s** (plan said at least 8; the same honest limit as locally, see Phase 4), all true loops, all with real 3DEP elevation, max geometry offset 0.7 m. Bear Brook 10 mi: **10 options in 8.1 s**, all true loops, elevation present.
+- Not verifiable until the Firebase web app exists: Google and email-link login, the heat layer showing imported rides (prod has none yet; your Garmin tracks load with `upload_stripped` and an admin token), and a bad-route report through the app (the same code path was verified with the real token, issue #35, closed).
+- `migrate_user_ids --list` on prod: 6 users. Your account (legacy Google sub, 487 activities) re-keys by itself at the first verified Firebase login with the same email; four empty `token_google_*` accounts and `test_pi_mfa_user` (3 test activities) remain; I deleted nothing (needs your OK).
