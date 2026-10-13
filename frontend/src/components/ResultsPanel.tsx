@@ -101,7 +101,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           </button>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--color-slate-light, #E2ECF3)', padding: '4px 10px', borderRadius: 6 }}>
             <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)' }}>
-              Building Candidate Routes...
+              Building candidate routes...
             </span>
           </div>
         </div>
@@ -296,7 +296,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
 
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--color-slate-light, #E2ECF3)', padding: '4px 10px', borderRadius: 6 }}>
           <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-slate, #3F6C8F)' }}>
-            {options.length > 0 ? `${options.length} Candidate Routes` : 'Selected Route'}
+            {options.length > 0 ? `${options.length} candidate ${options.length === 1 ? 'route' : 'routes'}` : 'Selected route'}
           </span>
           {isLoading && (
             <span style={{ fontSize: 11, color: 'var(--color-blaze, #FF5B14)', fontWeight: 700 }}>

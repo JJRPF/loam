@@ -39,6 +39,15 @@ What changed: `MapView.tsx` lost `showPois` and its ref/data ref, `loadPoisForVi
 
 ## Phase 4: Mobile map layout
 
+What changed:
+- Map credit: `App.tsx` sets `--sheet-offset` (`calc(<sheet height> + 8px)`, per snap state; `0px` on desktop) and `data-sheet` on the map container. `index.css`: below 800 px `.map-attribution-badge` sits bottom-left at `bottom: var(--sheet-offset)` (animated with the sheet), with `max-width: calc(100% - 76px)` so it clears the right-hand controls; in `full` it is hidden. Desktop stays bottom-right. Mobile text: "© OpenStreetMap · © CARTO · Legal" (all links; "Legal" goes to `/legal/`, built in Phase 6); desktop keeps "contributors".
+- Top row: `MapView` toggle row wraps and is capped at `100% - 76px`, so nothing runs under the zoom/compass/locate controls. Buttons already get `min-height: 44px` from `index.css`.
+- `ResultsPanel`: "1 candidate route" / "N candidate routes" ("Selected route", "Building candidate routes..." in sentence case too).
+- Quick check, not the Phase 9 suite: a Playwright run at 360x740, 390x844 and 412x915 (half-open sheet) measured the badge's bottom exactly 8 px above the sheet's top and well left of the right controls (badge right edge 205 px vs controls from 321 px at 360 wide), and no horizontal scroll. I also looked at the 360 px screenshot. The full overlap matrix in all snap states is Phase 9.
+- The scale control is bottom-left and so sits behind the sheet on mobile; left as is. `MapView`'s unused `waypoints` prop is untouched.
+
+`npm run build` OK.
+
 ## Phase 5: Hide disabled connectors
 
 ## Phase 6: Legal pages, license, source link

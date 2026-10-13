@@ -719,12 +719,14 @@ export const MapView: React.FC<MapViewProps> = ({
       <div
         style={{
           position: 'absolute',
-          top: 16,
-          left: 16,
+          top: 12,
+          left: 12,
           zIndex: 15,
           display: 'flex',
+          flexWrap: 'wrap',
           alignItems: 'center',
-          gap: 6
+          gap: 6,
+          maxWidth: 'calc(100% - 76px)' // leaves the zoom / compass / locate controls on the right clear
         }}
       >
         <button
@@ -833,9 +835,12 @@ export const MapView: React.FC<MapViewProps> = ({
         </button>
       </div>
 
-      {/* Map Attribution Badge: CARTO and OpenStreetMap (Responsive: top on mobile, bottom on desktop) */}
+      {/* Map credit: bottom-right on desktop; on mobile bottom-left, just above the bottom sheet (--sheet-offset) */}
       <div className="map-attribution-badge">
-        &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>OpenStreetMap</a> contributors, &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>CARTO</a>
+        &copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap<span className="attr-long"> contributors</span></a>
+        <span className="attr-long">, </span><span className="attr-short"> &middot; </span>
+        &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener noreferrer">CARTO</a>
+        {' '}&middot; <a href="/legal/">Legal</a>
       </div>
     </div>
   );

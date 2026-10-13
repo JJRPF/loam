@@ -167,18 +167,28 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus {
   border: 1px solid var(--color-divider);
 }
 
+.map-attribution-badge a { color: inherit; text-decoration: underline; }
+.map-attribution-badge .attr-short { display: none; }
+
 [data-theme="dark"] .map-attribution-badge {
   background-color: rgba(14, 29, 25, 0.90);
 }
 
 @media (max-width: 799px) {
+  /* --sheet-offset is set from App.tsx: the bottom sheet's height plus 8px, per snap state */
   .map-attribution-badge {
-    top: 12px;
-    left: 12px;
-    bottom: auto;
+    top: auto;
+    left: 8px;
     right: auto;
+    bottom: var(--sheet-offset, 118px);
+    max-width: calc(100% - 76px); /* clear of the right-hand map controls */
     z-index: 25;
+    transition: bottom 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
   }
+  .map-attribution-badge .attr-long { display: none; }
+  .map-attribution-badge .attr-short { display: inline; }
+  /* in "full" the sheet covers the map, so the credit is hidden (the Legal page and the You panel carry it) */
+  [data-sheet="full"] .map-attribution-badge { display: none; }
 }
 
 /* Dark-theme map popups (MapLibre defaults to a bright white card) */

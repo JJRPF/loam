@@ -268,6 +268,8 @@ export const App: React.FC = () => {
       case 'full': return '88vh';
     }
   };
+  // the map credit sits 8px above the sheet (mobile) and follows its snap state
+  const sheetOffset = isMobile ? `calc(${getSheetHeight()} + 8px)` : '0px';
 
   if (isDevRoute) {
     return (
@@ -436,7 +438,10 @@ export const App: React.FC = () => {
       {/* =========================================================================
           FULL BLEED MAPLIBRE MAP CANVAS (100% viewport)
          ========================================================================= */}
-      <main style={{ flex: 1, height: '100%', position: 'relative' }}>
+      <main
+        data-sheet={isMobile ? sheetSnap : undefined}
+        style={{ flex: 1, height: '100%', position: 'relative', ['--sheet-offset' as string]: sheetOffset }}
+      >
         <MapView
           route={route || (options.length > 0 ? options[0] : null)}
           hoverRoute={hoverRoute}
