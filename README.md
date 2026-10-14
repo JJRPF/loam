@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/loam-logo-horizontal-reversed.svg">
-    <img src="frontend/public/brand/loam-logo-horizontal.svg" alt="loam" width="260">
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/png/loam-logo-horizontal-reversed.png">
+    <img src="frontend/public/brand/png/loam-logo-horizontal.png" alt="loam" width="260">
   </picture>
 </p>
 
