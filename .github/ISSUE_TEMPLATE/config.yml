@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a bad route from the app
+    url: https://loam.thepfisters.com
+    about: A route that goes somewhere it shouldn't? Use "Report bad route" on the route in the app (sign in first). It files an issue with the route line attached, without your start or end point.
+  - name: Report a security problem privately
+    url: https://github.com/JJRPF/loam/security/policy
+    about: Please don't open a public issue for a vulnerability. See SECURITY.md.

@@ -1,0 +1,31 @@
+name: Bug report
+description: Something in the app or the API doesn't work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Issues are public. Please don't include your home address, ride files, tokens or anything personal.
+        For a bad route, use "Report bad route" in the app instead; it attaches the route line for you.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, what you saw instead.
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Where
+      description: The live site (loam.thepfisters.com), or your own deployment and its commit.
+  - type: input
+    id: device
+    attributes:
+      label: Browser and device
+      placeholder: Safari on iPhone 15, Chrome on Windows
+  - type: textarea
+    id: more
+    attributes:
+      label: Anything else
+      description: Screenshots, console errors, the shared search link (it holds the start point you chose, so only paste it if that is fine to publish).

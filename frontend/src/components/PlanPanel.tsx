@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import type { 
   SportProfile, 
   TerrainPreference, 
@@ -8,7 +8,7 @@ import type {
 import { 
   TERRAIN_PRESETS
 } from '../types';
-import { geocodeLocations } from '../services/api';
+import { geocodeLocations, RateLimitError } from '../services/api';
 import { TerrainMixBar } from './TerrainMixBar';
 
 interface PlanPanelProps {
@@ -30,6 +30,7 @@ interface PlanPanelProps {
   pickingTarget: 'start' | 'end' | 'mid' | null;
   waypoints?: LatLon[];
   onWaypointsChange?: (w: LatLon[]) => void;
+  midpointsEnabled?: boolean;
   overrideDnr?: boolean;
   onOverrideDnrChange?: (override: boolean) => void;
   // Stage 6: Differentiators
@@ -64,6 +65,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
   pickingTarget,
   waypoints = [],
   onWaypointsChange,
+  midpointsEnabled = false,
   overrideDnr = false,
   onOverrideDnrChange,
   findNewTrailsMode = false,
@@ -117,17 +119,27 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     }
   };
 
-  const handleStartSearch = async (val: string) => {
+  // Searches wait for a pause in typing (350 ms), so ordinary typing stays far under the server's search limit.
+  const startTimer = useRef<number | undefined>(undefined);
+  const endTimer = useRef<number | undefined>(undefined);
+  const [searchNotice, setSearchNotice] = useState<string | null>(null);
+
+  const handleStartSearch = (val: string) => {
     setStartQuery(val);
+    window.clearTimeout(startTimer.current);
     if (val.trim().length >= 2) {
-      setIsSearchingStart(true);
       setShowStartResults(true);
-      try {
-        const results = await geocodeLocations(val.trim());
-        setStartResults(results);
-      } finally {
-        setIsSearchingStart(false);
-      }
+      startTimer.current = window.setTimeout(async () => {
+        setIsSearchingStart(true);
+        try {
+          setStartResults(await geocodeLocations(val.trim()));
+          setSearchNotice(null);
+        } catch (e) {
+          if (e instanceof RateLimitError) setSearchNotice(e.message);
+        } finally {
+          setIsSearchingStart(false);
+        }
+      }, 350);
     } else {
       setStartResults([]);
       setShowStartResults(false);
@@ -145,17 +157,22 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
     setStartResults([]);
   };
 
-  const handleEndSearch = async (val: string) => {
+  const handleEndSearch = (val: string) => {
     setEndQuery(val);
+    window.clearTimeout(endTimer.current);
     if (val.trim().length >= 2) {
-      setIsSearchingEnd(true);
       setShowEndResults(true);
-      try {
-        const results = await geocodeLocations(val.trim());
-        setEndResults(results);
-      } finally {
-        setIsSearchingEnd(false);
-      }
+      endTimer.current = window.setTimeout(async () => {
+        setIsSearchingEnd(true);
+        try {
+          setEndResults(await geocodeLocations(val.trim()));
+          setSearchNotice(null);
+        } catch (e) {
+          if (e instanceof RateLimitError) setSearchNotice(e.message);
+        } finally {
+          setIsSearchingEnd(false);
+        }
+      }, 350);
     } else {
       setEndResults([]);
       setShowEndResults(false);
@@ -285,7 +302,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
           ))}
         </div>
         {routeMode === 'loop' && (
-          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', backgroundColor: 'var(--color-bg-subtle, #F5F7F7)', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)' }}>
+          <label htmlFor="loops-only-checkbox" style={{ marginTop: 8, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 10px', minHeight: 44, cursor: 'pointer', backgroundColor: 'var(--color-bg-subtle, #F5F7F7)', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)' }}>
             <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-text-primary, #1D3B34)' }}>
               Loops only (retrace ≤ 10%)
             </span>
@@ -296,7 +313,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
               onChange={(e) => onLoopsOnlyChange?.(e.target.checked)}
               style={{ width: 16, height: 16, cursor: 'pointer', accentColor: 'var(--color-lichen, #2E6F40)' }}
             />
-          </div>
+          </label>
         )}
       </section>
 
@@ -323,7 +340,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                   fontSize: 12,
                   padding: '2px 8px',
                   minHeight: 28,
-                  backgroundColor: pickingTarget === 'start' ? 'var(--color-blaze, #FF5B14)' : 'var(--color-slate-light, #E2ECF3)',
+                  backgroundColor: pickingTarget === 'start' ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-slate-light, #E2ECF3)',
                   color: pickingTarget === 'start' ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)'
                 }}
                 title="Tap anywhere on map"
@@ -354,6 +371,9 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
               <span style={{ position: 'absolute', right: 10, top: 8, fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
                 Searching...
               </span>
+            )}
+            {searchNotice && (
+              <div role="status" style={{ fontSize: 12, color: 'var(--color-blaze-text, #FF7A3D)', marginTop: 4 }}>{searchNotice}</div>
             )}
 
             {/* Geocode Results Dropdown */}
@@ -435,7 +455,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                   fontSize: 12,
                   padding: '2px 8px',
                   minHeight: 28,
-                  backgroundColor: pickingTarget === 'end' ? 'var(--color-blaze, #FF5B14)' : 'var(--color-slate-light, #E2ECF3)',
+                  backgroundColor: pickingTarget === 'end' ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-slate-light, #E2ECF3)',
                   color: pickingTarget === 'end' ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)'
                 }}
               >
@@ -532,7 +552,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         )}
 
         {/* Midpoints (loop and point to point): the route passes through each, in order */}
-        {routeMode !== 'out_and_back' && (
+        {midpointsEnabled && routeMode !== 'out_and_back' && (
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
               <label style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
@@ -544,7 +564,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                 onClick={() => onPickOnMap('mid')}
                 style={{
                   fontSize: 12, padding: '2px 8px', minHeight: 28,
-                  backgroundColor: pickingTarget === 'mid' ? 'var(--color-blaze, #FF5B14)' : 'var(--color-slate-light, #E2ECF3)',
+                  backgroundColor: pickingTarget === 'mid' ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-slate-light, #E2ECF3)',
                   color: pickingTarget === 'mid' ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)'
                 }}
               >
@@ -582,7 +602,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
             >
               -
             </button>
-            <span className="num-tabular" style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)', minWidth: 64, textAlign: 'center' }}>
+            <span className="num-tabular" style={{ fontSize: 20, fontWeight: 700, color: 'var(--color-blaze-text, #FF7A3D)', minWidth: 64, textAlign: 'center' }}>
               {targetMiles.toFixed(1)} mi
             </span>
             <button
@@ -596,6 +616,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
         </div>
         <input
           type="range"
+          aria-label="Target distance in miles"
           min="1"
           max="35"
           step="0.5"

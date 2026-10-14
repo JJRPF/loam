@@ -8,10 +8,25 @@ from typing import Any, Dict, Optional
 
 import httpx
 
+from app.config import settings
+
 NWS = "https://api.weather.gov"
-HEADERS = {"User-Agent": "Loam trail router (https://github.com/JJRPF/loam)", "Accept": "application/geo+json"}
-TTL_S = 900
+HEADERS = {"User-Agent": settings.user_agent, "Accept": "application/geo+json"}
+TTL_S = 900  # minimum; the forecast response's own Cache-Control max-age is honoured up to MAX_TTL_S
+MAX_TTL_S = 3600
 _cache: Dict[tuple, tuple] = {}
+
+
+def _ttl(resp: httpx.Response) -> float:
+    """Cache lifetime from the response's Cache-Control max-age, within [TTL_S, MAX_TTL_S]."""
+    for part in resp.headers.get("cache-control", "").split(","):
+        part = part.strip().lower()
+        if part.startswith("max-age="):
+            try:
+                return float(min(MAX_TTL_S, max(TTL_S, int(part[8:]))))
+            except ValueError:
+                break
+    return float(TTL_S)
 
 
 def _shape(data: Dict[str, Any], hours: int) -> Dict[str, Any]:
@@ -31,7 +46,7 @@ def _shape(data: Dict[str, Any], hours: int) -> Dict[str, Any]:
 async def hourly_forecast(lat: float, lon: float, hours: int = 12, client: Optional[httpx.AsyncClient] = None) -> Optional[Dict[str, Any]]:
     key = (round(lat, 1), round(lon, 1), hours)
     hit = _cache.get(key)
-    if hit and time.time() - hit[0] < TTL_S:
+    if hit and time.time() - hit[0] < hit[2]:
         return hit[1]
     own = client is None
     client = client or httpx.AsyncClient(timeout=10.0, headers=HEADERS, follow_redirects=True)
@@ -46,7 +61,7 @@ async def hourly_forecast(lat: float, lon: float, hours: int = 12, client: Optio
         out = _shape(fc.json(), hours)
         if not out["periods"]:
             return None
-        _cache[key] = (time.time(), out)
+        _cache[key] = (time.time(), out, _ttl(fc))
         return out
     except Exception:
         return None

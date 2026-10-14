@@ -176,6 +176,8 @@ export interface UserDataExport {
   flags: CommunityFlag[];
   activities: any[];
   saved_routes: any[];
+  route_reports?: any[];
+  trail_submissions?: any[];
   exported_at: string;
 }
 

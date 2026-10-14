@@ -63,3 +63,6 @@ frontend/dist/
 benchmark/labels/*
 !benchmark/labels/README.md
 benchmark/.judge_cache.json
+
+# Firebase CLI deploy cache
+.firebase/

@@ -30,7 +30,7 @@ Tests:
 
 Not verifiable yet (manual, plan 12): Firebase Authentication isn't initialized on `thepfisters` and no web app is registered (see Setup), so a live Google or email-link login can't be tried until the user does those steps and puts `VITE_FIREBASE_API_KEY`/`VITE_FIREBASE_APP_ID` in `.env`. The prod dry run and re-key of the legacy account wait for Phase 9 (backup first).
 
-Observation, not changed (outside the plan): `scripts/deploy-pi.sh` passes the SSH password via `sshpass -p "${PI_USER}"` (the username), which puts it in the process list. Key-based SSH to the Pi already works, so Phase 9 deploys with the key.
+Observation, not changed (outside the plan): `scripts/deploy-pi.sh` passed a password on the command line, which puts it in the process list. Key-based SSH to the Pi already works, so Phase 9 deploys with the key. (Round 8 rewrote the script to key auth only.)
 
 ## Phase 2: Fabricated data and code removed (plan section 4)
 

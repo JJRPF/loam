@@ -6,7 +6,7 @@ import psycopg2
 from psycopg2.extras import RealDictCursor, Json
 from typing import Optional, Dict, Any, List
 from app.config import settings
-from app.decay import heat_sport, min_unique_riders
+from app.decay import heat_is_public, heat_sport, min_unique_riders
 
 def get_connection():
     return psycopg2.connect(settings.database_url)
@@ -20,7 +20,44 @@ def check_db_health() -> bool:
     except Exception:
         return False
 
+def _own_heat(cur, edge_osm_ids: List[int], sport: str, user_id: str) -> Dict[int, Dict[str, Any]]:
+    """The requesting user's own 12-month contribution per edge (never other riders' passes)."""
+    cur.execute(
+        """
+        SELECT edge_osm_id, SUM(pass_count) AS passes,
+               SUM(pass_count * POWER(2.0, -GREATEST(0, EXTRACT(EPOCH FROM (NOW() - visited_at)) / 86400.0) / 182.5)) AS score,
+               MAX(visited_at)::date AS last_ridden
+        FROM activity_edge_visits
+        WHERE edge_osm_id = ANY(%s) AND sport = %s AND user_id = %s AND visited_at >= NOW() - INTERVAL '365 days'
+        GROUP BY edge_osm_id;
+        """,
+        (edge_osm_ids, sport, user_id)
+    )
+    return {r["edge_osm_id"]: r for r in cur.fetchall()}
+
+
+def _apply_privacy(item: Dict[str, Any], own: Optional[Dict[str, Any]], user_id: Optional[str]) -> bool:
+    """Public heat is shown as is. Non-public heat is visible only to its contributors, and then
+    only their own contribution. Returns whether the row is usable by this user."""
+    is_contrib = user_id is not None and user_id in (item.get("contributor_ids") or [])
+    item["is_contributor"] = is_contrib
+    if item.get("is_public"):
+        return True
+    if not is_contrib:
+        return False
+    if own is None and (item.get("contributor_ids") or []) == [user_id]:
+        return True  # a row with this user as its only contributor is entirely theirs
+    item["unique_riders_12mo"] = 1
+    item["total_passes_12mo"] = int((own or {}).get("passes") or 0)
+    item["weighted_score"] = round(float((own or {}).get("score") or 0.0), 3)
+    item["last_ridden_date"] = (own or {}).get("last_ridden")
+    item["contributor_ids"] = [user_id]
+    return True
+
+
 def get_edge_heat(edge_osm_id: int, sport: str, user_id: Optional[str] = None) -> Optional[Dict[str, Any]]:
+    """Heat of one edge as this user may see it: public heat, or only the user's own contribution."""
+    sport = heat_sport(sport)
     try:
         with get_connection() as conn:
             with conn.cursor(cursor_factory=RealDictCursor) as cur:
@@ -37,11 +74,11 @@ def get_edge_heat(edge_osm_id: int, sport: str, user_id: Optional[str] = None) -
                 if not row:
                     return None
                 data = dict(row)
-                contribs = data.get("contributor_ids") or []
-                is_contrib = (user_id is not None and user_id in contribs)
-                data["is_contributor"] = is_contrib
-                # If neither public (>= 3 riders) nor contributor, public score is 0
-                data["is_accessible"] = data.get("is_public", False) or is_contrib
+                own = _own_heat(cur, [edge_osm_id], sport, user_id).get(edge_osm_id) if user_id else None
+                data["is_accessible"] = _apply_privacy(data, own, user_id)
+                if not data["is_accessible"]:
+                    data.update(unique_riders_12mo=0, total_passes_12mo=0, weighted_score=0.0,
+                                last_ridden_date=None, contributor_ids=[])
                 return data
     except Exception:
         return None
@@ -49,9 +86,8 @@ def get_edge_heat(edge_osm_id: int, sport: str, user_id: Optional[str] = None) -
 def get_edges_heat(edge_osm_ids: List[int], sport: str, user_id: Optional[str] = None) -> Dict[int, Dict[str, Any]]:
     """
     Heat is looked up per heat sport (a routing profile like mtb_hardtail maps to mtb).
-    Batch query edge_heat table for a list of OSM way/edge IDs.
-    Filters by the privacy threshold: heat counts only if is_public (>= 3 riders)
-    OR if the current user is a contributing rider.
+    Batch query edge_heat for a list of OSM way/edge IDs. Public heat counts for everyone; a
+    non-public edge counts only for a contributing user, and only with their own contribution.
     """
     if not edge_osm_ids:
         return {}
@@ -68,19 +104,139 @@ def get_edges_heat(edge_osm_ids: List[int], sport: str, user_id: Optional[str] =
                     """,
                     (edge_osm_ids, sport)
                 )
+                rows = [dict(r) for r in cur.fetchall()]
+                own = {}
+                if user_id and any(not r["is_public"] and user_id in (r["contributor_ids"] or []) for r in rows):
+                    own = _own_heat(cur, [r["edge_osm_id"] for r in rows], sport, user_id)
                 results: Dict[int, Dict[str, Any]] = {}
-                for row in cur.fetchall():
-                    item = dict(row)
-                    contribs = item.get("contributor_ids") or []
-                    is_contrib = (user_id is not None and user_id in contribs)
-                    is_pub = item.get("is_public", False)
-                    # Privacy rule: influence routes only if >= 3 unique riders OR user is contributor
-                    if is_pub or is_contrib:
-                        item["is_contributor"] = is_contrib
+                for item in rows:
+                    if _apply_privacy(item, own.get(item["edge_osm_id"]), user_id):
                         results[item["edge_osm_id"]] = item
                 return results
     except Exception:
         return {}
+
+def _publish_edge(cur, edge_osm_id: int, sport: str) -> None:
+    """Set is_public for one edge_heat row through the single publication rule (decay.heat_is_public)."""
+    cur.execute(
+        """
+        SELECT h.unique_riders_12mo, h.has_seed, e.highway
+        FROM edge_heat h JOIN edges e ON e.osm_id = h.edge_osm_id
+        WHERE h.edge_osm_id = %s AND h.sport = %s;
+        """,
+        (edge_osm_id, sport)
+    )
+    row = cur.fetchone()
+    if row:
+        cur.execute(
+            "UPDATE edge_heat SET is_public = %s WHERE edge_osm_id = %s AND sport = %s;",
+            (heat_is_public(int(row[0] or 0), bool(row[1]), row[2]), edge_osm_id, sport)
+        )
+
+
+def refresh_edge_heat(
+    edge_ids: Optional[List[int]] = None,
+    ref_date: Optional[datetime.datetime] = None,
+    cur=None,
+) -> Dict[str, int]:
+    """
+    The one place edge_heat is derived from activity_edge_visits (12-month window, 6-month
+    half-life) and the one place is_public is decided (decay.heat_is_public, joining edges.highway).
+    With edge_ids only those edges are refreshed; with None every edge is. Rows with no visit in
+    the window are reset to zero. Pass `cur` to run inside the caller's transaction (no commit).
+    """
+    if ref_date is None:
+        ref_date = datetime.datetime.now(datetime.timezone.utc)
+    elif ref_date.tzinfo is None:
+        ref_date = ref_date.replace(tzinfo=datetime.timezone.utc)
+    window_start = ref_date - datetime.timedelta(days=365)
+    stats = {"edges_updated": 0, "public_edges_count": 0, "private_edges_count": 0}
+    if edge_ids is not None and not edge_ids:
+        return stats
+
+    def run(c) -> None:
+        scope = "" if edge_ids is None else "AND v.edge_osm_id = ANY(%(ids)s)"
+        params = {"ws": window_start, "ids": edge_ids}
+        c.execute(
+            f"""
+            SELECT v.edge_osm_id, v.sport, v.user_id, v.visited_at, v.pass_count, v.is_seed, e.highway
+            FROM activity_edge_visits v JOIN edges e ON e.osm_id = v.edge_osm_id
+            WHERE v.visited_at >= %(ws)s {scope};
+            """,
+            params
+        )
+        groups: Dict[Tuple[int, str], List[Any]] = {}
+        for r in c.fetchall():
+            groups.setdefault((r["edge_osm_id"], r["sport"]), []).append(r)
+
+        for (edge_id, sport), v_list in groups.items():
+            contribs = set()
+            total_passes = 0
+            weighted_score = 0.0
+            max_date = None
+            has_seed = False
+            for v in v_list:
+                v_dt = v["visited_at"]
+                if v_dt.tzinfo is None:
+                    v_dt = v_dt.replace(tzinfo=datetime.timezone.utc)
+                p_cnt = int(v.get("pass_count") or 1)
+                days_ago = max(0.0, (ref_date - v_dt).total_seconds() / 86400.0)
+                if days_ago <= 365.0:
+                    contribs.add(str(v["user_id"]))
+                    total_passes += p_cnt
+                    weighted_score += (2.0 ** (-days_ago / 182.5)) * p_cnt
+                    has_seed = has_seed or bool(v.get("is_seed"))
+                    if max_date is None or v_dt > max_date:
+                        max_date = v_dt
+            is_pub = heat_is_public(len(contribs), has_seed, v_list[0].get("highway"))
+            c.execute(
+                """
+                INSERT INTO edge_heat (
+                    edge_osm_id, sport, unique_riders_12mo, total_passes_12mo,
+                    weighted_score, last_ridden_date, is_public, contributor_ids, has_seed
+                )
+                VALUES (%s, %s, %s, %s, %s, %s::date, %s, %s, %s)
+                ON CONFLICT (edge_osm_id, sport) DO UPDATE
+                SET unique_riders_12mo = EXCLUDED.unique_riders_12mo,
+                    total_passes_12mo = EXCLUDED.total_passes_12mo,
+                    weighted_score = EXCLUDED.weighted_score,
+                    last_ridden_date = EXCLUDED.last_ridden_date,
+                    is_public = EXCLUDED.is_public,
+                    contributor_ids = EXCLUDED.contributor_ids,
+                    has_seed = EXCLUDED.has_seed;
+                """,
+                (edge_id, sport, len(contribs), total_passes, round(weighted_score, 3), max_date,
+                 is_pub, sorted(contribs), has_seed)
+            )
+            stats["edges_updated"] += 1
+            stats["public_edges_count" if is_pub else "private_edges_count"] += 1
+
+        # Heat is derived from visits only: a row without a visit in the window (aged out, or its
+        # activity was deleted) is reset to 0.
+        zero_scope = "" if edge_ids is None else "AND h.edge_osm_id = ANY(%(ids)s)"
+        c.execute(
+            f"""
+            UPDATE edge_heat h
+            SET unique_riders_12mo = 0, total_passes_12mo = 0, weighted_score = 0.0,
+                is_public = FALSE, has_seed = FALSE, contributor_ids = '{{}}'
+            WHERE NOT EXISTS (
+                SELECT 1 FROM activity_edge_visits v
+                WHERE v.edge_osm_id = h.edge_osm_id AND v.sport = h.sport AND v.visited_at >= %(ws)s
+            ) {zero_scope};
+            """,
+            params
+        )
+
+    if cur is not None:
+        with cur.connection.cursor(cursor_factory=RealDictCursor) as c:  # same transaction
+            run(c)
+        return stats
+    with get_connection() as conn:
+        with conn.cursor(cursor_factory=RealDictCursor) as c:
+            run(c)
+        conn.commit()
+    return stats
+
 
 def record_edge_heat(edge_osm_id: int, sport: str, weight: float = 1.0, user_id: Optional[str] = None) -> bool:
     try:
@@ -114,22 +270,15 @@ def record_edge_heat(edge_osm_id: int, sport: str, weight: float = 1.0, user_id:
                             WHEN %s IS NOT NULL AND NOT (%s = ANY(edge_heat.contributor_ids))
                             THEN edge_heat.unique_riders_12mo + 1
                             ELSE edge_heat.unique_riders_12mo
-                        END,
-                        is_public = (
-                            CASE
-                                WHEN %s IS NOT NULL AND NOT (%s = ANY(edge_heat.contributor_ids))
-                                THEN edge_heat.unique_riders_12mo + 1
-                                ELSE edge_heat.unique_riders_12mo
-                            END >= 3
-                        );
+                        END;
                     """,
                     (
                         edge_osm_id, sport, weight, contrib_arr,
                         user_id, user_id, user_id,
-                        user_id, user_id,
                         user_id, user_id
                     )
                 )
+                _publish_edge(cur, edge_osm_id, sport)
                 conn.commit()
                 return True
     except Exception:
@@ -404,16 +553,13 @@ def record_activity_edge_visits(
     elif visited_at.tzinfo is None:
         visited_at = visited_at.replace(tzinfo=datetime.timezone.utc)
 
-    # Calculate decay weight for today
-    now = datetime.datetime.now(datetime.timezone.utc)
-    days_ago = max(0.0, (now - visited_at).total_seconds() / 86400.0)
-    decay_weight = 2.0 ** (-days_ago / 182.5) if days_ago <= 365.0 else 0.0
-
     inserted_count = 0
     try:
         with get_connection() as conn:
             with conn.cursor() as cur:
                 ensure_user_exists(user_id)
+                cur.execute("SELECT DISTINCT edge_osm_id FROM activity_edge_visits WHERE activity_id = %s;", (activity_id,))
+                stale_edges = [r[0] for r in cur.fetchall()]
                 cur.execute("DELETE FROM activity_edge_visits WHERE activity_id = %s;", (activity_id,))
                 for edge_id, pass_count in edge_counts.items():
                     # 1. Ensure edge exists in edges table
@@ -421,48 +567,20 @@ def record_activity_edge_visits(
                         "INSERT INTO edges (osm_id) VALUES (%s) ON CONFLICT (osm_id) DO NOTHING;",
                         (edge_id,)
                     )
-                    # 2. Insert into activity_edge_visits
+                    # 2. Insert into activity_edge_visits (a visit of an admin-imported Garmin export is seed heat)
                     cur.execute(
                         """
                         INSERT INTO activity_edge_visits (
-                            activity_id, edge_osm_id, user_id, sport, visited_at, pass_count
+                            activity_id, edge_osm_id, user_id, sport, visited_at, pass_count, is_seed
                         )
-                        VALUES (%s, %s, %s, %s, %s, %s);
+                        VALUES (%s, %s, %s, %s, %s, %s,
+                                COALESCE((SELECT source = 'garmin_export' FROM activities WHERE id = %s), FALSE));
                         """,
-                        (activity_id, edge_id, user_id, sport, visited_at, pass_count)
-                    )
-                    # 3. Update edge_heat
-                    add_score = decay_weight * pass_count
-                    cur.execute(
-                        """
-                        INSERT INTO edge_heat (
-                            edge_osm_id, sport, unique_riders_12mo, total_passes_12mo,
-                            weighted_score, last_ridden_date, is_public, contributor_ids
-                        )
-                        VALUES (%s, %s, 1, %s, %s, %s::date, TRUE, ARRAY[%s])
-                        ON CONFLICT (edge_osm_id, sport) DO UPDATE
-                        SET total_passes_12mo = edge_heat.total_passes_12mo + EXCLUDED.total_passes_12mo,
-                            weighted_score = edge_heat.weighted_score + EXCLUDED.weighted_score,
-                            last_ridden_date = GREATEST(edge_heat.last_ridden_date, EXCLUDED.last_ridden_date),
-                            contributor_ids = CASE
-                                WHEN NOT (%s = ANY(edge_heat.contributor_ids))
-                                THEN array_append(edge_heat.contributor_ids, %s)
-                                ELSE edge_heat.contributor_ids
-                            END,
-                            unique_riders_12mo = CASE
-                                WHEN NOT (%s = ANY(edge_heat.contributor_ids))
-                                THEN edge_heat.unique_riders_12mo + 1
-                                ELSE edge_heat.unique_riders_12mo
-                            END,
-                            is_public = TRUE;
-                        """,
-                        (
-                            edge_id, sport, pass_count, add_score, visited_at, user_id,
-                            user_id, user_id,
-                            user_id
-                        )
+                        (activity_id, edge_id, user_id, sport, visited_at, pass_count, activity_id)
                     )
                     inserted_count += 1
+                # 3. edge_heat (and is_public) is derived from visits in one place
+                refresh_edge_heat(list(set(edge_counts) | set(stale_edges)), cur=cur)
                 conn.commit()
     except Exception as e:
         print(f"Error recording activity edge visits: {e}")
@@ -680,7 +798,7 @@ def recalculate_all_edge_heat(ref_date: Optional[datetime.datetime] = None) -> D
     Nightly background worker recalculation:
     1. Reads all activity_edge_visits in the 12-month window.
     2. Computes exponential decay (6-month half-life).
-    3. Aggregates unique riders and applies >= 3 riders privacy threshold.
+    3. Aggregates unique riders and applies the publication rule (decay.heat_is_public).
     4. Upserts edge_heat and zeros out edges with no visits.
     5. Recalculates regional coverage grid.
     """
@@ -690,7 +808,6 @@ def recalculate_all_edge_heat(ref_date: Optional[datetime.datetime] = None) -> D
         ref_date = ref_date.replace(tzinfo=datetime.timezone.utc)
 
     start_time = datetime.datetime.now(datetime.timezone.utc)
-    window_start = ref_date - datetime.timedelta(days=365)
 
     stats = {
         "edges_updated": 0,
@@ -702,99 +819,7 @@ def recalculate_all_edge_heat(ref_date: Optional[datetime.datetime] = None) -> D
     }
 
     try:
-        with get_connection() as conn:
-            with conn.cursor(cursor_factory=RealDictCursor) as cur:
-                # 1. Fetch all visits within 12 months
-                cur.execute(
-                    """
-                    SELECT edge_osm_id, sport, user_id, visited_at, pass_count
-                    FROM activity_edge_visits
-                    WHERE visited_at >= %s;
-                    """,
-                    (window_start,)
-                )
-                visits = cur.fetchall()
-
-                # Group by (edge_osm_id, sport)
-                edge_groups: Dict[Tuple[int, str], List[Dict[str, Any]]] = {}
-                for v in visits:
-                    key = (v["edge_osm_id"], v["sport"])
-                    if key not in edge_groups:
-                        edge_groups[key] = []
-                    edge_groups[key].append(v)
-
-                # 2. Recalculate each edge's decayed heat
-                for (edge_id, sport), v_list in edge_groups.items():
-                    contribs = set()
-                    total_passes = 0
-                    weighted_score = 0.0
-                    max_date = None
-
-                    for v in v_list:
-                        uid = str(v["user_id"])
-                        v_dt = v["visited_at"]
-                        if v_dt.tzinfo is None:
-                            v_dt = v_dt.replace(tzinfo=datetime.timezone.utc)
-                        p_cnt = int(v.get("pass_count", 1))
-
-                        days_ago = max(0.0, (ref_date - v_dt).total_seconds() / 86400.0)
-                        if days_ago <= 365.0:
-                            w = 2.0 ** (-days_ago / 182.5)
-                            contribs.add(uid)
-                            total_passes += p_cnt
-                            weighted_score += (w * p_cnt)
-                            if max_date is None or v_dt > max_date:
-                                max_date = v_dt
-
-                    u_count = len(contribs)
-                    is_pub = (u_count >= min_unique_riders())
-                    contrib_arr = sorted(list(contribs))
-
-                    cur.execute(
-                        """
-                        INSERT INTO edge_heat (
-                            edge_osm_id, sport, unique_riders_12mo, total_passes_12mo,
-                            weighted_score, last_ridden_date, is_public, contributor_ids
-                        )
-                        VALUES (%s, %s, %s, %s, %s, %s::date, %s, %s)
-                        ON CONFLICT (edge_osm_id, sport) DO UPDATE
-                        SET unique_riders_12mo = EXCLUDED.unique_riders_12mo,
-                            total_passes_12mo = EXCLUDED.total_passes_12mo,
-                            weighted_score = EXCLUDED.weighted_score,
-                            last_ridden_date = EXCLUDED.last_ridden_date,
-                            is_public = EXCLUDED.is_public,
-                            contributor_ids = EXCLUDED.contributor_ids;
-                        """,
-                        (
-                            edge_id, sport, u_count, total_passes,
-                            round(weighted_score, 3), max_date, is_pub, contrib_arr
-                        )
-                    )
-                    stats["edges_updated"] += 1
-                    if is_pub:
-                        stats["public_edges_count"] += 1
-                    else:
-                        stats["private_edges_count"] += 1
-
-                # 3. Heat is derived from visits only: any row without a visit in the window
-                #    (aged out, or its activity was deleted) is reset to 0.
-                cur.execute(
-                    """
-                    UPDATE edge_heat h
-                    SET unique_riders_12mo = 0,
-                        total_passes_12mo = 0,
-                        weighted_score = 0.0,
-                        is_public = FALSE,
-                        contributor_ids = '{}'
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM activity_edge_visits v
-                        WHERE v.edge_osm_id = h.edge_osm_id AND v.sport = h.sport AND v.visited_at >= %s
-                    );
-                    """,
-                    (window_start,)
-                )
-
-                conn.commit()
+        stats.update(refresh_edge_heat(None, ref_date=ref_date))
 
         # 4. Recalculate regional coverage grid
         cells_updated = recalculate_regional_coverage()
@@ -1812,6 +1837,20 @@ def export_user_data(user_id: str) -> Dict[str, Any]:
             for sr in saved:
                 sr["created_at"] = sr["created_at"].isoformat() if sr.get("created_at") else ""
 
+            # 9. Bad-route reports (the private snapshot) and trail submissions
+            cur.execute(
+                "SELECT id, created_at, comment, status, github_issue_url, request_json, route_json "
+                "FROM route_reports WHERE user_id = %s ORDER BY created_at DESC;", (user_id,))
+            reports = [dict(r) for r in cur.fetchall()]
+            for r in reports:
+                r["id"] = str(r["id"])
+                r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else ""
+            cur.execute("SELECT id, name, sport, difficulty, status, description, created_at "
+                        "FROM trail_submissions WHERE user_id = %s;", (user_id,))
+            submissions = [dict(r) for r in cur.fetchall()]
+            for r in submissions:
+                r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else ""
+
             return {
                 "user_id": user_id,
                 "email": profile.get("email"),
@@ -1824,6 +1863,8 @@ def export_user_data(user_id: str) -> Dict[str, Any]:
                 "activities": activities,
                 "saved_routes": saved,
                 "heat_trail_contributions": heat_contributions,
+                "route_reports": reports,
+                "trail_submissions": submissions,
                 "exported_at": datetime.datetime.now(datetime.timezone.utc).isoformat()
             }
 
@@ -1831,8 +1872,9 @@ def delete_user_account(user_id: str) -> bool:
     """
     Purges all user account records and personal data across all tables.
     Deletes privacy zones, DNR entries, override logs, check-ins, flag votes, flags,
-    saved routes, activity edge visits, activities, consent settings, and user entity.
-    Triggers heat recalculation.
+    saved routes, activity edge visits, activities, consent settings, bad-route report snapshots,
+    unverified trail submissions (verified ones lose their author) and the user entity (which
+    cascades to connector tokens, seed loops and submission evidence). Triggers heat recalculation.
     """
     with get_connection() as conn:
         with conn.cursor() as cur:
@@ -1847,6 +1889,11 @@ def delete_user_account(user_id: str) -> bool:
             cur.execute("DELETE FROM activity_edge_visits WHERE user_id = %s;", (user_id,))
             cur.execute("DELETE FROM activities WHERE user_id = %s;", (user_id,))
             cur.execute("DELETE FROM contribution_consent WHERE user_id = %s;", (user_id,))
+            # Bad-route reports: the full private snapshot goes (the trimmed public GitHub issue stays)
+            cur.execute("DELETE FROM route_reports WHERE user_id = %s;", (user_id,))
+            # Trail submissions: unverified ones go; a verified trail stays on the map without its author
+            cur.execute("DELETE FROM trail_submissions WHERE user_id = %s AND status <> 'verified';", (user_id,))
+            cur.execute("UPDATE trail_submissions SET user_id = NULL WHERE user_id = %s;", (user_id,))
             cur.execute("DELETE FROM users WHERE id = %s;", (user_id,))
             conn.commit()
 
@@ -2013,7 +2060,7 @@ def get_unridden_high_heat_trails(
                            ST_AsGeoJSON(e.geom) as geom_json
                     FROM edges e
                     JOIN edge_heat h ON e.osm_id = h.edge_osm_id AND h.sport = %s
-                    WHERE (h.unique_riders_12mo >= 1 OR h.weighted_score >= 1.0)
+                    WHERE h.is_public = TRUE
                       AND e.geom IS NOT NULL
                       AND e.highway IN ('path', 'track', 'footway', 'bridleway', 'cycleway')
                       AND e.osm_id NOT IN (

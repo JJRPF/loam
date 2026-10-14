@@ -30,13 +30,14 @@ def test_min_unique_riders_defaults_to_three_and_can_be_overridden(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_heat_meta_reports_the_override(monkeypatch):
+async def test_heat_meta_reports_the_rule(monkeypatch):
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         monkeypatch.setattr(settings, "heat_min_unique_riders", 3)
-        assert (await client.get("/api/heat/meta")).json() == {"min_unique_riders": 3, "seed_data_notice": False}
-        monkeypatch.setattr(settings, "heat_min_unique_riders", 1)
-        assert (await client.get("/api/heat/meta")).json()["seed_data_notice"] is True
+        monkeypatch.setattr(settings, "seed_heat_public", True)
+        assert (await client.get("/api/heat/meta")).json() == {"min_unique_riders": 3, "seed_heat_public": True}
+        monkeypatch.setattr(settings, "seed_heat_public", False)
+        assert (await client.get("/api/heat/meta")).json()["seed_heat_public"] is False
 
 
 def test_recalculation_uses_the_threshold(monkeypatch):
@@ -150,6 +151,7 @@ def _seed_checks(uid, garmin_id, th, track, monkeypatch):
     monkeypatch.setattr(settings, "heat_min_unique_riders", 3)
     seeds = seed_catalog.get_matching_seeds(th["lat"], th["lon"], 6.0, sport="mtb_hardtail", user_id=uid)
     assert seeds
+    monkeypatch.setattr(settings, "seed_heat_public", False)  # the trail-share rule is tested in test_round8_heat_privacy
     assert seed_catalog.get_matching_seeds(th["lat"], th["lon"], 6.0, sport="mtb_hardtail", user_id="someone_else") == []
     req = RouteOptionsRequest(start=LatLon(lat=th["lat"], lon=th["lon"], name=th["name"]), profile="mtb_hardtail",
                               route_mode="loop", target_distance_miles=6.0)

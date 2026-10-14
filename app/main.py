@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional, List
 
 from app.config import settings, check_production_config
+from app.ratelimit import rate_limited, route_slot
 from app.auth import AuthUser, get_current_user, get_optional_user, get_admin_user
 from app.models import (
     BadRouteReport, BadRouteReportResponse,
@@ -83,6 +84,78 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+# An old PWA installed from the Funnel origin keeps a service worker there. A redirected /sw.js would not
+# update it, so that host serves this one: it unregisters itself and sends open tabs to the new origin.
+KILL_SWITCH_SW = """self.addEventListener('install', () => self.skipWaiting());
+self.addEventListener('activate', (event) => {
+  event.waitUntil((async () => {
+    await self.registration.unregister();
+    const clients = await self.clients.matchAll({ type: 'window' });
+    for (const c of clients) { try { c.navigate(%s); } catch (e) {} }
+  })());
+});
+"""
+
+
+@app.middleware("http")
+async def old_origin_redirect(request, call_next):
+    origin = settings.public_app_origin
+    host = (request.headers.get("host") or "").split(":")[0].lower()
+    if origin and host == settings.api_public_host:
+        path = request.url.path
+        if path == "/sw.js":
+            from fastapi.responses import Response
+            body = KILL_SWITCH_SW % json.dumps(origin + "/")
+            return Response(body, media_type="text/javascript", headers={"Cache-Control": "no-store"})
+        if request.method in ("GET", "HEAD") and not (path.startswith("/api/") or path == "/health"):
+            from fastapi.responses import RedirectResponse
+            query = f"?{request.url.query}" if request.url.query else ""
+            return RedirectResponse(origin + path + query, status_code=301)
+    return await call_next(request)
+
+
+def attachment_headers(name, ext: str) -> dict:
+    """Content-Disposition for a download named after the route. Route names carry characters HTTP headers can't
+    (the default names have an em dash), so the plain filename is an ASCII slug and the full name goes in
+    filename* (RFC 5987)."""
+    import re
+    import unicodedata
+    from urllib.parse import quote
+
+    full = " ".join(str(name or "Loam Route").split())[:120] or "Loam Route"
+    slug = unicodedata.normalize("NFKD", full).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", slug).strip("_").lower() or "loam_route"
+    return {"Content-Disposition": f"attachment; filename=\"{slug}.{ext}\"; filename*=UTF-8''{quote(full + '.' + ext, safe='')}"}
+
+
+MIDPOINTS_OFF_NOTICE = "Midpoints are turned off for now, so this route ignores them."
+
+
+def _join_notices(*notices: Optional[str]) -> Optional[str]:
+    return " ".join(n for n in notices if n) or None
+
+
+def apply_midpoint_flag(request) -> Optional[str]:
+    """With ENABLE_MIDPOINTS off, drop any waypoints (never a 400: old shared links keep working)
+    and return the notice to show when some were sent."""
+    if settings.enable_midpoints or not request.waypoints:
+        return None
+    request.waypoints = []
+    return MIDPOINTS_OFF_NOTICE
+
+
+@app.get("/api/config")
+async def public_config():
+    """Public, non-secret settings the UI needs to decide what to show."""
+    return {
+        "midpoints_enabled": settings.enable_midpoints,
+        "min_unique_riders": settings.heat_min_unique_riders,
+        "seed_heat_public": settings.seed_heat_public,
+        "connectors": connector_manager.enabled_map(),
+        "source_url": settings.source_url,
+    }
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health():
     # Check GraphHopper
@@ -105,31 +178,39 @@ async def health():
         elevation_provider=f"{settings.elevation_provider} ({tile_count()} DEM tiles)"
     )
 
-@app.post("/api/route", response_model=RouteResponse)
+@app.post("/api/route", response_model=RouteResponse, dependencies=[Depends(rate_limited("route", "building routes"))])
 async def calculate_route(
     request: RouteRequest,
     user: Optional[AuthUser] = Depends(get_optional_user)
 ):
     try:
         uid = user.uid if user else None
+        notice = apply_midpoint_flag(request)
         t0 = time.perf_counter()
-        route = await fetch_route(request, user_id=uid)
+        async with route_slot():
+            route = await fetch_route(request, user_id=uid)
         elapsed_ms = (time.perf_counter() - t0) * 1000
+        if notice:
+            route = route.model_copy(update={"notice": notice})
         return route
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
 
-@app.post("/api/route/options", response_model=RouteOptionsResponse)
+@app.post("/api/route/options", response_model=RouteOptionsResponse, dependencies=[Depends(rate_limited("route", "building routes"))])
 async def calculate_route_options(
     request: RouteOptionsRequest,
     user: Optional[AuthUser] = Depends(get_optional_user)
 ):
     try:
         uid = user.uid if user else None
-        result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+        mid_notice = apply_midpoint_flag(request)
+        async with route_slot():
+            result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
         options = result.options
         is_loop_req = request.is_loop or request.route_mode in ("loop", "round_trip") or (request.end is None and request.route_mode != "out_and_back")
         has_true_loops = any(opt.route_type in ("loop", "lollipop") for opt in options)
@@ -141,28 +222,35 @@ async def calculate_route_options(
             loops_only=request.loops_only,
             no_true_loop_near_here=bool(is_loop_req and not has_true_loops),
             nearby_start_suggestion=result.nearby_suggestion,
-            notice=result.notice,
+            notice=_join_notices(mid_notice, result.notice),
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=str(e)
         )
 
-@app.post("/api/route/options/stream")
+@app.post("/api/route/options/stream", dependencies=[Depends(rate_limited("route", "building routes"))])
 async def stream_route_options_post(
     request: RouteOptionsRequest,
     user: Optional[AuthUser] = Depends(get_optional_user)
 ):
     uid = user.uid if user else None
+    mid_notice = apply_midpoint_flag(request)
     async def event_generator():
         try:
-            result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
+            async with route_slot():
+                result = await plan_route_options(request, count=request.candidate_count, user_id=uid)
             for opt in result.options:
                 yield f"event: candidate\ndata: {opt.model_dump_json()}\n\n"
-            done = {"status": "complete", "count": len(result.options), "notice": result.notice,
+            done = {"status": "complete", "count": len(result.options),
+                    "notice": _join_notices(mid_notice, result.notice),
                     "nearby_start_suggestion": result.nearby_suggestion}
             yield f"event: complete\ndata: {json.dumps(done)}\n\n"
+        except HTTPException as e:  # 429 from the concurrency cap: tell the client why, with the status
+            yield f"event: error\ndata: {json.dumps({'error': e.detail, 'status': e.status_code, 'retry_after': (e.headers or {}).get('Retry-After')})}\n\n"
         except Exception as e:
             yield f"event: error\ndata: {json.dumps({'error': str(e)})}\n\n"
 
@@ -176,7 +264,7 @@ async def stream_route_options_post(
         }
     )
 
-@app.get("/api/route/options/stream")
+@app.get("/api/route/options/stream", dependencies=[Depends(rate_limited("route", "building routes"))])
 async def stream_route_options_get(
     lat: float,
     lon: float,
@@ -211,11 +299,11 @@ async def export_gpx(req: ExportRequest):
             elevation_loss_ft=req.elevation_loss_ft,
             waypoints=req.waypoints
         )
-        filename = f"{(req.name or 'loam_route').lower().replace(' ', '_')}.gpx"
+        headers = attachment_headers(req.name, "gpx")
         return Response(
             content=gpx_xml,
             media_type="application/gpx+xml",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers=headers
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate GPX: {str(e)}")
@@ -233,11 +321,11 @@ async def export_fit(req: ExportRequest):
             elevation_gain_ft=req.elevation_gain_ft,
             elevation_loss_ft=req.elevation_loss_ft
         )
-        filename = f"{(req.name or 'loam_route').lower().replace(' ', '_')}.fit"
+        headers = attachment_headers(req.name, "fit")
         return Response(
             content=fit_bytes,
             media_type="application/vnd.ant.fit",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers=headers
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate FIT: {str(e)}")
@@ -258,11 +346,11 @@ async def export_saved_route_gpx(route_id: str):
         elevation_loss_ft=route.get("elevation_loss_ft", 0.0),
         waypoints=route.get("waypoints")
     )
-    filename = f"{(route.get('name') or 'loam_route').lower().replace(' ', '_')}.gpx"
+    headers = attachment_headers(route.get("name"), "gpx")
     return Response(
         content=gpx_xml,
         media_type="application/gpx+xml",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers=headers
     )
 
 @app.get("/api/export/fit/{route_id}")
@@ -280,11 +368,11 @@ async def export_saved_route_fit(route_id: str):
         elevation_gain_ft=route.get("elevation_gain_ft", 0.0),
         elevation_loss_ft=route.get("elevation_loss_ft", 0.0)
     )
-    filename = f"{(route.get('name') or 'loam_route').lower().replace(' ', '_')}.fit"
+    headers = attachment_headers(route.get("name"), "fit")
     return Response(
         content=fit_bytes,
         media_type="application/vnd.ant.fit",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers=headers
     )
 
 # --- Saved Routes Endpoints ---
@@ -359,14 +447,32 @@ def load_trailheads() -> List[Dict[str, Any]]:
     except (OSError, ValueError):
         return []
 
+PHOTON_TTL_S = 3600
+_photon_cache: Dict[str, tuple] = {}
+
+
 async def photon_search(query: str) -> List[Dict[str, Any]]:
-    """Photon (komoot, OSM data) search; [] when it can't be reached."""
+    """Photon (komoot, OSM data) search, cached for an hour per query; [] when it can't be reached."""
+    key = " ".join(query.lower().split())
+    hit = _photon_cache.get(key)
+    if hit and time.time() - hit[0] < PHOTON_TTL_S:
+        return hit[1]
+    out = await _photon_fetch(query)
+    if out is not None:
+        if len(_photon_cache) > 500:
+            _photon_cache.clear()
+        _photon_cache[key] = (time.time(), out)
+    return out or []
+
+
+async def _photon_fetch(query: str) -> Optional[List[Dict[str, Any]]]:
+    """None when Photon can't answer (not cached), else the results."""
     out = []
     try:
-        async with httpx.AsyncClient(timeout=2.0) as client:
+        async with httpx.AsyncClient(timeout=2.0, headers={"User-Agent": settings.user_agent}) as client:
             resp = await client.get("https://photon.komoot.io/api/", params={"q": query, "limit": 5})
         if resp.status_code != 200:
-            return []
+            return None
         for feat in resp.json().get("features", []):
             props = feat.get("properties", {})
             coords = feat.get("geometry", {}).get("coordinates", [])
@@ -376,11 +482,11 @@ async def photon_search(query: str) -> List[Dict[str, Any]]:
                 out.append({"name": name, "display_name": f"{name}, {city}".strip(", "),
                             "lat": coords[1], "lon": coords[0]})
     except Exception:
-        return []
+        return None
     return out
 
 
-@app.get("/api/geocode")
+@app.get("/api/geocode", dependencies=[Depends(rate_limited("geocode", "searching"))])
 async def geocode_location(q: str):
     """
     Geocodes a search string: OSM-derived trailhead parking first, then the Photon
@@ -412,7 +518,7 @@ async def geocode_location(q: str):
 
 # --- Stage 4: Activity Ingestion, Heat & Privacy Endpoints ---
 
-@app.post("/api/activities/upload", response_model=ActivityUploadResponse)
+@app.post("/api/activities/upload", response_model=ActivityUploadResponse, dependencies=[Depends(rate_limited("upload", "uploading"))])
 async def upload_activity(
     file: UploadFile = File(...),
     sport: Optional[str] = Form(None),
@@ -544,7 +650,7 @@ async def get_edge_info(
         last_ridden_date=heat.get("last_ridden_date"),
         is_contributor=heat.get("is_contributor", False),
         coverage_sufficient=True,
-        message=None if heat.get("is_accessible") else "Private to contributor (< 3 unique riders)"
+        message=None if heat.get("is_accessible") else "Not enough riders to show heat on this trail"
     )
 
 @app.post("/api/heat/record")
@@ -570,7 +676,11 @@ async def report_bad_route(
     from app import reports
 
     if await asyncio.to_thread(reports.count_recent, user.uid) >= reports.DAILY_LIMIT:
-        raise HTTPException(status_code=429, detail=f"At most {reports.DAILY_LIMIT} reports a day.")
+        raise HTTPException(status_code=429, detail=f"You can send {reports.DAILY_LIMIT} reports a day. Please try again tomorrow.",
+                            headers={"Retry-After": "3600"})
+    if await asyncio.to_thread(reports.count_recent_global) >= settings.report_daily_limit_global:
+        raise HTTPException(status_code=429, detail="Loam has reached its daily limit for reports. Please try again tomorrow.",
+                            headers={"Retry-After": "3600"})
     request = body.request.model_dump(mode="json")
     route = body.route.model_dump(mode="json")
     rid = await asyncio.to_thread(reports.store_report, user.uid, body.comment.strip(), request, route, body.options)
@@ -620,9 +730,8 @@ async def bulk_import_heat(
 
 @app.get("/api/heat/meta")
 async def heat_meta():
-    """Heat privacy threshold, so the UI can say when the 3-rider minimum is temporarily off."""
-    n = settings.heat_min_unique_riders
-    return {"min_unique_riders": n, "seed_data_notice": n < 3}
+    """Heat privacy rule, so the UI can describe it: riders needed, and whether the creator's seed heat is shown."""
+    return {"min_unique_riders": settings.heat_min_unique_riders, "seed_heat_public": settings.seed_heat_public}
 
 
 @app.get("/api/heat/trails")
@@ -665,32 +774,6 @@ async def get_otm_trail(osm_way_id: int):
     if details is None:
         raise HTTPException(status_code=404, detail="Trail not in the local OSM import")
     return details
-
-@app.get("/api/pois")
-async def get_pois(
-    min_lat: float = Query(...), min_lon: float = Query(...), max_lat: float = Query(...), max_lon: float = Query(...),
-    kinds: str = Query("water,bike_shop,bike_repair", description="comma list of water, bike_shop, bike_repair, toilets"),
-    limit: int = Query(300, ge=1, le=1000)
-):
-    """Water, bike shops, repair stations (and toilets) from the local OSM import, as GeoJSON."""
-    import asyncio
-
-    wanted = [k for k in kinds.split(",") if k in ("water", "bike_shop", "bike_repair", "toilets")]
-    if not wanted or max_lat - min_lat > 1.0 or max_lon - min_lon > 1.5:
-        return {"type": "FeatureCollection", "features": []}
-
-    def query():
-        with get_connection() as conn, conn.cursor() as cur:
-            cur.execute(
-                """SELECT osm_type, osm_id, kind, name, ST_X(geom), ST_Y(geom) FROM pois
-                   WHERE kind = ANY(%s) AND geom && ST_MakeEnvelope(%s, %s, %s, %s, 4326) LIMIT %s""",
-                (wanted, min_lon, min_lat, max_lon, max_lat, limit))
-            return cur.fetchall()
-
-    rows = await asyncio.to_thread(query)
-    return {"type": "FeatureCollection", "features": [
-        {"type": "Feature", "geometry": {"type": "Point", "coordinates": [lon, lat]},
-         "properties": {"id": f"{t}/{i}", "kind": k, "name": n}} for t, i, k, n, lon, lat in rows]}
 
 @app.get("/api/weather")
 async def get_weather(lat: float = Query(..., ge=-90, le=90), lon: float = Query(..., ge=-180, le=180), hours: int = Query(12, ge=1, le=48)):
@@ -805,7 +888,7 @@ async def trigger_heat_recalculation(
 
 # --- Community Trail Flags ---
 
-@app.post("/api/flags", response_model=FlagResponse)
+@app.post("/api/flags", response_model=FlagResponse, dependencies=[Depends(rate_limited("flag", "submitting"))])
 async def report_trail_flag(
     flag: FlagCreate,
     user: AuthUser = Depends(get_current_user)
@@ -828,9 +911,9 @@ async def list_flags(
 ):
     """Lists community trail flags with optional edge_osm_id and status filters."""
     flags = get_community_flags(edge_osm_id=edge_osm_id, status=status, limit=limit)
-    return [FlagResponse(**f) for f in flags]
+    return [FlagResponse(**{**f, "user_id": None}) for f in flags]  # public: never who flagged
 
-@app.post("/api/flags/{flag_id}/vote", response_model=FlagVoteResponse)
+@app.post("/api/flags/{flag_id}/vote", response_model=FlagVoteResponse, dependencies=[Depends(rate_limited("flag", "submitting"))])
 async def vote_flag(
     flag_id: int,
     vote: FlagVoteCreate,
@@ -853,7 +936,7 @@ async def vote_flag(
 
 # --- Rider Trail Check-ins ("still open") ---
 
-@app.post("/api/trails/{edge_osm_id}/checkin", response_model=TrailCheckinResponse)
+@app.post("/api/trails/{edge_osm_id}/checkin", response_model=TrailCheckinResponse, dependencies=[Depends(rate_limited("flag", "submitting"))])
 async def submit_trail_checkin(
     edge_osm_id: int,
     checkin: TrailCheckinCreate,
@@ -884,7 +967,7 @@ async def submit_trail_checkin(
 async def list_trail_checkins(edge_osm_id: int, limit: int = 20):
     """Returns recent check-in history for an edge."""
     checkins = get_trail_checkins(edge_osm_id=edge_osm_id, limit=limit)
-    return [TrailCheckinResponse(confidence_score=1.0, **c) for c in checkins]
+    return [TrailCheckinResponse(confidence_score=1.0, **{**c, "user_id": None}) for c in checkins]  # public: never who
 
 @app.get("/api/trails/{edge_osm_id}/status", response_model=TrailStatusResponse)
 async def check_trail_status(edge_osm_id: int):
@@ -899,7 +982,7 @@ async def check_trail_status(edge_osm_id: int):
         access=st.get("access"),
         bicycle=st.get("bicycle"),
         recent_checkins_count=st["recent_checkins_count"],
-        active_flags=[FlagResponse(**f) for f in st["active_flags"]]
+        active_flags=[FlagResponse(**{**f, "user_id": None}) for f in st["active_flags"]]
     )
 
 # --- User DNR (Do Not Ride) System ---
@@ -1054,10 +1137,13 @@ async def delete_my_account(
     """
     Permanently purges all user account records and personal data.
     Deletes privacy zones, DNR entries, override logs, check-ins, flags,
-    activities, saved routes, and contribution consent.
+    activities, saved routes, contribution consent, bad-route report snapshots and unverified submissions.
     """
     uid = user.uid
-    ok = delete_user_account(uid)
+    try:
+        delete_user_account(uid)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Account deletion failed; nothing was removed. Please try again.")
     return {"status": "account_deleted", "user_id": uid}
 
 
@@ -1121,7 +1207,7 @@ async def list_submissions(
 ):
     """Lists trail submissions (filtered by status: pending, verified, rejected, taken_down, or all)."""
     records = get_trail_submissions(status_filter=status)
-    return [TrailSubmissionResponse(**r) for r in records]
+    return [TrailSubmissionResponse(**{**r, "user_id": None}) for r in records]  # public: never who
 
 @app.get("/api/submissions/{submission_id}", response_model=TrailSubmissionResponse)
 async def get_submission(submission_id: int):
@@ -1129,7 +1215,7 @@ async def get_submission(submission_id: int):
     record = get_trail_submission_by_id(submission_id)
     if not record:
         raise HTTPException(status_code=404, detail="Trail submission not found.")
-    return TrailSubmissionResponse(**record)
+    return TrailSubmissionResponse(**{**record, "user_id": None})
 
 @app.get("/api/submissions/{submission_id}/osm-gpx")
 async def submission_osm_gpx(submission_id: int):

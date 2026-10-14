@@ -87,12 +87,12 @@ export const CandidateCard: React.FC<CandidateCardProps> = ({
             gap: 4,
             padding: '3px 8px',
             borderRadius: 6,
-            backgroundColor: isSelected ? 'var(--color-blaze, #FF5B14)' : 'var(--color-bg-subtle, #F3F7F7)',
+            backgroundColor: isSelected ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-bg-subtle, #F3F7F7)',
             color: isSelected ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
             flexShrink: 0
           }}
         >
-          <span style={{ fontSize: 10, fontWeight: 600, opacity: 0.85, textTransform: 'uppercase' }}>Match</span>
+          <span style={{ fontSize: 10, fontWeight: 600, opacity: isSelected ? 1 : 0.85, textTransform: 'uppercase' }}>Match</span>
           <span className="num-tabular" style={{ fontSize: 15, fontWeight: 700 }}>
             {route.match_score ?? 90}
           </span>

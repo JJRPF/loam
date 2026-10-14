@@ -41,10 +41,19 @@ def _req():
                         target_distance_miles=1.0)
 
 
-def test_seed_catalog_empty_without_imported_rides():
+def test_seed_catalog_only_holds_imported_rides(monkeypatch):
+    from app.config import settings
+    from app.db import get_connection
+
+    monkeypatch.setattr(settings, "seed_heat_public", False)  # only >= 3 riders (or the rider's own) qualify
     for sport in ("mtb", "trail_run"):
         assert seed_catalog.get_matching_seeds(*BOW_TRAILHEAD, target_miles=10.0, sport=sport) == []
         assert seed_catalog.get_matching_seeds(43.1349, -71.3659, target_miles=14.0, sport=sport) == []
+    # every seed loop in the database traces back to an admin-imported ride, never to a hand-made one
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("""SELECT count(*) FROM seed_loops s LEFT JOIN activities a ON a.id = s.activity_id
+                       WHERE a.source IS DISTINCT FROM 'garmin_export'""")
+        assert cur.fetchone()[0] == 0
 
 
 def test_no_ascend_without_a_dem_sample(monkeypatch, tmp_path):

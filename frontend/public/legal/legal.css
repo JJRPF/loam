@@ -1,0 +1,37 @@
+:root { color-scheme: dark; }
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: #0e1d19; color: #e7ecec;
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+header, main, footer { max-width: 46rem; margin: 0 auto; padding: 0 1.25rem; }
+header { padding-top: 1.5rem; padding-bottom: .5rem; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; justify-content: space-between; }
+header a.brand { display: inline-flex; align-items: center; min-height: 44px; }
+header a.brand img { height: 36px; width: auto; display: block; }
+nav { display: flex; gap: .25rem 1rem; flex-wrap: wrap; font-size: .95rem; }
+nav a { display: inline-flex; align-items: center; min-height: 44px; }
+a { color: #a9bf7a; text-underline-offset: 3px; }
+a:hover, a:focus-visible { color: #ffffff; }
+h1 { font-size: 1.9rem; line-height: 1.2; margin: 1.25rem 0 .25rem; }
+h2 { font-size: 1.25rem; margin: 2rem 0 .5rem; color: #ffffff; }
+h3 { font-size: 1.05rem; margin: 1.25rem 0 .25rem; }
+p, li { max-width: 68ch; }
+.summary { font-size: 1.1rem; color: #e7ecec; border-left: 4px solid #ff5b14; padding: .25rem 0 .25rem 1rem; margin: 1rem 0; }
+.meta { color: #a0b5ae; margin: 0; }
+ul { padding-left: 1.25rem; }
+li { margin: .3rem 0; }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .9em; }
+code { background: #1b3630; padding: .05em .3em; border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; margin: .75rem 0; font-size: .95rem; }
+th, td { border: 1px solid #264a42; padding: .4rem .6rem; text-align: left; vertical-align: top; }
+th { background: #162c27; }
+.card-list { list-style: none; padding: 0; }
+.card-list li { margin: .75rem 0; }
+.card-list a { display: block; background: #1b3630; border: 1px solid #264a42; border-radius: 8px; padding: .8rem 1rem; min-height: 44px; text-decoration: none; color: #e7ecec; }
+.card-list a:hover, .card-list a:focus-visible { border-color: #ff5b14; }
+.card-list strong { display: block; color: #ffffff; }
+.card-list span { color: #a0b5ae; font-size: .95rem; }
+footer { padding-top: 2rem; padding-bottom: 3rem; color: #a0b5ae; font-size: .9rem; border-top: 1px solid #264a42; margin-top: 3rem; }
+footer a { color: #a9bf7a; }
+.skip { position: absolute; left: -999px; }
+.skip:focus { left: 1rem; top: 1rem; background: #1b3630; padding: .5rem 1rem; z-index: 10; }

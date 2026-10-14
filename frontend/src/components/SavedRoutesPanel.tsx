@@ -171,7 +171,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
               </div>
             </div>
             <div style={{ textAlign: 'right' }}>
-              <span className="num-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)' }}>
+              <span className="num-tabular" style={{ fontSize: 18, fontWeight: 700, color: 'var(--color-blaze-text, #FF7A3D)' }}>
                 {(r.distance_miles ?? 0).toFixed(1)} mi
               </span>
               <div className="num-tabular" style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
@@ -205,7 +205,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
               <button
                 type="button"
                 onClick={(e) => handleDelete(r.id, e)}
-                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'transparent', color: 'var(--color-blaze, #FF5B14)', border: 'none' }}
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'transparent', color: 'var(--color-blaze-text, #FF7A3D)', border: 'none' }}
               >
                 Delete
               </button>

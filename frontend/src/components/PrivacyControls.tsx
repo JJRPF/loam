@@ -71,7 +71,8 @@ export const PrivacyControls: React.FC = () => {
         <span>
           <strong>Contribute my rides to the heat layer</strong>
           <span style={{ display: 'block', fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
-            Off: new uploads are not used for anyone's routing.
+            Off: new uploads are not used for anyone's routing.{' '}
+            <a href="/legal/privacy/#heat" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>How heat works</a>
           </span>
         </span>
       </label>

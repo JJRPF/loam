@@ -1,180 +1,131 @@
-# Loam — Trail Route Builder
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="frontend/public/brand/loam-logo-horizontal-reversed.svg">
+    <img src="frontend/public/brand/loam-logo-horizontal.svg" alt="loam" width="260">
+  </picture>
+</p>
+
+<h3 align="center">Find the loop. Skip the ghost trails.</h3>
 
 <p align="center">
-  <img src="frontend/src/assets/hero.png" alt="Loam Hero Banner" width="700" style="border-radius: 8px; box-shadow: 0 4px 20px rgba(0,0,0,0.15);" />
+  A free route builder for mountain biking and trail running. It builds loops on real trails, shows the surface and the climb before you leave, and sends the route to your Garmin.<br>
+  <strong>Try it at <a href="https://loam.thepfisters.com">loam.thepfisters.com</a></strong>
 </p>
 
 <p align="center">
-  <strong>An intelligent, privacy-first route builder for mountain biking and trail running.</strong><br>
-  Down-weights overgrown ghost trails with a 12-month recency heat decay, offers up to 10 distinct candidates that follow real OSM trails, and exports Garmin GPX/FIT.
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-1D3B34?style=flat-square" alt="License: AGPL-3.0"></a>
+  <a href="https://loam.thepfisters.com"><img src="https://img.shields.io/badge/live%20app-loam.thepfisters.com-FF5B14?style=flat-square" alt="Live app"></a>
+  <img src="https://img.shields.io/badge/python-3.12%2B-3F6C8F?style=flat-square" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square" alt="FastAPI">
+  <img src="https://img.shields.io/badge/PostGIS-336791?style=flat-square" alt="PostGIS">
+  <img src="https://img.shields.io/badge/MapLibre%20GL-A9BF7A?style=flat-square&labelColor=1D3B34" alt="MapLibre GL">
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Python-3.12+-blue.svg" alt="Python 3.12+" />
-  <img src="https://img.shields.io/badge/FastAPI-0.115+-009688.svg" alt="FastAPI" />
-  <img src="https://img.shields.io/badge/PostGIS-3.6-336791.svg" alt="PostGIS 3.6" />
-  <img src="https://img.shields.io/badge/GraphHopper-11.1-orange.svg" alt="GraphHopper 11.1" />
-  <img src="https://img.shields.io/badge/MapLibre_GL-6.13-blueviolet.svg" alt="MapLibre GL" />
-  <img src="https://img.shields.io/badge/License-Open%20Source-green.svg" alt="Open Source" />
+  <img src="docs/screenshots/hero-desktop.png" alt="Loam on a desktop: a 10 mile mountain bike loop at Bear Brook State Park, the candidate list and route details on the left, the route on the map." width="100%">
 </p>
 
----
+<table align="center">
+  <tr>
+    <td align="center"><img src="docs/screenshots/mobile-plan.png" alt="The Plan panel on a phone" width="250"><br><sub>Plan</sub></td>
+    <td align="center"><img src="docs/screenshots/mobile-results.png" alt="Results on a phone, with the route on the map" width="250"><br><sub>Results</sub></td>
+    <td align="center"><img src="docs/screenshots/heatmap.png" alt="The trail heat layer near Bow Town Forest, with its one-line explanation" width="250"><br><sub>Trail heat</sub></td>
+  </tr>
+</table>
 
-## The Vision
+_Screenshots are real app output at Bear Brook State Park, Allenstown, NH (the heat shot is at Bow Town Forest, where there is more public heat to see)._
 
-Popular routing tools fail trail athletes in predictable ways:
-- **Global heatmaps remember dead trails forever**: Strava aggregates ten years of GPS data, sending riders down washed-out logging roads, overgrown briar patches, and decommissioned trails that haven't been rideable since 2017.
-- **Road routers don't understand trail textures**: Traditional navigation apps treat singletrack, fire roads, and asphalt as interchangeable lines on a map, resulting in boring pavement connectors or impassable boulder fields.
-- **Lack of variety**: Most engines produce a single "optimal" line rather than a rich palette of distinct loop options tailored to target distance and terrain appetite.
+## Why Loam
 
-**Loam solves this from first principles:**
-1. **Dynamic Recency Decay**: Heat isn't eternal. A 12-month rolling window with an exponential 6-month half-life rewards actively ridden trails and systematically penalizes neglected ghost trails.
-2. **Terrain-Mix Control & Signature Surface Strip**: Dial in your preferred blend of singletrack, doubletrack, gravel, and pavement. Every candidate route renders with an interactive, color-coded **Surface Strip** synchronized with an elevation profile sampled from USGS 3DEP (about 10 m) tiles. Where no tile covers a route, elevation shows as unavailable, never estimated.
-3. **Multi-Candidate Ranking Engine**: Generates up to 10 structurally distinct candidate routes (fewer when the trail network only supports fewer honest ones), evaluated with a multi-objective scoring formula and out-and-back repetition penalties.
-4. **Community Trust Layer**: One-tap rider check-ins ("still open & clear"), community caution flags (downed trees, seasonal mud, washouts), and strict DNR/closure enforcement protect riders and sensitive terrain.
-5. **Privacy by Design**: Mandatory 3+ rider anonymity thresholds before heat is shared, automatic 0.2-mile start/finish trimming, customizable privacy exclusion zones, and instant account erasure.
-6. **Frictionless Hardware Sync**: Direct one-click download of GPX 1.1 and native binary Garmin FIT course files compatible with Garmin fenix 7 Pro and Edge cycling computers.
+- **Loops that follow real trails.** Routes are built on the OpenStreetMap trail network, and a candidate is dropped if its line strays more than 15 m from the ways it claims.
+- **Heat that forgets.** Heat counts rides from the last 12 months and halves every 6, so a trail nobody has ridden in years stops looking popular.
+- **The surface and the climb, up front.** Every candidate has a surface strip (singletrack, doubletrack, gravel, paved) beside an elevation profile from USGS 3DEP. Where no elevation data exists, it says so instead of guessing.
+- **Private by default.** Trail heat is public only when three or more riders have ridden a trail. Uploaded rides lose their first and last 0.2 mi.
+- **Garmin export.** Download a GPX track or a FIT course.
 
----
+## Features
 
-## Architecture Overview
+### Plan a route
+Pick mountain bike or trail run, a loop, point to point or out and back, a distance and a terrain mix (a stacked bar with draggable dividers). Search a trailhead or town, tap the map, or use your location. Every search is a link: the address bar always holds the search, so you can share it.
+
+<p align="center">
+  <img src="docs/screenshots/route-detail.png" alt="One candidate: the surface strip above the elevation profile" width="520">
+</p>
+
+### Compare candidates
+Loam builds up to 10 distinct candidates and ranks them. It shows fewer, with a note, when the trail network supports fewer honest ones. Each card has a minimap, distance, climb, surface split and a match score. The score is 60% how well it fits your request, 15% heat, 10% how well it fits the route type, 10% route quality, minus penalties for retracing and for do-not-route trails.
+
+### Export
+<p align="center">
+  <img src="docs/screenshots/export.png" alt="The export buttons: Share to Garmin Connect, Download FIT, Download GPX, Save to Profile" width="360">
+</p>
+
+Download a GPX 1.1 track or a Garmin FIT course. Signed-in riders can save routes; the last 10 routes you looked at stay available offline (the app is an installable PWA; map tiles and new routes need a connection).
+
+### Trail heat
+The heat layer shows trails that three or more people rode in the past year. To get the map started, it also includes the creator's own rides, on trails only (never roads); the app says so next to the layer.
+
+### Trust and access
+Signed-in riders can keep a personal do-not-route list and report a bad route. Community hazard flags show as warnings on a route; the API takes flags, votes and "still open" check-ins, but the app has no buttons for them yet. Ways that are private, closed to bikes or inside a Wilderness area are never routed. Shared snowmobile corridors carry a seasonal caution.
+
+### You
+<p align="center">
+  <img src="docs/screenshots/you-privacy.png" alt="The You panel with privacy controls" width="520">
+</p>
+
+Sign in with Google or an emailed link (no passwords). Upload GPX or FIT rides to add to heat, with the first and last 0.2 mi removed, privacy zones around places you want left out, an off switch for contributing, a full data export and one-tap account deletion.
+
+## Privacy
+
+- Heat from other riders is public only for trails with at least 3 distinct riders (`HEAT_MIN_UNIQUE_RIDERS`, default 3). Below that, you see only your own rides.
+- The creator's imported rides are public as "seed" heat on trail-class ways only (`SEED_HEAT_PUBLIC`).
+- Uploaded rides are trimmed 0.2 mi at both ends and cleared of your privacy zones before anything is matched or stored.
+- Bad-route reports become public GitHub issues. They hold your comment, your route settings and the route line minus 0.5 mi at each end, never your start or end point.
+- You can export or delete everything we hold about you from the You panel.
+
+The details are in the [privacy policy](frontend/public/legal/privacy/index.html), the [terms](frontend/public/legal/terms/index.html) and [attributions](frontend/public/legal/attributions/index.html) (served at `/legal/` on the live site).
+
+## How it works
 
 ```mermaid
-flowchart TD
-    subgraph UI ["Client Layer (MapLibre GL PWA)"]
-        MapView["Interactive Vector Map\n(Fog / Spruce / Blaze Palette)"]
-        SurfaceStrip["Signature Surface Strip\n(Singletrack / Gravel / Paved)"]
-        ElevationProfile["Elevation Profile\n(USGS 3DEP 10m Cross-Section)"]
-        CandidateCards["Multi-Candidate Cards\n(Minimap SVGs & Match Scores)"]
+flowchart LR
+    Browser["Browser<br/>React PWA + MapLibre GL"]
+    Hosting["Firebase Hosting<br/>loam.thepfisters.com"]
+    Funnel["Tailscale Funnel"]
+    subgraph Pi ["Raspberry Pi"]
+        API["FastAPI"]
+        GH["GraphHopper"]
+        DB[("PostGIS")]
     end
-
-    subgraph API ["Loam Core API (FastAPI)"]
-        RouterGateway["Route Gateway\nPOST /api/route/options"]
-        ScoringEngine["Multi-Objective Scorer\n(Match 60% • Heat 15% • Sport 10% • Quality 10% • Penalties 5%)"]
-        HeatPipeline["Decay & Ingestion Pipeline\n(0.2mi Trimming • 6-Month Half-Life)"]
-        TrustManager["Trust Layer\n(Flags • Check-ins • DNR • Access Hard-Blocks)"]
-        ExportService["Export Serializers\n(Garmin FIT • GPX 1.1)"]
-    end
-
-    subgraph Engines ["Routing & Spatial Engines"]
-        GH["GraphHopper 11.1\n(Custom Profile Weighting)"]
-        PostGIS[("PostgreSQL 18 + PostGIS 3.6\n(Edges • Edge Heat • Restrictions • Users)")]
-        DEM["USGS 3DEP Elevation Engine\n(10m Trail-Scale Resolution)"]
-    end
-
-    UI <-->|JSON / Streaming SSE| API
-    RouterGateway --> GH
-    RouterGateway --> ScoringEngine
-    ScoringEngine <--> PostGIS
-    RouterGateway --> DEM
-    HeatPipeline <--> PostGIS
-    TrustManager <--> PostGIS
-    ExportService --> UI
+    Auth["Firebase Auth"]
+    DEM["USGS 3DEP tiles"]
+    OSM["OpenStreetMap extract"]
+    Browser -->|app files| Hosting
+    Browser -->|/api| Funnel --> API
+    Browser -->|sign-in| Auth
+    API -->|verifies ID tokens| Auth
+    API --> GH
+    API --> DB
+    API --> DEM
+    OSM -.->|imported once| DB
+    OSM -.->|graph| GH
 ```
 
----
+The web app is static files on Firebase Hosting. The API runs on a Raspberry Pi, reached through a Tailscale Funnel, with PostGIS for trails and heat and GraphHopper for routing. The API trusts only verified Firebase ID tokens.
 
-## Key Features
+## Self-hosting quickstart
 
-### 1. Signature Surface Strip & Terrain Slider
-Rather than treating a route as an opaque polyline, Loam breaks every meter into categorized surface segments:
-- 🟢 **Singletrack**: Technical dirt, bench-cut trails, and flow paths.
-- 🟡 **Doubletrack / Two-track**: Old woods roads, forest access roads, and snowmobile paths.
-- 🟤 **Gravel**: Graded unpaved public rights of way.
-- ⚪ **Paved**: Asphalt and chip-seal (minimized by default for trail profiles).
-
-The synchronized **Surface Strip** allows athletes to inspect exactly where technical trail begins and ends relative to climbs, descents, and parking areas.
-
-### 2. Multi-Candidate Route Engine & Scoring
-Loam formulates route generation as a multi-candidate exploration problem. For any trailhead or target distance:
-- Builds candidates from three sources through one route builder: a loop search over the real OSM trail graph, GraphHopper corridors in divergent sectors, and loops other riders actually rode (seeds).
-- Every candidate passes a geometry gate: the line must stay within 15 m of the OSM ways it claims. Routes that fail are never shown.
-- Deduplicates geometry and applies an **out-and-back repetition penalty** to minimize redundant backtrack segments.
-- Scores candidates against five weighted dimensions:
-  $$\text{Score} = 0.60 \cdot S_{\text{input}} + 0.15 \cdot S_{\text{heat}} + 0.10 \cdot S_{\text{mode}} + 0.10 \cdot S_{\text{quality}} - S_{\text{penalties}}$$
-- Outputs up to 10 ranked options (with a notice when fewer qualify) with vector minimaps, elevation gain/loss, and surface percentage breakdowns.
-
-### 3. Recency Heat Decay & Ghost Trail Suppression
-- **Exponential Time Decay**: Recorded rides degrade smoothly over time using $e^{-\lambda \Delta t}$ with a 180-day half-life.
-- **Coverage-Aware Penalty**: Trails with zero heat in well-mapped trail networks are heavily deprioritized. In remote, unmapped areas, heat remains neutral to prevent false penalties.
-- **Benchmark**: `loam_eval real` scores routes from real OSM trailhead starts across New Hampshire against OSM itself (gate pass rate, off-network share, true loops). The latest report is `benchmark/reports/round7.md`.
-
-### 4. Community Trust Layer & Land Ethics
-- **One-Tap Rider Check-Ins**: Riders confirm trail status ("still open & clear") with confidence scores refreshed upon each report.
-- **Community Caution Flags**: Warns fellow athletes of downed trees, muddy ruts, washouts, and active trail work with abuse-resistant, verified voting.
-- **Strict Access Controls**: Hard blocks on `access=private/no`, `bicycle=no`, wilderness areas, and wildlife sanctuaries. Seasonal warnings for shared snowmobile trail permissions.
-- **Personal DNR List**: Athletes can mark trails as "Do Not Route" (soft warning with override log, or hard block).
-
-### 5. "Find New Trails" Novelty Engine
-Exploration mode rewards routes containing trail segments the athlete has **never ridden before**, using a discovery novelty boost to expand personal riding horizons while ensuring selected paths have verified community heat.
-
-### 6. Ironclad Privacy & Data Sovereignty
-- **3+ Rider Minimum Anonymity Threshold**: A trail segment's heat is never broadcast or used in other users' routing unless at least 3 distinct riders have ridden it.
-- **Start/Finish Buffer Trimming**: Automatically removes the first and last 0.2 miles (320 meters) of all uploaded GPX/FIT rides to prevent revealing homes or trailheads.
-- **Privacy Zones**: Custom exclusion zones (e.g. home, work) where activity coordinates are stripped prior to map-matching.
-- **Right to Erasure**: Complete, one-click account deletion and comprehensive personal data export (`GET /api/privacy/export`).
-
----
-
-## User Interface Design (Section 18 Guidelines)
-
-Loam is built from the ground up to adhere to high-standard outdoor design tokens:
-
-| Token | Hex | Role |
-| :--- | :--- | :--- |
-| **Fog** | `#E7ECEC` | Clean, low-glare outdoor canvas background |
-| **Spruce** | `#1D3B34` | Primary brand deep evergreen tone for panels and text |
-| **Blaze** | `#FF5B14` | High-contrast trail marker orange for active route lines and CTAs |
-| **Lichen** | `#A9BF7A` | Secondary muted accent for singletrack surfaces and badges |
-| **Slate** | `#3F6C8F` | Water, info and secondary route options |
-
-- **Phone-First, Map-First**: Responsive Progressive Web App: a service worker precaches the app shell and the last 10 routes you viewed stay available offline. Map tiles and live routing need a connection.
-- **Imperial by Default**: All distances, climbs, and paces display in miles and feet.
-
----
-
-## Quickstart & Local Setup
-
-### Prerequisites
-- [Docker](https://www.docker.com/) & Docker Compose
-- Python 3.12+ (or Python 3.14)
-- Node.js 20+ & npm
-
-### Option A: Complete Stack via Docker Compose
-Start GraphHopper (with New Hampshire graph extract), PostGIS 18 (with spatial schema), and the Loam API in containers:
+You need Docker with Compose, Python 3.12+ and Node 20+.
 
 ```bash
-# Clone the repository
-git clone https://github.com/JJRPF/loam.git
-cd loam
+git clone https://github.com/JJRPF/loam.git && cd loam
+cp .env.example .env            # edit: DATA_DIR, DATABASE_URL (use localhost outside compose), Firebase values
 
-# Launch all services
-docker compose up -d
-
-# Verify system health
-curl http://localhost:8080/health
+docker compose up -d postgis
+python -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt
 ```
 
-### Option B: Local Python Development
-```bash
-# 1. Activate Python virtual environment
-source .venv/bin/activate
-
-# 2. Install backend dependencies
-pip install -r requirements.txt
-
-# 3. Build frontend PWA assets
-cd frontend && npm install && npm run build && cd ..
-
-# 4. Start Loam FastAPI server
-PYTHONPATH=. python -m uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
-```
-
----
-
-## Data setup (once per machine)
-
-Data lives under `DATA_DIR` (default `data/` in the main clone) and is never committed.
+Data lives under `DATA_DIR` and is never committed:
 
 ```bash
 # 1. Database tables
@@ -185,79 +136,83 @@ python -I scripts/fetch_3dep.py
 
 # 3. OSM trail graph into PostGIS (reads the same extract GraphHopper uses, so way ids match)
 PYTHONPATH=. python -m scripts.import_osm_graph
-
-# 4. Optional: your own Garmin export as real heat and loop seeds (runs only on your machine)
-python3 -I scripts/strip_garmin_export.py --export ~/Downloads/<garmin-export> --out $DATA_DIR/garmin-stripped/
-PYTHONPATH=. python -m scripts.upload_stripped --dir $DATA_DIR/garmin-stripped --url https://<host> --token-file ~/token   # admin Firebase ID token
 ```
 
-The strip step keeps only (lat, lon, time), trims 0.2 mi from both ends and drops your privacy zones. The export itself is never uploaded or committed. `upload_stripped --direct --user-id <uid>` imports into the local database without HTTP.
-
-## Firebase sign-in setup
-
-Sign-in is Firebase Auth (Google and email link). The API only trusts verified ID tokens.
-
-1. In the Firebase console for the project, add a **Web app** and copy its config into `.env` as `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_APP_ID`. These are read at **build** time, so rebuild the frontend afterwards.
-2. Authentication → Sign-in method: enable **Google** and **Email link (passwordless)**.
-3. Authentication → Settings → Authorized domains: add the app's domain (and `localhost` for development). Nothing else.
-4. Set `FIREBASE_PROJECT_ID`, `ADMIN_EMAILS` (verified emails that get admin) and `CORS_ORIGINS` (the app origin and `http://localhost:5173`) in the API's `.env`, and `LOAM_ENV=production` on the Pi.
-
-## Bad-route reports
-
-Set `GITHUB_FEEDBACK_TOKEN` (a fine-grained token limited to this repository with Issues read/write). Reports are stored in full on the server; the GitHub issue gets the comment, route settings without coordinates, and the route line with the first and last 0.5 mi removed. If GitHub is unreachable, the nightly worker files pending reports.
-
-## Pre-launch checklist
-
-- [ ] `HEAT_MIN_UNIQUE_RIDERS` is **3** (the Pi runs with 1 while heat comes from one rider; unset it before opening Loam to others). The app shows a seed-data notice while it is below 3.
-- [ ] Strava and Trailforks connectors stay off until their current terms are confirmed.
-- [ ] Terms of service and privacy policy are in place; the repository's code becomes public, so re-read what issue reports include.
-- [ ] A known ghost-trail and good-trail list for an area you know is run through the benchmark.
-
----
-
-## Running the Test Suite
-
-The suite runs against a real PostGIS database and GraphHopper; run `pytest -q` for the current count.
+GraphHopper reads `$DATA_DIR/graphhopper/config.yml` (start from [docs/graphhopper-config.example.yml](docs/graphhopper-config.example.yml)) and the OSM extract at `$DATA_DIR/osm/new-hampshire-latest.osm.pbf` (from [Geofabrik](https://download.geofabrik.de/north-america/us/new-hampshire.html)). Put `graphhopper-web-11.1.jar` from the [GraphHopper releases](https://github.com/graphhopper/graphhopper/releases) in `$DATA_DIR/graphhopper/`, then start it with `docker compose up -d graphhopper` (the first start builds the graph and takes several minutes). Then build the web app and run the API:
 
 ```bash
-# Needs the local PostGIS and GraphHopper containers (docker compose up -d)
-PYTHONPATH=. pytest -q
+python scripts/build_trailheads.py "$DATA_DIR/osm/new-hampshire-latest.osm.pbf"   # trailhead search data
+cd frontend && npm ci && npm run build && cd ..
+PYTHONPATH=. python -m uvicorn app.main:app --host 127.0.0.1 --port 8080
+curl http://127.0.0.1:8080/health
 ```
 
-### Test Coverage Highlights:
-- `tests/test_api.py`: Baseline point-to-point routing, surface classification, and PostGIS heat recording.
-- `tests/test_stage2_mvp.py`: Loop mode, sport profiles, saved routes CRUD, Garmin FIT & GPX export, and PWA static serving.
-- `tests/test_stage3_options.py`: Multi-candidate generation, repetition penalties, minimap SVG generator, and streaming API.
-- `tests/test_stage4_heat.py`: GPX/FIT defensive parsing (XXE immunity, size limits), 0.2 mi trimming, privacy zones, recency decay formula, and 3-rider threshold.
-- `tests/test_stage5_trust.py`: Community flags, rider check-ins, user DNR overrides, land manager restrictions, and account deletion.
-- `tests/test_stage6_differentiators.py`: "Find New Trails" discovery mode, trail submissions, trail running profile, and decoupled connectors.
-- `tests/test_e2e_acceptance.py`: Unified full lifecycle test traversing all 6 stages sequentially.
-- `tests/test_round7_*.py`: Firebase token verification, no fabricated data, OSM import and surface classes, 3DEP elevation, routing and the geometry gate, Garmin export heat and seeds, bad-route reports.
+The API serves `frontend/dist`, so http://127.0.0.1:8080 is the whole app. For frontend work, `npm run dev` in `frontend/` serves on :5173 and proxies `/api` to :8080.
 
----
+Sign-in needs your own Firebase project:
 
-## API Reference Highlights
+1. Add a Web app and put its `apiKey`, `appId` and `projectId` in `.env` as `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_PROJECT_ID`, then rebuild (they are read at build time). Without them the app routes anonymously and the sign-in card says sign-in isn't configured.
+2. Authentication > Sign-in method: enable Google and Email link.
+3. Authentication > Settings > Authorized domains: add the app's domain.
+4. The production build uses the app's own domain as `authDomain` (`VITE_FIREBASE_AUTH_DOMAIN`, set in `scripts/web-build-env.sh`), so Firebase Hosting serves the sign-in handler at `/__/auth/handler`. For Google sign-in, add `https://<your domain>/__/auth/handler` as an authorized redirect URI on the project's web OAuth client (Google Cloud console > APIs & Services > Credentials), and allow the domain as an authorized JavaScript origin. Changes there can take a few minutes to apply. Email link needs none of this.
+5. If you add a service worker or rewrite rules of your own, leave `/__/` alone: it belongs to Firebase.
 
-| Method | Endpoint | Description |
+Optional, your own Garmin export as heat and loop seeds (runs only on your machine; the export is never uploaded or committed):
+
+```bash
+python3 -I scripts/strip_garmin_export.py --export ~/Downloads/<garmin-export> --out $DATA_DIR/garmin-stripped/
+PYTHONPATH=. python -m scripts.upload_stripped --dir $DATA_DIR/garmin-stripped --direct --user-id <uid>
+```
+
+### Configuration
+
+| Variable | Default | What it does |
 | :--- | :--- | :--- |
-| `GET` | `/health` | System health check (GraphHopper, PostGIS, elevation engine). |
-| `POST` | `/api/route/options` | Generate and rank up to 10 candidate routes for a given trailhead and distance. |
-| `POST` | `/api/route/options/stream` | Server-Sent Events (SSE) streaming candidate routes in real-time. |
-| `POST` | `/api/reports/bad-route` | Signed-in riders report a bad route; it becomes a GitHub issue (route line trimmed 0.5 mi each end). |
-| `GET` | `/api/heat/meta` | The heat privacy threshold in force and whether the seed-data notice applies. |
-| `POST` | `/api/export/fit` | Export route as Garmin binary FIT Course (fenix 7 Pro & Edge compatible). |
-| `POST` | `/api/export/gpx` | Export route as standardized GPX 1.1 track. |
-| `POST` | `/api/activities/upload` | Ingest GPX/FIT ride with automatic 0.2-mile privacy buffer trimming. |
-| `POST` | `/api/trails/{edge_osm_id}/checkin` | Submit one-tap rider check-in ("still open & clear"). |
-| `POST` | `/api/flags` | Report trail hazard (downed tree, muddy, washed out, overgrown). |
-| `GET` | `/api/trails/new-to-me` | Discover unridden trail segments with verified community heat. |
-| `GET` | `/api/connectors` | Check third-party connector statuses (Strava, Garmin, Trailforks). |
-| `DELETE`| `/api/privacy/account` | Permanently erase user account, routes, and personal GPS history. |
+| `APP_ENV` (or `LOAM_ENV`) | `development` | `production` turns on the production checks (a real `CONNECTOR_SECRET_KEY`, no auth emulator). |
+| `DATABASE_URL`, `GRAPHHOPPER_URL`, `DATA_DIR` | see `.env.example` | Where the services and data are. |
+| `FIREBASE_PROJECT_ID` | `thepfisters` | The project whose ID tokens the API accepts. |
+| `ADMIN_EMAILS` | none | Verified emails with admin access. |
+| `CORS_ORIGINS` | the app, the API host, `localhost:5173` | Browser origins allowed to call the API. |
+| `PUBLIC_APP_ORIGIN`, `API_PUBLIC_HOST` | unset | When set, GET navigations on the API's public host redirect to the web app. |
+| `HEAT_MIN_UNIQUE_RIDERS` | `3` | Riders needed before a trail's heat is public. |
+| `SEED_HEAT_PUBLIC` | `true` | Whether the creator's seed heat is public, on trail-class ways only. |
+| `ENABLE_MIDPOINTS` | `false` | Midpoint (via point) routing, off while it is reworked. |
+| `ENABLE_STRAVA_CONNECTOR`, `ENABLE_TRAILFORKS_CONNECTOR` | `false` | Connectors stay off until their terms are confirmed. Disabled connectors are not shown. |
+| `ENABLE_GARMIN_LOGIN_CONNECTOR`, `ENABLE_CUBETREK_CONNECTOR` | `true` | Ride import connectors. |
+| `CONNECTOR_SECRET_KEY` | in-code dev key | Encrypts connector credentials. Required in production. |
+| `GITHUB_FEEDBACK_TOKEN`, `GITHUB_FEEDBACK_REPO` | none, `JJRPF/loam` | Bad-route reports file issues with this fine-grained token. |
+| `RATE_LIMIT_ROUTE`, `_GEOCODE`, `_UPLOAD`, `_FLAG` | `20/600`, `60/60`, `30/3600`, `60/3600` | Requests per window in seconds. |
+| `ROUTE_CONCURRENCY`, `ROUTE_WAIT_S` | `2`, `20` | Routes built at once, and how long a request waits for a slot. |
+| `VITE_API_BASE` | empty | Build time: the API's origin (empty uses the Vite proxy). |
+| `VITE_PUBLIC_APP_ORIGIN` | unset | Build time: an app opened on another origin redirects here. |
+| `VITE_FIREBASE_API_KEY`, `_AUTH_DOMAIN`, `_PROJECT_ID`, `_APP_ID` | none | Build time: the Firebase web app config. |
 
----
+## Development and tests
 
-## Open Source & Data Attribution
+```bash
+docker compose up -d postgis graphhopper
+PYTHONPATH=. pytest -q                       # API tests against real PostGIS and GraphHopper
+cd frontend && npm run lint && npm run build # type check and production build
+npm run test:browser                         # Playwright suite, below
+```
 
-- **Base Map Data**: [© OpenStreetMap contributors](https://www.openstreetmap.org/copyright), licensed under the Open Database License (ODbL).
-- **Elevation**: USGS 3D Elevation Program (3DEP) high-resolution 1/3 arc-second bare-earth DEM.
-- **Routing Engine**: Powered by [GraphHopper](https://www.graphhopper.com/).
+The browser suite (`tests/browser/`, Playwright with system Chromium) builds the production bundle and runs it the way production is wired: static files from a stand-in for Firebase Hosting (with the real `firebase.json` headers, CSP included), the API on another origin with the dev database, and the Firebase Auth emulator for signed-in flows. It checks layout at six viewports (no overlaps, no sideways scroll, 44 px touch targets), accessibility with axe, console, network and CSP errors, a full route build with GPX and FIT downloads, legal pages, rate-limit messages, and the old-origin redirect. It never talks to production; `tests/browser/smoke.prod.spec.ts` is a separate read-only check you run by hand. The emulator needs `npx` and no Google account. To retake the README screenshots: `SHOTS=1 npm run test:browser -- screenshots`, then `python scripts/optimize_screenshots.py`.
+
+## Deploying
+
+The API runs on a Raspberry Pi; the web app on Firebase Hosting.
+
+```bash
+./scripts/deploy-pi.sh     # builds the web app, syncs the code, restarts the API, checks /health
+./scripts/deploy-web.sh    # builds the web app and deploys Firebase Hosting (hosting only)
+```
+
+`deploy-pi.sh` uses key-based SSH only and one passwordless command. Set up once: `ssh-copy-id <user>@<pi>`, and on the Pi `echo '<user> ALL=(root) NOPASSWD: /usr/bin/systemctl restart loam-api' | sudo tee /etc/sudoers.d/loam-deploy`. `deploy-web.sh` runs `firebase deploy --only hosting` (the Firebase project is shared, so nothing else is ever deployed); log in once with `npx firebase-tools@15.33.0 login`. Back up the database (`scripts/backup_db.sh`) before any migration. The pre-launch list is in [docs/launch-checklist.md](docs/launch-checklist.md).
+
+## Data and attribution
+
+Map data © [OpenStreetMap contributors](https://www.openstreetmap.org/copyright) (ODbL), map tiles © [CARTO](https://carto.com/attributions), elevation from the [USGS 3D Elevation Program](https://www.usgs.gov/3d-elevation-program), forecasts from the National Weather Service. Full list and third-party licenses: [attributions](frontend/public/legal/attributions/index.html).
+
+## License
+
+[GNU AGPL v3 or later](LICENSE). If you run a modified Loam as a service, your users get your source. Questions and bug reports: [GitHub issues](https://github.com/JJRPF/loam/issues).

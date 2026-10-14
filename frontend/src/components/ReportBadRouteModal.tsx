@@ -3,7 +3,7 @@ import type { RouteResponse } from '../types';
 import { submitBadRouteReport, type BadRouteReportResult } from '../services/api';
 
 export const REPORT_NOTICE =
-  "This report becomes an issue in Loam's GitHub repository. It includes your comment, your route settings and the route line with the first and last 0.5 mi removed; your start and end points are not included. People with access to the repository can read it, and it will become public when Loam's code is released. Don't include personal details.";
+  "This report is filed as a public issue on GitHub, so anyone can read it. It includes your comment, your route settings and the route line with the first and last 0.5 mi removed; your start and end points are not included. Don't include personal details.";
 
 interface Props {
   route: RouteResponse;
@@ -67,7 +67,10 @@ export const ReportBadRouteModal: React.FC<Props> = ({ route, options, request, 
             <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)' }}>
               {comment.trim().length}/2000 (at least 10 characters)
             </div>
-            <div style={{ fontSize: 12, lineHeight: 1.4 }}>{REPORT_NOTICE}</div>
+            <div style={{ fontSize: 12, lineHeight: 1.4 }}>
+              {REPORT_NOTICE}{' '}
+              <a href="/legal/privacy/#reports" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</a>
+            </div>
             {!request && (
               <div style={{ fontSize: 12, color: '#B3261E' }}>Search again to report this route.</div>
             )}

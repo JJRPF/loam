@@ -3,11 +3,12 @@ import {
   uploadActivityFile, listUserDNR, createUserDNR, deleteUserDNR,
   exportMyData, deleteMyAccount,
   getConnectors, connectGarmin, verifyGarminMfa, connectStrava, connectTrailforks, bulkImportGarmin,
-  syncConnector, disconnectConnector, importCubeTrekActivity
+  syncConnector, disconnectConnector, importCubeTrekActivity, getAuthMe
 } from '../services/api';
 import { signOut, useAuth } from '../services/auth';
 import { SignInCard } from './SignInCard';
 import { PrivacyControls } from './PrivacyControls';
+import { LegalLinks } from './LegalLinks';
 import type { UserDNR, ConnectorStatus } from '../types';
 
 interface YouPanelProps {
@@ -18,6 +19,14 @@ interface YouPanelProps {
 export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
   const { user: currentUser } = useAuth();
   const isSignedIn = !!currentUser;
+  // The Operations page link is for admins only (the server decides who is one; the page also checks).
+  const [isAdmin, setIsAdmin] = useState(false);
+  useEffect(() => {
+    let ignore = false;
+    if (!currentUser) { setIsAdmin(false); return; }
+    getAuthMe().then((me) => { if (!ignore) setIsAdmin(!!me.is_admin); }).catch(() => { if (!ignore) setIsAdmin(false); });
+    return () => { ignore = true; };
+  }, [currentUser]);
   const [dnrList, setDnrList] = useState<UserDNR[]>([]);
   const [showAddDnr, setShowAddDnr] = useState(false);
   const [newDnrName, setNewDnrName] = useState('');
@@ -194,7 +203,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
                 {newDnrType === 'trail' && (
                   <input
                     type="number"
-                    placeholder="OSM Edge ID (e.g. 999101)"
+                    placeholder="OSM way ID"
                     value={newDnrEdgeId}
                     onChange={(e) => setNewDnrEdgeId(e.target.value)}
                     style={{ flex: 1, padding: '4px 6px', borderRadius: 4, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 12 }}
@@ -265,7 +274,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
                     style={{
                       border: 'none',
                       backgroundColor: 'transparent',
-                      color: 'var(--color-blaze, #FF5B14)',
+                      color: 'var(--color-blaze-text, #FF7A3D)',
                       fontSize: 14,
                       cursor: 'pointer',
                       padding: '4px 6px'
@@ -310,7 +319,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
             type="button"
             onClick={handleDeleteAccount}
             className="btn-outline"
-            style={{ flex: 1, fontSize: 12, minHeight: 34, color: 'var(--color-blaze, #FF5B14)', borderColor: 'var(--color-divider)' }}
+            style={{ flex: 1, fontSize: 12, minHeight: 34, color: 'var(--color-blaze-text, #FF7A3D)', borderColor: 'var(--color-divider)' }}
           >
             Delete Account & Rides
           </button>
@@ -323,18 +332,21 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
       <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', textAlign: 'center', lineHeight: 1.6, marginTop: 16 }}>
         <div>loam Trail Route Builder</div>
         <div>Built with MapLibre GL JS, GraphHopper & PostGIS</div>
-        <div style={{ marginTop: 8 }}>
-          <a
-            href="#/dev"
-            style={{
-              fontSize: 11,
-              color: 'var(--color-text-secondary, #42675E)',
-              textDecoration: 'underline'
-            }}
-          >
-            Developer Tools & Operations
-          </a>
-        </div>
+        <LegalLinks style={{ justifyContent: 'center', marginTop: 4 }} />
+        {isAdmin && (
+          <div style={{ marginTop: 8 }}>
+            <a
+              href="#/dev"
+              style={{
+                fontSize: 11,
+                color: 'var(--color-text-secondary, #42675E)',
+                textDecoration: 'underline'
+              }}
+            >
+              Developer Tools & Operations
+            </a>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -369,6 +381,7 @@ const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input
         type="file"
+        aria-label="Ride file (GPX or FIT)"
         accept=".gpx,.fit"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
         style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}
@@ -397,6 +410,7 @@ const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
           />
           Contribute Heat
         </label>
+        <a href="/legal/privacy/#heat" target="_blank" rel="noopener" style={{ fontSize: 12, color: 'var(--color-text-secondary)', textDecoration: 'underline' }}>How heat works</a>
       </div>
 
       <button
@@ -418,7 +432,7 @@ const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
       )}
 
       {error && (
-        <div style={{ backgroundColor: 'rgba(255, 91, 20, 0.1)', border: '1px solid var(--color-blaze, #FF5B14)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-blaze, #FF5B14)' }}>
+        <div style={{ backgroundColor: 'rgba(255, 91, 20, 0.1)', border: '1px solid var(--color-blaze, #FF5B14)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-blaze-text, #FF7A3D)' }}>
           {error}
         </div>
       )}
@@ -646,14 +660,24 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
     }
   };
 
+  // A disabled connector is invisible (no card, no modal, no mention): only enabled ones render.
+  const enabledConnectors = connectors.filter((c) => c.enabled === true);
+  const isEnabled = (name: string) => enabledConnectors.some((c) => c.name === name);
+  const enabledNames = enabledConnectors.map((c) => c.display_name);
+  const namesText = enabledNames.length > 1
+    ? `${enabledNames.slice(0, -1).join(', ')} and ${enabledNames[enabledNames.length - 1]}`
+    : enabledNames[0];
+
   return (
     <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>
       <div>
         <h3 style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', margin: 0 }}>
-          Connected Services (Connectors)
+          Connected services
         </h3>
         <p style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)', margin: '4px 0 0 0' }}>
-          Connect Garmin Connect and Trailforks to sync activities into your private heat layer and view condition reports. Passwords are never stored; tokens are AES-encrypted at rest.
+          {namesText
+            ? `Connect ${namesText} to sync your activities into your private heat. Passwords are never stored; tokens are encrypted at rest.`
+            : 'No services are available to connect right now.'}
         </p>
       </div>
 
@@ -667,7 +691,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
         <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>Loading connectors...</div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {connectors.map((c) => (
+          {enabledConnectors.map((c) => (
             <div
               key={c.name}
               style={{
@@ -683,22 +707,6 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <strong style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}>{c.display_name}</strong>
-                  <span
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '1px 5px',
-                      borderRadius: 3,
-                      backgroundColor: c.enabled 
-                        ? (isDarkMode ? '#163826' : '#E8F5E9') 
-                        : (isDarkMode ? '#243431' : '#ECEFF1'),
-                      color: c.enabled 
-                        ? (isDarkMode ? '#86EFAC' : '#2E6F40') 
-                        : (isDarkMode ? '#94A3B8' : '#78909C')
-                    }}
-                  >
-                    {c.enabled ? 'Enabled' : 'Disabled'}
-                  </span>
                   {c.connected && (
                     <span
                       style={{
@@ -752,7 +760,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
                         type="button"
                         onClick={() => handleDisconnect(c.name)}
                         className="btn-outline"
-                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26, color: 'var(--color-blaze, #FF5B14)', borderColor: 'var(--color-divider)' }}
+                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26, color: 'var(--color-blaze-text, #FF7A3D)', borderColor: 'var(--color-divider)' }}
                       >
                         Disconnect
                       </button>
@@ -789,7 +797,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* Garmin Connect Modal */}
-      {showGarminModal && (
+      {showGarminModal && isEnabled('garmin') && (
         <div
           style={{
             position: 'fixed',
@@ -968,7 +976,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* Trailforks Connect Modal */}
-      {showTrailforksModal && (
+      {showTrailforksModal && isEnabled('trailforks') && (
         <div
           style={{
             position: 'fixed',
@@ -1069,7 +1077,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* Strava Connect Modal (Personal API Token) */}
-      {showStravaModal && (
+      {showStravaModal && isEnabled('strava') && (
         <div
           style={{
             position: 'fixed',
@@ -1182,7 +1190,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
       )}
 
       {/* CubeTrek Modal */}
-      {showCubeTrekModal && (
+      {showCubeTrekModal && isEnabled('cubetrek') && (
         <div
           style={{
             position: 'fixed',

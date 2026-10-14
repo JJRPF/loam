@@ -198,6 +198,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
         onPointerLeave={handlePointerLeave}
       >
         <svg
+          data-testid="elevation-profile"
           viewBox={`0 0 ${width} ${height}`}
           preserveAspectRatio="none"
           style={{ width: '100%', height: '100%', display: 'block' }}
@@ -238,7 +239,7 @@ export const ElevationProfile: React.FC<ElevationProfileProps> = ({
                 bottom: 0,
                 left: hoverData.x,
                 width: 2,
-                backgroundColor: 'var(--color-blaze, #FF5B14)',
+                backgroundColor: 'var(--color-blaze-dark, #C73E00)',
                 pointerEvents: 'none'
               }}
             />

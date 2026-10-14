@@ -27,13 +27,14 @@ function parsePoint(v: string | null, name?: string): LatLon | undefined {
   return { lat, lon, name };
 }
 
-export function encodeSearch(s: SearchState): string {
+/** `via` (midpoints) is written only when the server has midpoints enabled. */
+export function encodeSearch(s: SearchState, midpointsEnabled = false): string {
   const q = new URLSearchParams();
   q.set('sport', s.sport);
   q.set('start', pt(s.start));
   if (s.start.name) q.set('sn', s.start.name);
   if (s.end && s.routeMode === 'point_to_point') q.set('end', pt(s.end));
-  if (s.routeMode !== 'out_and_back') s.waypoints.forEach((w) => q.append('via', pt(w)));
+  if (midpointsEnabled && s.routeMode !== 'out_and_back') s.waypoints.forEach((w) => q.append('via', pt(w)));
   q.set('mode', s.routeMode);
   q.set('mi', String(s.targetMiles));
   const t = s.terrainPref;
@@ -75,9 +76,9 @@ export function decodeSearch(search: string): Partial<SearchState> & { start: La
   return out;
 }
 
-export function writeSearchUrl(s: SearchState) {
+export function writeSearchUrl(s: SearchState, midpointsEnabled = false) {
   try {
-    window.history.replaceState(null, '', `${window.location.pathname}?${encodeSearch(s)}`);
+    window.history.replaceState(null, '', `${window.location.pathname}?${encodeSearch(s, midpointsEnabled)}`);
   } catch {
     // history unavailable (sandboxed frame); the link just won't update
   }

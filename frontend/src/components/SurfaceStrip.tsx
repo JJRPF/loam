@@ -44,7 +44,7 @@ export const SurfaceStrip: React.FC<SurfaceStripProps> = ({
   const unriddenPct = Math.round((unriddenPoints / totalPoints) * 100);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 8, width: '100%' }}>
+    <div data-testid="surface-strip" style={{ display: 'flex', flexDirection: 'column', gap: compact ? 4 : 8, width: '100%' }}>
       {/* Segmented Horizontal Bar */}
       <div
         style={{

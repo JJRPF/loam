@@ -62,6 +62,7 @@ class Cue(BaseModel):
 
 
 class RouteResponse(BaseModel):
+    notice: Optional[str] = None  # e.g. midpoints are turned off
     id: Optional[str] = None
     name: Optional[str] = "Loam Route"
     sport: str = "mtb"
@@ -272,7 +273,7 @@ class TrailCheckinCreate(BaseModel):
 class TrailCheckinResponse(BaseModel):
     id: int
     edge_osm_id: int
-    user_id: str
+    user_id: Optional[str] = None  # set only on the rider's own check-in response
     status: str
     note: Optional[str] = None
     checked_in_at: str
@@ -374,6 +375,8 @@ class UserDataExportResponse(BaseModel):
     activities: List[Dict[str, Any]]
     saved_routes: List[Dict[str, Any]]
     heat_trail_contributions: Optional[List[Dict[str, Any]]] = None
+    route_reports: List[Dict[str, Any]] = Field(default_factory=list)
+    trail_submissions: List[Dict[str, Any]] = Field(default_factory=list)
     exported_at: str
 
 # =========================================================================

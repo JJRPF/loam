@@ -4,7 +4,8 @@ Loop seeds from riders' own imported, map-matched rides (plan 7.4).
 Seeds are stored by app.heat_import as OSM topology only (ordered node ids and way ids) in
 `seed_loops`; there are no hand-made seeds. A seed is offered to a rider when its loop passes
 within 1.5 mi of their start, and to riders other than its contributors only when at least
-HEAT_MIN_UNIQUE_RIDERS distinct riders rode it (the heat privacy rule). The candidate is the
+HEAT_MIN_UNIQUE_RIDERS distinct riders rode it, or when it is seed-sourced (an imported Garmin
+export) and at least 85% of its length is trail-class (heat privacy rule, Round 8). The candidate is the
 real network stem from the start to the loop, the loop itself (its gap at the trimmed
 start/finish closed along the network) and the stem back, built through the route builder.
 """
@@ -15,6 +16,7 @@ from typing import Dict, List, Optional, Tuple
 
 SEED_RADIUS_M = 2414.0  # 1.5 mi
 GAP_BRIDGE_M = 400.0
+SEED_PUBLIC_TRAIL_SHARE = 0.85  # a seed loop is offered to everyone when >= 85% of it is trail-class
 
 
 @dataclass
@@ -33,8 +35,9 @@ class SeedLoopCatalog:
                            user_id: Optional[str] = None, radius_m: float = SEED_RADIUS_M) -> List[SeedLoop]:
         """Seed loops of this heat sport whose geometry passes within 1.5 mi of the start and whose
         length fits the target. Empty until rides are imported."""
+        from app.config import settings
         from app.db import get_connection
-        from app.decay import heat_sport, min_unique_riders
+        from app.decay import TRAIL_CLASS_HIGHWAYS, heat_sport, min_unique_riders
 
         try:
             with get_connection() as conn, conn.cursor() as cur:
@@ -43,7 +46,12 @@ class SeedLoopCatalog:
                     SELECT s.id, s.sport, s.distance_m, s.node_path, s.way_ids, s.retrace, s.rides
                     FROM seed_loops s
                     WHERE s.sport = %s
-                      AND (cardinality(s.rider_ids) >= %s OR %s = ANY(s.rider_ids))
+                      AND (cardinality(s.rider_ids) >= %s OR %s = ANY(s.rider_ids)
+                           OR (%s AND EXISTS (SELECT 1 FROM activities a
+                                              WHERE a.id = s.activity_id AND a.source = 'garmin_export')
+                               AND (SELECT COALESCE(SUM(t2.length_m) FILTER (WHERE t2.highway = ANY(%s)), 0)
+                                           / NULLIF(SUM(t2.length_m), 0)
+                                    FROM trail_segments t2 WHERE t2.segment_id = ANY(s.segment_ids)) >= %s))
                       AND s.distance_m BETWEEN %s AND %s
                       AND EXISTS (
                           SELECT 1 FROM trail_segments t
@@ -51,7 +59,8 @@ class SeedLoopCatalog:
                             AND ST_DWithin(t.geom::geography, ST_SetSRID(ST_MakePoint(%s, %s), 4326)::geography, %s))
                     ORDER BY abs(s.distance_m - %s) LIMIT 20
                     """,
-                    (heat_sport(sport), min_unique_riders(), user_id or "", 0.4 * target_miles * 1609.344,
+                    (heat_sport(sport), min_unique_riders(), user_id or "",
+                     settings.seed_heat_public, list(TRAIL_CLASS_HIGHWAYS), SEED_PUBLIC_TRAIL_SHARE, 0.4 * target_miles * 1609.344,
                      1.3 * target_miles * 1609.344, lon, lat, radius_m, target_miles * 1609.344),
                 )
                 return [SeedLoop(*row) for row in cur.fetchall()]

@@ -1,5 +1,5 @@
 import { initializeApp, type FirebaseApp } from 'firebase/app';
-import { browserLocalPersistence, getAuth, setPersistence, type Auth } from 'firebase/auth';
+import { browserLocalPersistence, connectAuthEmulator, getAuth, setPersistence, type Auth } from 'firebase/auth';
 
 // Firebase web config comes from the build env (VITE_FIREBASE_*). Without it the app
 // still routes anonymously and the sign-in card says sign-in isn't configured.
@@ -21,6 +21,9 @@ export function getFirebaseAuth(): Auth | null {
   if (!auth) {
     app = initializeApp(config);
     auth = getAuth(app);
+    // Browser tests only: a test build sets VITE_FIREBASE_AUTH_EMULATOR (host:port); production builds never do.
+    const emulator = env.VITE_FIREBASE_AUTH_EMULATOR as string | undefined;
+    if (emulator) connectAuthEmulator(auth, `http://${emulator}`, { disableWarnings: true });
     setPersistence(auth, browserLocalPersistence).catch((e) => console.warn('Auth persistence:', e));
   }
   return auth;

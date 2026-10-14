@@ -1,7 +1,10 @@
 import logging
 import json
+import math
+import time
 import httpx
 from typing import Dict, Any, List, Optional, Tuple
+from app.config import settings
 from app.db import get_connection, resolve_osm_trail_name
 from psycopg2.extras import RealDictCursor
 
@@ -9,6 +12,46 @@ logger = logging.getLogger(__name__)
 
 # Overpass API endpoint for live OpenTrailMap queries
 OVERPASS_API_URL = "https://overpass-api.de/api/interpreter"
+
+# The Overpass fallback is queried per 0.05 degree grid envelope and cached for 24 hours (failures for
+# 5 minutes), so panning around does not repeat requests upstream.
+OVERPASS_TILE_DEG = 0.05
+OVERPASS_TTL_S = 24 * 3600
+OVERPASS_FAIL_TTL_S = 300
+_overpass_cache: Dict[tuple, tuple] = {}
+
+
+def _tile_envelope(min_lat: float, min_lon: float, max_lat: float, max_lon: float) -> tuple:
+    t = OVERPASS_TILE_DEG
+    return tuple(round(v, 4) for v in (
+        math.floor(min_lat / t) * t, math.floor(min_lon / t) * t, math.ceil(max_lat / t) * t, math.ceil(max_lon / t) * t))
+
+
+async def _overpass_elements(env: tuple) -> list:
+    hit = _overpass_cache.get(env)
+    if hit and time.time() - hit[0] < hit[1]:
+        return hit[2]
+    elements, ttl = [], OVERPASS_FAIL_TTL_S
+    try:
+        overpass_query = f"""
+        [out:json][timeout:12];
+        (
+          way["highway"~"^(path|track|footway|cycleway|bridleway)$"]({env[0]},{env[1]},{env[2]},{env[3]});
+        );
+        out body geom;
+        """
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.post(OVERPASS_API_URL, data={"data": overpass_query},
+                                     headers={"User-Agent": settings.user_agent})
+        if resp.status_code == 200:
+            elements, ttl = resp.json().get("elements", []), OVERPASS_TTL_S
+    except Exception as op_err:
+        logger.debug(f"Overpass live query skipped: {op_err}")
+    if len(_overpass_cache) > 500:
+        _overpass_cache.clear()
+    _overpass_cache[env] = (time.time(), ttl, elements)
+    return elements
+
 
 # Difficulty mapping for OpenTrailMap mtb:scale (Singletrail Scale 0-6)
 MTB_SCALE_DESCRIPTIONS = {
@@ -99,48 +142,31 @@ async def fetch_otm_trails_by_bbox(
     if features:
         return {"type": "FeatureCollection", "features": features}
 
-    try:
-        overpass_query = f"""
-        [out:json][timeout:12];
-        (
-          way["highway"~"^(path|track|footway|cycleway|bridleway)$"]({min_lat},{min_lon},{max_lat},{max_lon});
-        );
-        out body geom;
-        """
-        async with httpx.AsyncClient(timeout=8.0) as client:
-            resp = await client.post(
-                OVERPASS_API_URL,
-                data={"data": overpass_query},
-                headers={"User-Agent": "LoamTrailApp/1.0"}
-            )
-            if resp.status_code == 200:
-                for el in resp.json().get("elements", [])[:limit]:
-                    if el.get("type") != "way" or not el.get("geometry"):
-                        continue
-                    coords = [[pt["lon"], pt["lat"]] for pt in el["geometry"]]
-                    if len(coords) < 2:
-                        continue
-                    tags = el.get("tags", {})
-                    scale, diff = _difficulty(tags.get("mtb:scale"))
-                    features.append({
-                        "type": "Feature",
-                        "properties": {
-                            "osm_id": el["id"],
-                            "name": tags.get("name"),
-                            "highway": tags.get("highway"),
-                            "surface": _surface_category(tags.get("highway"), tags.get("surface"), tags.get("tracktype"), tags.get("name")),
-                            "mtb_scale": scale,
-                            "difficulty": diff["rating"].lower(),
-                            "difficulty_name": diff["name"],
-                            "difficulty_color": diff["color"],
-                            "sac_scale": tags.get("sac_scale"),
-                            "operator": tags.get("operator"),
-                            "source": "OpenStreetMap (Overpass)"
-                        },
-                        "geometry": {"type": "LineString", "coordinates": coords}
-                    })
-    except Exception as op_err:
-        logger.debug(f"Overpass live query skipped: {op_err}")
+    for el in (await _overpass_elements(_tile_envelope(min_lat, min_lon, max_lat, max_lon)))[:limit]:
+        if el.get("type") != "way" or not el.get("geometry"):
+            continue
+        coords = [[pt["lon"], pt["lat"]] for pt in el["geometry"]]
+        if len(coords) < 2:
+            continue
+        tags = el.get("tags", {})
+        scale, diff = _difficulty(tags.get("mtb:scale"))
+        features.append({
+            "type": "Feature",
+            "properties": {
+                "osm_id": el["id"],
+                "name": tags.get("name"),
+                "highway": tags.get("highway"),
+                "surface": _surface_category(tags.get("highway"), tags.get("surface"), tags.get("tracktype"), tags.get("name")),
+                "mtb_scale": scale,
+                "difficulty": diff["rating"].lower(),
+                "difficulty_name": diff["name"],
+                "difficulty_color": diff["color"],
+                "sac_scale": tags.get("sac_scale"),
+                "operator": tags.get("operator"),
+                "source": "OpenStreetMap (Overpass)"
+            },
+            "geometry": {"type": "LineString", "coordinates": coords}
+        })
 
     return {"type": "FeatureCollection", "features": features}
 

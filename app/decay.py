@@ -20,9 +20,20 @@ def heat_sport(sport_or_profile: Optional[str]) -> str:
     return HEAT_SPORTS.get(s, "trail_run" if "run" in s or "foot" in s else "mtb")
 
 
+TRAIL_CLASS_HIGHWAYS = ("path", "track", "bridleway", "cycleway")
+
+
 def min_unique_riders() -> int:
     from app.config import settings
     return max(1, int(settings.heat_min_unique_riders))
+
+
+def heat_is_public(unique_riders: int, has_seed: bool, highway: Optional[str]) -> bool:
+    """>= HEAT_MIN_UNIQUE_RIDERS riders, or seed heat (the owner's imported rides) on a trail-class edge."""
+    from app.config import settings
+    if unique_riders >= min_unique_riders():
+        return True
+    return bool(has_seed and settings.seed_heat_public and (highway or "") in TRAIL_CLASS_HIGHWAYS)
 
 
 def compute_recency_weight(visited_at: datetime.datetime, ref_date: Optional[datetime.datetime] = None) -> float:
@@ -48,13 +59,14 @@ def compute_recency_weight(visited_at: datetime.datetime, ref_date: Optional[dat
 
 def aggregate_edge_visits(
     visits: List[Dict[str, Any]],
-    ref_date: Optional[datetime.datetime] = None
+    ref_date: Optional[datetime.datetime] = None,
+    highway: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Aggregates edge visits for a single edge and sport:
     - Applies exponential decay
     - Counts unique riders
-    - Checks the unique-riders privacy threshold (HEAT_MIN_UNIQUE_RIDERS, 3 by default)
+    - Applies the publication rule (heat_is_public: HEAT_MIN_UNIQUE_RIDERS riders, or seed heat on a trail)
     - Tracks contributor IDs
     """
     if not visits:
@@ -71,6 +83,7 @@ def aggregate_edge_visits(
     total_passes = 0
     weighted_score = 0.0
     latest_dt = None
+    has_seed = False
 
     for v in visits:
         uid = str(v.get("user_id", ""))
@@ -85,11 +98,12 @@ def aggregate_edge_visits(
             contributors.add(uid)
             total_passes += p_cnt
             weighted_score += (w * p_cnt)
+            has_seed = has_seed or bool(v.get("is_seed"))
             if latest_dt is None or v_dt > latest_dt:
                 latest_dt = v_dt
 
     unique_riders = len(contributors)
-    is_public = (unique_riders >= min_unique_riders())
+    is_public = heat_is_public(unique_riders, has_seed, highway)
 
     return {
         "unique_riders": unique_riders,

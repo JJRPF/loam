@@ -10,7 +10,8 @@ import {
   adminReverseSubmission,
   adminTakedownSubmission,
   fetchHeatMeta,
-  SEED_HEAT_NOTICE
+  heatInfoText,
+  type HeatMeta
 } from '../services/api';
 
 type ExploreTab = 'featured' | 'unridden' | 'submissions';
@@ -24,9 +25,9 @@ interface ExplorePanelProps {
 export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
   const [activeTab, setActiveTab] = useState<ExploreTab>('featured');
   const [activeNetwork, setActiveNetwork] = useState<Trailhead>(TRAILHEADS[0]);
-  const [seedHeatNotice, setSeedHeatNotice] = useState(false);
+  const [heatMeta, setHeatMeta] = useState<HeatMeta | null>(null);
   useEffect(() => {
-    fetchHeatMeta().then((m) => setSeedHeatNotice(m.seed_data_notice)).catch(() => setSeedHeatNotice(false));
+    fetchHeatMeta().then(setHeatMeta).catch(() => setHeatMeta(null));
   }, []);
 
   // Unridden trails state
@@ -266,6 +267,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
               Trail area
             </label>
             <select
+              aria-label="Trail area"
               value={activeNetwork.name}
               onChange={(e) => {
                 const found = TRAILHEADS.find((p) => p.name === e.target.value);
@@ -321,8 +323,8 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
             <p style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', lineHeight: 1.4 }}>
               Trails are weighted by verified activity over a 12-month window. Ghost trails and overgrown doubletracks are automatically deprioritized.
             </p>
-            {seedHeatNotice && (
-              <p role="note" style={{ fontSize: 12, color: 'var(--color-blaze)', marginTop: 6 }}>{SEED_HEAT_NOTICE}</p>
+            {heatMeta && (
+              <p role="note" style={{ fontSize: 12, color: 'var(--color-text-secondary)', marginTop: 6 }}>{heatInfoText(heatMeta)}</p>
             )}
           </div>
         </div>
@@ -427,7 +429,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
                   padding: '3px 8px',
                   borderRadius: 4,
                   border: submissionFilter === f ? '1px solid var(--color-blaze, #FF5B14)' : '1px solid var(--color-divider, #D1D8D8)',
-                  backgroundColor: submissionFilter === f ? 'var(--color-blaze, #FF5B14)' : 'var(--color-card-bg, #FFFFFF)',
+                  backgroundColor: submissionFilter === f ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-card-bg, #FFFFFF)',
                   color: submissionFilter === f ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
                   cursor: 'pointer',
                   textTransform: 'capitalize'
@@ -629,6 +631,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
                     Sport
                   </label>
                   <select
+                    aria-label="Sport"
                     value={subSport}
                     onChange={(e) => setSubSport(e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
@@ -643,6 +646,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
                     Difficulty
                   </label>
                   <select
+                    aria-label="Difficulty"
                     value={subDifficulty}
                     onChange={(e) => setSubDifficulty(e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
