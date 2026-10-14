@@ -23,7 +23,7 @@ What has to be true for the public site, and where each item is verified. Items 
 ## After each deploy
 - [ ] `scripts/backup_db.sh` ran before any migration; the dump is not empty.
 - [ ] `curl https://core-node.tailcd5892.ts.net/health` is healthy and `/api/config` shows `midpoints_enabled: false`.
-- [ ] `BASE_URL=https://loam.thepfisters.com npx playwright test -c ../tests/browser/playwright.smoke.config.ts` (from `frontend/`) passes.
+- [ ] (On a machine that is on the tailnet, add `PUBLIC_API_IP=<the Funnel's public IP>`: MagicDNS resolves the Funnel host to a private 100.x address there, and Chrome blocks the public site from calling it.) `BASE_URL=https://loam.thepfisters.com npx playwright test -c ../tests/browser/playwright.smoke.config.ts` (from `frontend/`) passes.
 - [ ] Sign in once by hand with a real account (owner).
 - [ ] The nightly backup file for last night exists on the Pi (`~/loam-backups/nightly`).
 

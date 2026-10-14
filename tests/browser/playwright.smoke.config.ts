@@ -16,6 +16,14 @@ export default defineConfig({
   outputDir: process.env.PW_OUTPUT_DIR || '/tmp/loam-browser-smoke',
   use: {
     baseURL: process.env.BASE_URL || 'https://loam.thepfisters.com',
-    launchOptions: { executablePath: chromium, args: ['--no-sandbox', '--disable-gpu', '--use-gl=angle', '--use-angle=swiftshader'] },
+    launchOptions: {
+      executablePath: chromium,
+      args: [
+        '--no-sandbox', '--disable-gpu', '--use-gl=angle', '--use-angle=swiftshader',
+        // A machine on the tailnet resolves the Funnel host to a private 100.x address, and Chrome then blocks the
+        // public site from calling it (Private Network Access). PUBLIC_API_IP is its public address, as other visitors see it.
+        ...(process.env.PUBLIC_API_IP ? [`--host-resolver-rules=MAP core-node.tailcd5892.ts.net ${process.env.PUBLIC_API_IP}`] : []),
+      ],
+    },
   },
 });
