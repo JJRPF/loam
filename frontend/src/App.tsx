@@ -471,7 +471,7 @@ export const App: React.FC = () => {
               top: 16,
               left: '50%',
               transform: 'translateX(-50%)',
-              backgroundColor: 'var(--color-blaze, #FF5B14)',
+              backgroundColor: 'var(--color-blaze-dark, #C73E00)',
               color: '#FFFFFF',
               padding: '8px 16px',
               borderRadius: 20,
@@ -491,6 +491,7 @@ export const App: React.FC = () => {
          ========================================================================= */}
       {isMobile && (
         <section
+          data-testid="sheet"
           style={{
             position: 'absolute',
             bottom: 0,
@@ -509,6 +510,7 @@ export const App: React.FC = () => {
         >
           {/* Bottom Sheet Drag Handle & Snap Controls */}
           <div
+            data-testid="sheet-handle"
             style={{
               padding: '8px 16px',
               display: 'flex',
@@ -550,7 +552,7 @@ export const App: React.FC = () => {
                       else setSheetSnap('half');
                     }}
                     className="btn-primary"
-                    style={{ minHeight: 36, padding: '4px 12px', fontSize: 13 }}
+                    style={{ minHeight: 44, padding: '4px 14px', fontSize: 13 }}
                   >
                     {route ? 'Inspect' : 'Build'}
                   </button>

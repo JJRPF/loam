@@ -60,6 +60,31 @@ def is_admin_email(email: Optional[str], email_verified: bool) -> bool:
     return email.strip().lower() in {e.lower() for e in settings.admin_emails}
 
 
+def _verify_emulator_token(token: str, project: str) -> Dict[str, Any]:
+    """Firebase Auth emulator tokens are unsigned. Reached only when FIREBASE_AUTH_EMULATOR_HOST is set,
+    which check_auth_emulator_config allows only off production and on loopback."""
+    import base64
+    import json
+
+    def part(i: int) -> Dict[str, Any]:
+        raw = token.split(".")[i]
+        return json.loads(base64.urlsafe_b64decode(raw + "=" * (-len(raw) % 4)))
+
+    try:
+        header, claims = part(0), part(1)
+    except Exception:
+        raise AuthError("Invalid emulator token") from None
+    if header.get("alg") != "none":
+        raise AuthError("Invalid emulator token")  # a real signed token is not an emulator token
+    if claims.get("aud") != project or claims.get("iss") != f"https://securetoken.google.com/{project}":
+        raise AuthError("Invalid ID token audience or issuer")
+    exp = claims.get("exp")
+    sub = claims.get("sub")
+    if not isinstance(exp, (int, float)) or exp < time.time() or not isinstance(sub, str) or not sub:
+        raise AuthError("Invalid emulator token")
+    return claims
+
+
 def verify_firebase_token(token: str) -> Dict[str, Any]:
     """Verifies a Firebase ID token and returns its claims.
 
@@ -72,6 +97,8 @@ def verify_firebase_token(token: str) -> Dict[str, Any]:
     if not token or token.count(".") != 2:
         raise AuthError("Bearer token is not a JWT")
     project = settings.firebase_project_id
+    if settings.auth_emulator_host:
+        return _verify_emulator_token(token, project)
     try:
         claims = google_id_token.verify_firebase_token(
             token, _get_google_request(), audience=project, clock_skew_in_seconds=CLOCK_SKEW_SECONDS

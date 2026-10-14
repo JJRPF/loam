@@ -717,6 +717,7 @@ export const MapView: React.FC<MapViewProps> = ({
       
       {/* Heatmap Layer Toggle Badge */}
       <div
+        className="map-toggle-row"
         style={{
           position: 'absolute',
           top: 12,
@@ -754,7 +755,7 @@ export const MapView: React.FC<MapViewProps> = ({
           {heatTrailCount > 0 && (
             <span
               style={{
-                backgroundColor: showHeatmap ? 'var(--color-blaze, #FF5B14)' : 'var(--color-divider)',
+                backgroundColor: showHeatmap ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-divider)',
                 color: showHeatmap ? '#FFFFFF' : 'var(--color-text-secondary)',
                 padding: '1px 6px',
                 borderRadius: 10,

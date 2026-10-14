@@ -93,7 +93,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             &larr; Edit Plan
           </button>
           <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, backgroundColor: 'var(--color-slate-light, #E2ECF3)', padding: '4px 10px', borderRadius: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)' }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-blaze-text, #FF7A3D)' }}>
               Building candidate routes...
             </span>
           </div>
@@ -134,7 +134,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               style={{
                 width: '75%',
                 height: '100%',
-                backgroundColor: 'var(--color-blaze, #FF5B14)',
+                backgroundColor: 'var(--color-blaze-dark, #C73E00)',
                 borderRadius: 3
               }}
             />
@@ -172,11 +172,17 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
     return (
       <div style={{ padding: 24, textAlign: 'center', backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)' }}>
         <div style={{ fontSize: 16, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 4 }}>
-          No active route
+          {optionsNotice && !isLoading ? 'No routes yet' : 'No active route'}
         </div>
-        <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', marginBottom: 16 }}>
-          Configure your starting point and terrain preferences in the Plan tab, then tap "Build Routes".
-        </div>
+        {optionsNotice && !isLoading ? (
+          <div role="status" style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 16 }}>
+            {optionsNotice}
+          </div>
+        ) : (
+          <div style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', marginBottom: 16 }}>
+            Configure your starting point and terrain preferences in the Plan tab, then tap "Build Routes".
+          </div>
+        )}
         <button
           type="button"
           onClick={onBackToPlan}
@@ -263,7 +269,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             {options.length > 0 ? `${options.length} candidate ${options.length === 1 ? 'route' : 'routes'}` : 'Selected route'}
           </span>
           {isLoading && (
-            <span style={{ fontSize: 11, color: 'var(--color-blaze, #FF5B14)', fontWeight: 700 }}>
+            <span style={{ fontSize: 11, color: 'var(--color-blaze-text, #FF7A3D)', fontWeight: 700 }}>
               (Streaming...)
             </span>
           )}
@@ -307,6 +313,9 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
           </div>
 
           <div
+            tabIndex={0}
+            role="group"
+            aria-label="Candidate routes, scrolls"
             style={{
               display: 'flex',
               flexDirection: 'column',
@@ -352,7 +361,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
             </div>
           </div>
           <div style={{ textAlign: 'right' }}>
-            <div className="num-tabular" style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)', lineHeight: 1 }}>
+            <div className="num-tabular" style={{ fontSize: 26, fontWeight: 700, color: 'var(--color-blaze-text, #FF7A3D)', lineHeight: 1 }}>
               {(activeRoute.distance_miles ?? 0).toFixed(1)} <span style={{ fontSize: 14 }}>mi</span>
             </div>
             <div className="num-tabular" style={{ fontSize: 13, color: 'var(--color-text-secondary, #42675E)', marginTop: 2 }}>
@@ -395,19 +404,19 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
         )}
 
         {activeRoute.snowmobile_warnings && activeRoute.snowmobile_warnings.length > 0 && (
-          <div style={{ backgroundColor: 'rgba(0, 96, 100, 0.12)', border: '1px solid rgba(0, 96, 100, 0.3)', padding: '10px 12px', borderRadius: 6, fontSize: 12, color: '#006064', marginTop: 8 }}>
+          <div style={{ backgroundColor: 'rgba(0, 96, 100, 0.12)', border: '1px solid rgba(0, 96, 100, 0.3)', padding: '10px 12px', borderRadius: 6, fontSize: 12, color: '#7FD8DC', marginTop: 8 }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <span>❄️</span> Snowmobile Corridor Caution
             </div>
             <div>{activeRoute.snowmobile_warnings[0]}</div>
-            <div style={{ fontSize: 11, color: '#00838F', marginTop: 4 }}>
+            <div style={{ fontSize: 11, color: '#7FD8DC', marginTop: 4 }}>
               Permission-based & seasonal. Never presented as unrestricted public access.
             </div>
           </div>
         )}
 
         {activeRoute.community_flag_warnings && activeRoute.community_flag_warnings.length > 0 && (
-          <div style={{ backgroundColor: 'rgba(245, 127, 23, 0.12)', border: '1px solid rgba(245, 127, 23, 0.3)', padding: '10px 12px', borderRadius: 6, fontSize: 12, color: '#F57F17', marginTop: 8 }}>
+          <div style={{ backgroundColor: 'rgba(245, 127, 23, 0.12)', border: '1px solid rgba(245, 127, 23, 0.3)', padding: '10px 12px', borderRadius: 6, fontSize: 12, color: '#FFB74D', marginTop: 8 }}>
             <div style={{ fontWeight: 700, display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
               <span>🚩</span> Community Trail Reports ({activeRoute.community_flag_warnings.length})
             </div>
@@ -463,7 +472,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
               <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)' }}>
                 Composite Score Breakdown
               </span>
-              <span className="num-tabular" style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)', backgroundColor: 'var(--color-card-bg, #FFFFFF)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)' }}>
+              <span className="num-tabular" style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-blaze-text, #FF7A3D)', backgroundColor: 'var(--color-card-bg, #FFFFFF)', padding: '2px 8px', borderRadius: 4, border: '1px solid var(--color-divider, #D1D8D8)' }}>
                 {activeRoute.match_score ?? breakdown.composite} / 100
               </span>
             </div>
@@ -521,7 +530,7 @@ export const ResultsPanel: React.FC<ResultsPanelProps> = ({
       {weather && weather.length > 0 && (
         <section aria-label="Forecast at the start" style={{ fontSize: 12, color: 'var(--color-text-primary, #1D3B34)' }}>
           <div style={{ fontWeight: 700, marginBottom: 4 }}>Forecast at the start</div>
-          <div style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
+          <div tabIndex={0} role="group" aria-label="Hourly forecast, scrolls sideways" style={{ display: 'flex', gap: 6, overflowX: 'auto', paddingBottom: 4 }}>
             {weather.slice(0, 8).map((p) => (
               <div key={p.start} style={{ flex: '0 0 auto', minWidth: 62, textAlign: 'center', padding: '4px 6px', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)' }}>
                 <div className="num-tabular">{new Date(p.start).toLocaleTimeString([], { hour: 'numeric' })}</div>

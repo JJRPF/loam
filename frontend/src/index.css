@@ -6,8 +6,9 @@
   --color-spruce-light: #A9BF7A;
   --color-spruce-muted: #A0B5AE;
   --color-blaze: #FF5B14;
-  --color-blaze-dark: #FF5B14;
-  --color-slate: #5E94BD;
+  --color-blaze-dark: #C73E00; /* fills that carry white text: 5.1:1 */
+  --color-blaze-text: #FF7A3D; /* orange text on the dark panels: 5.4:1 */
+  --color-slate: #8FBBDD;
   --color-slate-light: #1A384A;
   --color-lichen: #A9BF7A;
   --color-divider: #264A42;
@@ -189,6 +190,16 @@ input[type="text"]:focus, input[type="number"]:focus, select:focus {
   .map-attribution-badge .attr-short { display: inline; }
   /* in "full" the sheet covers the map, so the credit is hidden (the Legal page and the You panel carry it) */
   [data-sheet="full"] .map-attribution-badge { display: none; }
+}
+
+/* Phones: every control is a 44 px touch target (inline sizes elsewhere are smaller, hence !important) */
+@media (max-width: 799px) {
+  button, summary { min-height: 44px !important; min-width: 44px !important; }
+  .maplibregl-ctrl-group button { width: 44px !important; height: 44px !important; }
+  label:has(input[type="checkbox"]), label:has(input[type="radio"]) { min-height: 44px; display: flex; align-items: center; gap: 8px; }
+  /* with the sheet fully open it covers most of the map: the map's own overlays (toggles, zoom, compass,
+     locate) would be cut off by its top edge, so they are hidden until the sheet comes back down */
+  [data-sheet="full"] .map-toggle-row, [data-sheet="full"] .maplibregl-ctrl-top-right { display: none !important; }
 }
 
 /* Dark-theme map popups (MapLibre defaults to a bright white card) */

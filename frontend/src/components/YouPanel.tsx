@@ -274,7 +274,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
                     style={{
                       border: 'none',
                       backgroundColor: 'transparent',
-                      color: 'var(--color-blaze, #FF5B14)',
+                      color: 'var(--color-blaze-text, #FF7A3D)',
                       fontSize: 14,
                       cursor: 'pointer',
                       padding: '4px 6px'
@@ -319,7 +319,7 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
             type="button"
             onClick={handleDeleteAccount}
             className="btn-outline"
-            style={{ flex: 1, fontSize: 12, minHeight: 34, color: 'var(--color-blaze, #FF5B14)', borderColor: 'var(--color-divider)' }}
+            style={{ flex: 1, fontSize: 12, minHeight: 34, color: 'var(--color-blaze-text, #FF7A3D)', borderColor: 'var(--color-divider)' }}
           >
             Delete Account & Rides
           </button>
@@ -381,6 +381,7 @@ const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
       <input
         type="file"
+        aria-label="Ride file (GPX or FIT)"
         accept=".gpx,.fit"
         onChange={(e) => setFile(e.target.files?.[0] || null)}
         style={{ fontSize: 13, color: 'var(--color-text-primary, #1D3B34)' }}
@@ -431,7 +432,7 @@ const ActivityUploadWidget: React.FC<{ isDarkMode?: boolean }> = () => {
       )}
 
       {error && (
-        <div style={{ backgroundColor: 'rgba(255, 91, 20, 0.1)', border: '1px solid var(--color-blaze, #FF5B14)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-blaze, #FF5B14)' }}>
+        <div style={{ backgroundColor: 'rgba(255, 91, 20, 0.1)', border: '1px solid var(--color-blaze, #FF5B14)', borderRadius: 6, padding: 10, fontSize: 12, color: 'var(--color-blaze-text, #FF7A3D)' }}>
           {error}
         </div>
       )}
@@ -759,7 +760,7 @@ const ConnectedServicesSection: React.FC<{ isDarkMode?: boolean }> = ({ isDarkMo
                         type="button"
                         onClick={() => handleDisconnect(c.name)}
                         className="btn-outline"
-                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26, color: 'var(--color-blaze, #FF5B14)', borderColor: 'var(--color-divider)' }}
+                        style={{ fontSize: 11, padding: '2px 8px', minHeight: 26, color: 'var(--color-blaze-text, #FF7A3D)', borderColor: 'var(--color-divider)' }}
                       >
                         Disconnect
                       </button>

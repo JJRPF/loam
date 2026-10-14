@@ -267,6 +267,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
               Trail area
             </label>
             <select
+              aria-label="Trail area"
               value={activeNetwork.name}
               onChange={(e) => {
                 const found = TRAILHEADS.find((p) => p.name === e.target.value);
@@ -428,7 +429,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
                   padding: '3px 8px',
                   borderRadius: 4,
                   border: submissionFilter === f ? '1px solid var(--color-blaze, #FF5B14)' : '1px solid var(--color-divider, #D1D8D8)',
-                  backgroundColor: submissionFilter === f ? 'var(--color-blaze, #FF5B14)' : 'var(--color-card-bg, #FFFFFF)',
+                  backgroundColor: submissionFilter === f ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-card-bg, #FFFFFF)',
                   color: submissionFilter === f ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)',
                   cursor: 'pointer',
                   textTransform: 'capitalize'
@@ -630,6 +631,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
                     Sport
                   </label>
                   <select
+                    aria-label="Sport"
                     value={subSport}
                     onChange={(e) => setSubSport(e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}
@@ -644,6 +646,7 @@ export const ExplorePanel: React.FC<ExplorePanelProps> = ({ onPlanFrom }) => {
                     Difficulty
                   </label>
                   <select
+                    aria-label="Difficulty"
                     value={subDifficulty}
                     onChange={(e) => setSubDifficulty(e.target.value)}
                     style={{ width: '100%', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--color-input-border, #D1D8D8)', backgroundColor: 'var(--color-input-bg, #FFFFFF)', color: 'var(--color-text-primary, #1D3B34)', fontSize: 13 }}

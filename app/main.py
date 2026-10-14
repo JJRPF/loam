@@ -114,6 +114,20 @@ async def old_origin_redirect(request, call_next):
     return await call_next(request)
 
 
+def attachment_headers(name, ext: str) -> dict:
+    """Content-Disposition for a download named after the route. Route names carry characters HTTP headers can't
+    (the default names have an em dash), so the plain filename is an ASCII slug and the full name goes in
+    filename* (RFC 5987)."""
+    import re
+    import unicodedata
+    from urllib.parse import quote
+
+    full = " ".join(str(name or "Loam Route").split())[:120] or "Loam Route"
+    slug = unicodedata.normalize("NFKD", full).encode("ascii", "ignore").decode()
+    slug = re.sub(r"[^A-Za-z0-9]+", "_", slug).strip("_").lower() or "loam_route"
+    return {"Content-Disposition": f"attachment; filename=\"{slug}.{ext}\"; filename*=UTF-8''{quote(full + '.' + ext, safe='')}"}
+
+
 MIDPOINTS_OFF_NOTICE = "Midpoints are turned off for now, so this route ignores them."
 
 
@@ -285,11 +299,11 @@ async def export_gpx(req: ExportRequest):
             elevation_loss_ft=req.elevation_loss_ft,
             waypoints=req.waypoints
         )
-        filename = f"{(req.name or 'loam_route').lower().replace(' ', '_')}.gpx"
+        headers = attachment_headers(req.name, "gpx")
         return Response(
             content=gpx_xml,
             media_type="application/gpx+xml",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers=headers
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate GPX: {str(e)}")
@@ -307,11 +321,11 @@ async def export_fit(req: ExportRequest):
             elevation_gain_ft=req.elevation_gain_ft,
             elevation_loss_ft=req.elevation_loss_ft
         )
-        filename = f"{(req.name or 'loam_route').lower().replace(' ', '_')}.fit"
+        headers = attachment_headers(req.name, "fit")
         return Response(
             content=fit_bytes,
             media_type="application/vnd.ant.fit",
-            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+            headers=headers
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to generate FIT: {str(e)}")
@@ -332,11 +346,11 @@ async def export_saved_route_gpx(route_id: str):
         elevation_loss_ft=route.get("elevation_loss_ft", 0.0),
         waypoints=route.get("waypoints")
     )
-    filename = f"{(route.get('name') or 'loam_route').lower().replace(' ', '_')}.gpx"
+    headers = attachment_headers(route.get("name"), "gpx")
     return Response(
         content=gpx_xml,
         media_type="application/gpx+xml",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers=headers
     )
 
 @app.get("/api/export/fit/{route_id}")
@@ -354,11 +368,11 @@ async def export_saved_route_fit(route_id: str):
         elevation_gain_ft=route.get("elevation_gain_ft", 0.0),
         elevation_loss_ft=route.get("elevation_loss_ft", 0.0)
     )
-    filename = f"{(route.get('name') or 'loam_route').lower().replace(' ', '_')}.fit"
+    headers = attachment_headers(route.get("name"), "fit")
     return Response(
         content=fit_bytes,
         media_type="application/vnd.ant.fit",
-        headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        headers=headers
     )
 
 # --- Saved Routes Endpoints ---

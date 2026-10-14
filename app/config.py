@@ -8,12 +8,18 @@ def _csv(value: str) -> list:
     return [v.strip() for v in value.split(",") if v.strip()]
 
 
+def resolve_env() -> str:
+    """APP_ENV and LOAM_ENV are one setting; "production" in either wins."""
+    app_env, loam_env = os.getenv("APP_ENV", "").strip().lower(), os.getenv("LOAM_ENV", "").strip().lower()
+    return "production" if "production" in (app_env, loam_env) else (app_env or loam_env or "development")
+
+
 class Settings(BaseModel):
     app_name: str = "Loam Trail Route Builder"
     app_version: str = "0.1.0"
 
-    # production | development | test
-    loam_env: str = os.getenv("LOAM_ENV", "development").strip().lower()
+    # production | development | test. APP_ENV and LOAM_ENV are the same setting; "production" in either wins.
+    loam_env: str = resolve_env()
 
     # GraphHopper service URL
     graphhopper_url: str = os.getenv("GRAPHHOPPER_URL", "http://localhost:8989")
@@ -37,6 +43,9 @@ class Settings(BaseModel):
 
     # Authentication (Firebase Auth on GCP project `thepfisters`)
     firebase_project_id: str = os.getenv("FIREBASE_PROJECT_ID", "thepfisters")
+    # Local browser tests only: the Firebase Auth emulator (host:port). Never honoured in production or on a
+    # server that is not bound to loopback (see check_auth_emulator_config).
+    auth_emulator_host: str = os.getenv("FIREBASE_AUTH_EMULATOR_HOST", "").strip()
     admin_emails: list = _csv(os.getenv("ADMIN_EMAILS", ""))
     cors_origins: list = _csv(os.getenv(
         "CORS_ORIGINS",
@@ -81,8 +90,24 @@ class Settings(BaseModel):
 settings = Settings()
 
 
+LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
+
+
+def check_auth_emulator_config(s: Settings = settings) -> None:
+    """The Auth emulator issues unsigned tokens, so it may only be on for a local, non-production server."""
+    if not s.auth_emulator_host:
+        return
+    if s.loam_env == "production":
+        raise RuntimeError("FIREBASE_AUTH_EMULATOR_HOST is set with APP_ENV=production; refusing to start")
+    if s.host not in LOOPBACK_HOSTS:
+        raise RuntimeError(
+            "FIREBASE_AUTH_EMULATOR_HOST needs the server bound to loopback (HOST=127.0.0.1); refusing to start"
+        )
+
+
 def check_production_config(s: Settings = settings) -> None:
     """Refuses to start a production server with development secrets."""
+    check_auth_emulator_config(s)
     if s.loam_env != "production":
         return
     if s.connector_secret_key == DEFAULT_CONNECTOR_SECRET_KEY:

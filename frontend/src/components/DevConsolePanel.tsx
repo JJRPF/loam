@@ -209,7 +209,7 @@ export const DevConsolePanel: React.FC<DevConsolePanelProps> = ({
 
           <div style={{ backgroundColor: 'var(--color-bg-subtle, #F8F9FA)', padding: 10, borderRadius: 6, border: '1px solid var(--color-divider, #E0E0E0)' }}>
             <div style={{ fontSize: 11, color: 'var(--color-text-secondary, #42675E)', fontWeight: 600 }}>Heat Edges</div>
-            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-blaze, #FF5B14)', marginTop: 2 }}>
+            <div style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-blaze-text, #FF7A3D)', marginTop: 2 }}>
               {statusData.heat_edge_count.toLocaleString()}
             </div>
             <div style={{ fontSize: 10, color: 'var(--color-text-secondary, #666)' }}>{statusData.activity_count} activities</div>
