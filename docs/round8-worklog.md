@@ -131,4 +131,10 @@ Tests: `pytest -q`: 236 passed. `npm run build` and `npm run lint` clean.
 
 ## Phase 11: Public-repo readiness audit
 
+Done before Phase 10, because Phase 10 waits on the owner's SSH/sudo/password steps (deviation from the order; nothing in this phase depends on a deploy). Scanner: gitleaks 8.30.1 (linux arm64 release binary, checksum verified) over all refs, redacted. Greps over every revision for `github_pat_`, `ghp_`, `AIza`, private keys, `AKIA`, Slack tokens, bearer tokens, `sshpass`, `.env`, `.fit`, `.gpx`, `.tcx`, key and dump files, home-directory paths and Garmin export paths. A script walked every added line of every commit for latitude/longitude pairs, clustered at 0.01 degree, and compared the clusters locally with the stripped Garmin export (nothing from that comparison is written to the repo).
+
+Findings are in `~/dev/loam/main/data/round8-public-audit.md` (gitignored, not committed, not posted). Counts only: real secrets 0; client-side basemap key 1 (already shipped in the public bundle); gitleaks false positives 1; credential-like patterns in history 1 (the old deploy script's `sshpass`, i.e. the Pi password equals the username; the owner's step 3 fixes it); sensitive file types in any commit 0; coordinate clusters 45 (4 of them near an area where the owner rides, all in pre-Round-7 hand-typed geometry that is gone from HEAD). No history was rewritten (the recommended options, if wanted, are in the audit).
+
+Repo hygiene added: `.github/ISSUE_TEMPLATE/` (bug report, route or trail data problem, config pointing at the in-app report button and SECURITY.md), `SECURITY.md` (private reporting by GitHub advisory or the contact email), `CONTRIBUTING.md`. Suggested repository description and topics are in the PR body; no repository setting was changed. The owner needs to enable "Private vulnerability reporting" in the repository settings for the SECURITY.md route to work.
+
 ## Phase 12: Finish

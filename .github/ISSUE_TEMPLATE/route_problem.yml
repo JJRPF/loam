@@ -1,0 +1,26 @@
+name: Route or trail data problem
+description: A trail is missing, closed, wrongly classified or a route misbehaves
+labels: [data]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        The quickest way is the in-app **Report bad route** button on the route (sign in first): it files an issue with the route line attached
+        and leaves out your start and end points. Use this form for trail data problems that are not about one route.
+        Trail data comes from OpenStreetMap; fixing it there fixes it for everyone, and Loam picks it up when its OpenStreetMap extract is next refreshed.
+  - type: textarea
+    id: what
+    attributes:
+      label: What is wrong
+      description: Which trail or area, and what the map or route gets wrong (closed, private, wrong surface, missing).
+    validations:
+      required: true
+  - type: input
+    id: osm
+    attributes:
+      label: OpenStreetMap way or link (if you have it)
+  - type: textarea
+    id: evidence
+    attributes:
+      label: How you know
+      description: Signs, land manager notice, a recent ride. No personal details.
