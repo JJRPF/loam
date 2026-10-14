@@ -149,7 +149,13 @@ curl http://127.0.0.1:8080/health
 
 The API serves `frontend/dist`, so http://127.0.0.1:8080 is the whole app. For frontend work, `npm run dev` in `frontend/` serves on :5173 and proxies `/api` to :8080.
 
-Sign-in needs your own Firebase project: add a Web app, enable Google and Email link, put its values in `.env` as `VITE_FIREBASE_*` and rebuild. Without them the app routes anonymously and the sign-in card says sign-in isn't configured.
+Sign-in needs your own Firebase project:
+
+1. Add a Web app and put its `apiKey`, `appId` and `projectId` in `.env` as `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_APP_ID`, `VITE_FIREBASE_PROJECT_ID`, then rebuild (they are read at build time). Without them the app routes anonymously and the sign-in card says sign-in isn't configured.
+2. Authentication > Sign-in method: enable Google and Email link.
+3. Authentication > Settings > Authorized domains: add the app's domain.
+4. The production build uses the app's own domain as `authDomain` (`VITE_FIREBASE_AUTH_DOMAIN`, set in `scripts/web-build-env.sh`), so Firebase Hosting serves the sign-in handler at `/__/auth/handler`. For Google sign-in, add `https://<your domain>/__/auth/handler` as an authorized redirect URI on the project's web OAuth client (Google Cloud console > APIs & Services > Credentials), and allow the domain as an authorized JavaScript origin. Changes there can take a few minutes to apply. Email link needs none of this.
+5. If you add a service worker or rewrite rules of your own, leave `/__/` alone: it belongs to Firebase.
 
 Optional, your own Garmin export as heat and loop seeds (runs only on your machine; the export is never uploaded or committed):
 
