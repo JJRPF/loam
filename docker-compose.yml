@@ -7,7 +7,7 @@ services:
     volumes:
       - ${DATA_DIR:-../main/data}:/data
     ports:
-      - "8989:8989"
+      - "127.0.0.1:8989:8989"   # loopback only: the API reaches it on the compose network or localhost
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8989/health"]
       interval: 10s
@@ -26,7 +26,7 @@ services:
       - ${DATA_DIR:-../main/data}/postgis:/var/lib/postgresql
       - ./db/init_schema.sql:/docker-entrypoint-initdb.d/01-init_schema.sql:ro
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"   # loopback only: the development password must not be reachable from the network
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U loam -d loam"]
       interval: 10s
