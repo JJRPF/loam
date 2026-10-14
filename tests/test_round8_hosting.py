@@ -91,3 +91,9 @@ def test_deploy_web_script_is_hosting_only():
     assert "deploy --only hosting --project thepfisters" in s
     for bad in ("firestore", "functions", "storage"):
         assert f"--only {bad}" not in s and f",{bad}" not in s
+
+
+def test_service_worker_never_answers_firebase_reserved_urls():
+    # the sign-in popup opens /__/auth/handler; a service worker serving index.html there shows the app, not Google
+    cfg = (ROOT / "frontend" / "vite.config.ts").read_text()
+    assert r"/^\/__\//" in cfg
