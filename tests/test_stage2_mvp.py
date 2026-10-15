@@ -184,13 +184,14 @@ async def test_saved_routes_crud():
         assert len(item["coordinates"]) > 0
 
         # Export saved route as GPX
-        gpx_resp = await client.get(f"/api/export/gpx/{saved_id}")
+        assert (await client.get(f"/api/export/gpx/{saved_id}")).status_code == 401  # owner-only since GH-42
+        gpx_resp = await client.get(f"/api/export/gpx/{saved_id}", headers=headers)
         assert gpx_resp.status_code == 200
         assert "application/gpx+xml" in gpx_resp.headers["content-type"]
         assert "<trk>" in gpx_resp.text
 
         # Export saved route as FIT
-        fit_resp = await client.get(f"/api/export/fit/{saved_id}")
+        fit_resp = await client.get(f"/api/export/fit/{saved_id}", headers=headers)
         assert fit_resp.status_code == 200
         assert len(fit_resp.content) > 50
 

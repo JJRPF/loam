@@ -397,7 +397,7 @@ def get_saved_routes_from_db(user_id: str) -> List[Dict[str, Any]]:
                     """
                     SELECT id, user_id, name, sport, distance_miles,
                            elevation_gain_ft, elevation_loss_ft, created_at,
-                           surface_summary, waypoints, ST_AsGeoJSON(geom) as geojson
+                           surface_summary, waypoints, visibility, ST_AsGeoJSON(geom) as geojson
                     FROM saved_routes
                     WHERE user_id = %s
                     ORDER BY created_at DESC;
@@ -437,7 +437,7 @@ def get_saved_route_by_id(route_id: str, user_id: Optional[str] = None) -> Optio
                         """
                         SELECT id, user_id, name, sport, distance_miles,
                                elevation_gain_ft, elevation_loss_ft, created_at,
-                               surface_summary, waypoints, ST_AsGeoJSON(geom) as geojson
+                               surface_summary, waypoints, visibility, ST_AsGeoJSON(geom) as geojson
                         FROM saved_routes
                         WHERE id = %s AND user_id = %s;
                         """,
@@ -448,7 +448,7 @@ def get_saved_route_by_id(route_id: str, user_id: Optional[str] = None) -> Optio
                         """
                         SELECT id, user_id, name, sport, distance_miles,
                                elevation_gain_ft, elevation_loss_ft, created_at,
-                               surface_summary, waypoints, ST_AsGeoJSON(geom) as geojson
+                               surface_summary, waypoints, visibility, ST_AsGeoJSON(geom) as geojson
                         FROM saved_routes
                         WHERE id = %s;
                         """,

@@ -73,6 +73,8 @@ class Settings(BaseModel):
         "geocode": os.getenv("RATE_LIMIT_GEOCODE", "60/60"),
         "upload": os.getenv("RATE_LIMIT_UPLOAD", "30/3600"),
         "flag": os.getenv("RATE_LIMIT_FLAG", "60/3600"),           # flags, check-ins, votes
+        "share_view": os.getenv("RATE_LIMIT_SHARE_VIEW", "120/600"),    # public shared-route reads (per IP)
+        "share_create": os.getenv("RATE_LIMIT_SHARE_CREATE", "30/3600"),  # creating shares, invites, accepting
     }
     report_daily_limit_global: int = int(os.getenv("RATE_LIMIT_REPORTS_GLOBAL_DAILY", "30"))
     route_concurrency: int = int(os.getenv("ROUTE_CONCURRENCY", "2"))
