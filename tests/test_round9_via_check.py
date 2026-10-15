@@ -55,6 +55,14 @@ def test_c1_unclosed_loop_fails():
     assert "C1" in r["failed"]
 
 
+def test_c1_start_snap_widens_limit_but_loop_must_close():
+    off = (LAT0 + 0.0008, LON0)  # start coordinate ~89 m north of where the route starts and ends
+    r = check_via_route(LOOP, off, [VIA_A], evaluate=fake_eval())
+    assert "C1" in r["failed"]
+    assert check_via_route(LOOP, off, [VIA_A], evaluate=fake_eval(), start_snap_m=89.0)["C1"]["ok"]
+    assert "C1" in check_via_route(LOOP[:-30], off, [VIA_A], evaluate=fake_eval(), start_snap_m=89.0)["failed"]
+
+
 def test_c1_point_to_point_ends_at_end():
     r = check(coords=_poly([_pt(0, 0), A, B]), vias=(VIA_A,), end=(B[1], B[0]))
     assert r["C1"]["ok"], r

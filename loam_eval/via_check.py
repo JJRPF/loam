@@ -80,6 +80,8 @@ def check_via_route(
     way_ids: Optional[Sequence[int]] = None,
     *,
     snap_m: Optional[Sequence[float]] = None,
+    start_snap_m: float = 0.0,
+    end_snap_m: float = 0.0,
     dead_end_vias: Sequence[int] = (),
     notice: Optional[str] = None,
     reported_miles: Optional[float] = None,
@@ -88,7 +90,9 @@ def check_via_route(
     offset: Optional[Callable[[Sequence[Sequence[float]], Sequence[int]], Optional[float]]] = None,
 ) -> Dict[str, Any]:
     """`start`/`end` are (lat, lon). `snap_m[i]` is midpoint i's distance to the routable network
-    (reported separately; it widens C2 only). `dead_end_vias` are the midpoints whose only access
+    (reported separately; it widens C2 only). `start_snap_m`/`end_snap_m` are the same for the start
+    and end (a trailhead's parking coordinate is often tens of metres from the nearest way; the
+    route starts at the snapped point). `dead_end_vias` are the midpoints whose only access
     is a dead-end spur; `notice` is the response notice; `reported_miles` the API's distance."""
     res: Dict[str, Any] = {}
     if len(coords) < 2:
@@ -99,8 +103,12 @@ def check_via_route(
     goal = end if end is not None else start
     d_first = _hav(coords[0], (start[1], start[0]))
     d_last = _hav(coords[-1], (goal[1], goal[0]))
-    res["C1"] = _rule(d_first <= CLOSE_M and d_last <= CLOSE_M,
-                      start_m=round(d_first, 1), end_m=round(d_last, 1), limit_m=CLOSE_M)
+    lim_first = CLOSE_M + start_snap_m
+    lim_last = CLOSE_M + (end_snap_m if end is not None else start_snap_m)
+    self_close = _hav(coords[0], coords[-1])
+    c1 = d_first <= lim_first and d_last <= lim_last and (end is not None or self_close <= CLOSE_M)
+    res["C1"] = _rule(c1, start_m=round(d_first, 1), end_m=round(d_last, 1), closure_m=round(self_close, 1),
+                      limit_m=[lim_first, lim_last])
 
     # C2 / C3
     snaps = list(snap_m) if snap_m is not None else [0.0] * len(vias)
