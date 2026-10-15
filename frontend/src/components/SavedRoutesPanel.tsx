@@ -4,6 +4,8 @@ import { fetchSavedRoutes, deleteSavedRoute } from '../services/api';
 import { useAuth } from '../services/auth';
 import { formatGain } from '../format';
 import { recentRoutes } from '../services/offlineRoutes';
+import { ShareRouteModal } from './ShareRouteModal';
+import { SharedWithMe } from './SharedWithMe';
 
 interface SavedRoutesPanelProps {
   onLoadRoute: (route: RouteResponse) => void;
@@ -14,6 +16,8 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
   const [isLoading, setIsLoading] = useState(true);
   const { user, ready } = useAuth();
   const [recent, setRecent] = useState<RouteResponse[]>([]);
+  const [sharingId, setSharingId] = useState<string | null>(null);
+  const sharing = routes.find(x => x.id === sharingId) ?? null;
 
   useEffect(() => {
     recentRoutes().then(setRecent);
@@ -110,6 +114,8 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
         </button>
       </div>
 
+      {user && <SharedWithMe onLoadRoute={onLoadRoute} onCopied={loadRoutes} />}
+
       {recent.length > 0 && (
         <section aria-label="Recently viewed routes">
           <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--color-text-primary, #1D3B34)', marginBottom: 6 }}>
@@ -189,6 +195,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 8, borderTop: '1px solid var(--color-divider, #E7ECEC)' }}>
             <span style={{ fontSize: 11, color: 'var(--color-text-secondary, #888)' }}>
               {r.created_at ? new Date(r.created_at).toLocaleDateString() : ''}
+              {r.visibility === 'link' ? ' · Shared by link' : r.visibility === 'friends' ? ' · Shared with friends' : ''}
             </span>
             <div style={{ display: 'flex', gap: 6 }}>
               <button
@@ -204,6 +211,15 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
               </button>
               <button
                 type="button"
+                onClick={(e) => { e.stopPropagation(); setSharingId(r.id); }}
+                className="btn-outline"
+                aria-label={`Share ${r.name}`}
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, color: 'var(--color-text-primary, #1D3B34)' }}
+              >
+                Share
+              </button>
+              <button
+                type="button"
                 onClick={(e) => handleDelete(r.id, e)}
                 style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'transparent', color: 'var(--color-blaze-text, #FF7A3D)', border: 'none' }}
               >
@@ -213,6 +229,14 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
           </div>
         </div>
       ))}
+
+      {sharing && (
+        <ShareRouteModal
+          route={sharing}
+          onClose={() => setSharingId(null)}
+          onChanged={(visibility) => setRoutes(prev => prev.map(x => x.id === sharing.id ? { ...x, visibility } : x))}
+        />
+      )}
     </div>
   );
 };

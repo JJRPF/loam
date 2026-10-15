@@ -148,9 +148,9 @@ async def test_link_share_public_view_export_revoke(people):
         dead = await c.get(f"/api/shared/{token}")
         assert dead.status_code == 404
         assert (await c.get("/api/saved-routes", headers=as_user(owner))).json()["routes"][0]["visibility"] == "private"
-    with get_connection() as conn, conn.cursor() as cur:  # a revoked share keeps no line and no token
-        cur.execute("SELECT geom IS NULL, token_hash IS NULL FROM route_shares WHERE route_id = %s", (rid,))
-        assert cur.fetchone() == (True, True)
+    with get_connection() as conn, conn.cursor() as cur:  # a revoked share leaves nothing behind
+        cur.execute("SELECT count(*) FROM route_shares WHERE route_id = %s", (rid,))
+        assert cur.fetchone()[0] == 0
 
 
 @pytest.mark.asyncio
@@ -168,6 +168,8 @@ async def test_unknown_revoked_and_deleted_look_identical(people):
         responses = [await c.get(f"/api/shared/{t}") for t in (tok_revoked, tok_deleted, sharing.new_token(), "short")]
     assert {r.status_code for r in responses} == {404}
     assert len({r.text for r in responses}) == 1
+    assert all(r.headers["x-robots-tag"].startswith("noindex") and r.headers["cache-control"] == "no-store"
+               for r in responses)
 
 
 @pytest.mark.asyncio
@@ -559,7 +561,7 @@ def _flat(routes):
 def test_every_non_public_sharing_endpoint_requires_sign_in():
     seen = set()
     for route in _flat(app.routes):  # through the app, so the router really is mounted
-        if not (route.endpoint.__module__ == "app.sharing"):
+        if getattr(getattr(route, "endpoint", None), "__module__", None) != "app.sharing":
             continue
         for method in route.methods:
             key = (method, route.path)
@@ -570,10 +572,10 @@ def test_every_non_public_sharing_endpoint_requires_sign_in():
                 assert _depends_on(route.dependant, get_current_user), f"{key} is reachable signed out"
     assert PUBLIC <= seen and len(seen) == 24
     # the existing saved-route exports are owner-only now too
-    exports = [r for r in _flat(app.routes) if r.path in ("/api/export/gpx/{route_id}", "/api/export/fit/{route_id}")]
+    exports = [r for r in _flat(app.routes) if getattr(r, "path", "") in ("/api/export/gpx/{route_id}", "/api/export/fit/{route_id}")]
     assert len(exports) == 2 and all(_depends_on(r.dependant, get_current_user) for r in exports)
     # nothing else is publicly readable under /api/shared
-    shared = {(m, r.path) for r in _flat(app.routes) if r.path.startswith("/api/shared") for m in r.methods}
+    shared = {(m, r.path) for r in _flat(app.routes) if getattr(r, "path", "").startswith("/api/shared") for m in r.methods}
     assert {k for k in shared if k[0] == "GET"} <= PUBLIC
 
 
@@ -629,3 +631,56 @@ async def test_legacy_account_rekey_moves_shares(people):
         with get_connection() as conn, conn.cursor() as cur:
             cur.execute("DELETE FROM users WHERE id = %s", (legacy,))
             conn.commit()
+
+
+@pytest.mark.asyncio
+async def test_mixed_case_user_ids_can_befriend_each_other():
+    """Firebase uids are mixed case; the pair order must not depend on the database's locale collation."""
+    tag = uuid.uuid4().hex[:6]
+    a, b = f"Zz{tag}A", f"aa{tag}b"  # 'Z' < 'a' in byte order, the reverse in en_US
+    for uid in (a, b):
+        ensure_user_exists(uid, email=f"{uid}@test.loam")
+    try:
+        async with client() as c:
+            for inviter, joiner in ((a, b), (b, a)):
+                with get_connection() as conn, conn.cursor() as cur:
+                    cur.execute("DELETE FROM friendships WHERE user_a = ANY(%s) OR user_b = ANY(%s)", ([a, b], [a, b]))
+                    conn.commit()
+                inv = (await c.post("/api/friends/invites", headers=as_user(inviter))).json()
+                r = await c.post(f"/api/friends/invites/{token_of(inv['path'])}/accept", headers=as_user(joiner))
+                assert r.status_code == 200, r.text
+                assert len((await c.get("/api/friends", headers=as_user(inviter))).json()["friends"]) == 1
+    finally:
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute("DELETE FROM users WHERE id = ANY(%s)", ([a, b],))
+            conn.commit()
+
+
+@pytest.mark.asyncio
+async def test_data_export_includes_sharing_without_other_people_or_tokens(people):
+    p = people
+    async with client() as c:
+        await c.put("/api/me/profile", json={"share_display_name": "Gnome"}, headers=as_user(p["owner"]))
+        await befriend(c, p["owner"], p["friend"])
+        rid = await save(c, p["owner"])
+        share = (await c.post(f"/api/saved-routes/{rid}/share", json={"mode": "link"}, headers=as_user(p["owner"]))).json()
+        await c.post("/api/friends/invites", headers=as_user(p["owner"]))
+        out = await c.get("/api/privacy/export", headers=as_user(p["owner"]))
+    assert out.status_code == 200
+    data = out.json()["sharing"]
+    assert data["share_display_name"] == "Gnome"
+    assert [s["mode"] for s in data["shared_routes"]] == ["link"] and len(data["friendships"]) == 1
+    assert len(data["friend_invites"]) == 2
+    text = out.text
+    assert p["friend"] not in text and token_of(share["path"]) not in text and "token_hash" not in text
+
+
+def test_privacy_policy_and_terms_describe_sharing():
+    import pathlib
+    legal = pathlib.Path(__file__).resolve().parents[1] / "frontend" / "public" / "legal"
+    priv = (legal / "privacy" / "index.html").read_text()
+    terms = (legal / "terms" / "index.html").read_text()
+    for needle in ('id="sharing"', "Your rides are never shared", "sharing name", "Anyone with the link",
+                   "privacy zones", "7 days", "block", "Stopping", "Counts", "Effective October 14, 2026"):
+        assert needle in priv, needle
+    assert "Sharing routes" in terms and "Effective October 14, 2026" in terms

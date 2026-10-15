@@ -30,14 +30,13 @@ CREATE TABLE IF NOT EXISTS route_shares (
     surface_summary JSONB,
     trimmed BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
-    revoked_at TIMESTAMP WITH TIME ZONE,
     last_viewed_at TIMESTAMP WITH TIME ZONE,
     view_count INT NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_route_shares_route ON route_shares (route_id);
 CREATE INDEX IF NOT EXISTS idx_route_shares_user ON route_shares (user_id);
--- At most one live share per route; revoking keeps the row's counters but drops the token and the line.
-CREATE UNIQUE INDEX IF NOT EXISTS uq_route_shares_live ON route_shares (route_id) WHERE revoked_at IS NULL;
+-- One share per route; revoking deletes it (the line, the token and the counters go with it).
+CREATE UNIQUE INDEX IF NOT EXISTS uq_route_shares_route ON route_shares (route_id);
 
 CREATE TABLE IF NOT EXISTS friend_invites (
     id BIGSERIAL PRIMARY KEY,
@@ -50,7 +49,8 @@ CREATE TABLE IF NOT EXISTS friend_invites (
 );
 CREATE INDEX IF NOT EXISTS idx_friend_invites_inviter ON friend_invites (inviter_id);
 
--- An ordered pair (user_a < user_b), so a friendship is one row.
+-- An ordered pair (user_a < user_b, byte order: the API sorts the same way), so a friendship is one row.
+-- Firebase uids are mixed case, and a locale collation would order them differently from the API.
 -- `id` is the handle the API uses, so a friend's user id is never sent to anyone.
 CREATE TABLE IF NOT EXISTS friendships (
     id BIGSERIAL UNIQUE,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS friendships (
     user_b TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     PRIMARY KEY (user_a, user_b),
-    CHECK (user_a < user_b)
+    CHECK (user_a < user_b COLLATE "C")
 );
 CREATE INDEX IF NOT EXISTS idx_friendships_b ON friendships (user_b);
 

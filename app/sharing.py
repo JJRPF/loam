@@ -42,6 +42,11 @@ TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]{43}$")  # secrets.token_urlsafe(32)
 
 # Unknown, revoked and deleted shares all answer exactly like this.
 NOT_FOUND = "This link no longer works."
+PUBLIC_HEADERS = {"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer"}
+
+
+def link_gone() -> HTTPException:
+    return HTTPException(status_code=404, detail=NOT_FOUND, headers=PUBLIC_HEADERS)
 
 share_view_limit = rate_limited("share_view", "opening shared routes")
 share_create_limit = rate_limited("share_create", "sharing")
@@ -253,11 +258,7 @@ def _owned_route(cur, route_id: str, uid: str) -> Optional[Dict[str, Any]]:
 
 
 def _revoke(cur, route_id: str) -> None:
-    cur.execute(
-        "UPDATE route_shares SET revoked_at = NOW(), token_hash = NULL, geom = NULL "
-        "WHERE route_id = %s AND revoked_at IS NULL",
-        (route_id,),
-    )
+    cur.execute("DELETE FROM route_shares WHERE route_id = %s", (route_id,))
     cur.execute("UPDATE saved_routes SET visibility = 'private' WHERE id = %s", (route_id,))
 
 
@@ -323,7 +324,7 @@ async def my_shares(user: AuthUser = Depends(get_current_user)):
         cur.execute(
             """
             SELECT route_id, mode, name, trimmed, created_at, last_viewed_at, view_count
-            FROM route_shares WHERE user_id = %s AND revoked_at IS NULL ORDER BY created_at DESC
+            FROM route_shares WHERE user_id = %s ORDER BY created_at DESC
             """,
             (user.uid,),
         )
@@ -365,27 +366,25 @@ async def put_profile(req: ProfileUpdate, user: AuthUser = Depends(get_current_u
 # --- public: a shared link ----------------------------------------------------------------------
 
 def _public_headers(response: Response) -> None:
-    response.headers["X-Robots-Tag"] = "noindex, nofollow"
-    response.headers["Cache-Control"] = "no-store"
-    response.headers["Referrer-Policy"] = "no-referrer"
+    response.headers.update(PUBLIC_HEADERS)
 
 
 def _link_share(token: str, count_view: bool) -> Dict[str, Any]:
     """The live link share behind a token, or a 404 that is the same for unknown, revoked and deleted."""
     if not valid_token_shape(token):
-        raise HTTPException(status_code=404, detail=NOT_FOUND)
+        raise link_gone()
     with get_connection() as conn:
         with conn.cursor(cursor_factory=RealDictCursor) as cur:
             cur.execute(
                 f"""
                 SELECT {SHARE_COLUMNS} FROM route_shares s JOIN users u ON u.id = s.user_id
-                WHERE s.token_hash = %s AND s.mode = 'link' AND s.revoked_at IS NULL
+                WHERE s.token_hash = %s AND s.mode = 'link'
                 """,
                 (hash_token(token),),
             )
             row = cur.fetchone()
             if not row:
-                raise HTTPException(status_code=404, detail=NOT_FOUND)
+                raise link_gone()
             if count_view:
                 cur.execute("UPDATE route_shares SET view_count = view_count + 1, last_viewed_at = NOW() "
                             "WHERE id = %s", (row["id"],))
@@ -453,7 +452,8 @@ async def copy_shared(token: str, user: AuthUser = Depends(get_current_user),
 # --- friends ------------------------------------------------------------------------------------
 
 def _pair(a: str, b: str) -> Tuple[str, str]:
-    return (a, b) if a < b else (b, a)
+    """Byte order, like the friendships CHECK (`COLLATE "C"`); Firebase uids are mixed case."""
+    return (a, b) if a.encode() < b.encode() else (b, a)
 
 
 def _blocked_either_way(cur, a: str, b: str) -> bool:
@@ -640,7 +640,7 @@ async def friends_routes(user: AuthUser = Depends(get_current_user)):
         cur.execute(
             f"""
             SELECT {SHARE_COLUMNS} FROM route_shares s JOIN users u ON u.id = s.user_id
-            WHERE s.mode = 'friends' AND s.revoked_at IS NULL AND s.user_id IN ({FriendsSql.IDS})
+            WHERE s.mode = 'friends' AND s.user_id IN ({FriendsSql.IDS})
             ORDER BY s.created_at DESC
             """,
             {"u": user.uid},
@@ -654,7 +654,7 @@ def _friend_share(share_id: int, uid: str) -> Dict[str, Any]:
         cur.execute(
             f"""
             SELECT {SHARE_COLUMNS} FROM route_shares s JOIN users u ON u.id = s.user_id
-            WHERE s.id = %(id)s AND s.mode = 'friends' AND s.revoked_at IS NULL
+            WHERE s.id = %(id)s AND s.mode = 'friends'
               AND s.user_id IN ({FriendsSql.IDS})
             """,
             {"id": share_id, "u": uid},
