@@ -77,18 +77,20 @@ async def test_cors_allows_the_hosting_origin_and_authorization():
 def test_firebase_json_is_hosting_only():
     cfg = json.loads((ROOT / "firebase.json").read_text())
     assert set(cfg) == {"hosting"}
-    h = cfg["hosting"]
-    assert h["site"] == "thepfisters" and h["public"] == "frontend/dist"
+    h = next(x for x in cfg["hosting"] if x["target"] == "prod")
+    assert h["public"] == "frontend/dist" and "site" not in h
     assert {"source": "**", "destination": "/index.html"} in h["rewrites"]
     csp = next(x["value"] for b in h["headers"] for x in b["headers"] if x["key"] == "Content-Security-Policy")
     for needle in ("worker-src 'self' blob:", "img-src 'self' data: blob:", "frame-ancestors 'none'"):
         assert needle in csp
-    assert json.loads((ROOT / ".firebaserc").read_text())["projects"]["default"] == "thepfisters"
+    rc = json.loads((ROOT / ".firebaserc").read_text())
+    assert rc["projects"]["default"] == "thepfisters"
+    assert rc["targets"]["thepfisters"]["hosting"]["prod"] == ["thepfisters"]
 
 
 def test_deploy_web_script_is_hosting_only():
     s = (ROOT / "scripts" / "deploy-web.sh").read_text()
-    assert "deploy --only hosting --project thepfisters" in s
+    assert "deploy --only hosting:${HOSTING_TARGET} --project thepfisters" in s
     for bad in ("firestore", "functions", "storage"):
         assert f"--only {bad}" not in s and f",{bad}" not in s
 

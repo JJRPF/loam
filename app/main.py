@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from typing import Dict, Any, Optional, List
 
 from app.config import settings, check_production_config
+from app.deploy_info import get_deploy_info
 from app.ratelimit import rate_limited, route_slot
 from app.auth import AuthUser, get_current_user, get_optional_user, get_admin_user
 from app.models import (
@@ -154,6 +155,29 @@ async def public_config():
         "connectors": connector_manager.enabled_map(),
         "source_url": settings.source_url,
     }
+
+
+@app.get("/api/version")
+async def version(user: AuthUser = Depends(get_current_user)):
+    """What this server runs (env, commit, and on staging the pull request). Signed-in users only."""
+    return get_deploy_info()
+
+
+@app.middleware("http")
+async def staging_noindex(request, call_next):
+    response = await call_next(request)
+    if settings.loam_env == "staging":
+        response.headers["X-Robots-Tag"] = "noindex, nofollow"
+    return response
+
+
+@app.get("/robots.txt", include_in_schema=False)
+async def robots_txt():
+    """Staging's API host disallows all crawling (production's has no such route)."""
+    from fastapi.responses import PlainTextResponse
+    if settings.loam_env != "staging":
+        raise HTTPException(status_code=404)
+    return PlainTextResponse("User-agent: *\nDisallow: /\n", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/health", response_model=HealthResponse)

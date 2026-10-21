@@ -1,0 +1,25 @@
+# /etc/systemd/system/loam-api-staging.service, written by provision.sh. The staging API: a pull request's code,
+# its own database, loopback only (Tailscale Funnel exposes it on :8443). Capped so it cannot starve production,
+# GraphHopper and PostGIS on the same machine.
+[Unit]
+Description=Loam API (staging)
+After=network-online.target docker.service
+Wants=network-online.target
+
+[Service]
+User=loam-staging
+Group=loam-staging
+WorkingDirectory=@STAGING_ROOT@/current
+EnvironmentFile=@STAGING_ROOT@/shared/.env
+ExecStart=@STAGING_ROOT@/current/.venv/bin/uvicorn app.main:app --host 127.0.0.1 --port @PORT@
+Restart=on-failure
+RestartSec=5
+MemoryMax=@MEMORY_MAX@
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=@STAGING_ROOT@/shared
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

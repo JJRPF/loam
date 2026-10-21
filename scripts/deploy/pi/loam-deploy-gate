@@ -1,0 +1,66 @@
+#!/bin/bash
+#
+# SSH forced command for the loam-deployer account. Installed root-owned at /usr/local/bin/loam-deploy-gate and
+# set as command="..." on the one deploy key (provision.sh). Accepts exactly four commands from
+# $SSH_ORIGINAL_COMMAND and nothing else:
+#
+#   deploy <40-hex sha> <meta-b64>
+#   stage <pr 1-999999> <40-hex sha> <meta-b64>
+#   stage-main <meta-b64>
+#   status
+#
+# <meta-b64> is base64 JSON (PR title, run URL, ...), at most 4096 characters, passed on as one validated
+# argument; the runner validates it again. The gate runs the fixed scripts through sudo (see
+# /etc/sudoers.d/loam-deploy) and logs each call (command word, sha, pr; never the meta).
+#
+# LOAM_GATE_SUDO and LOAM_GATE_LOGGER can be overridden for tests. sshd lets a client set no environment
+# variables except LANG and LC_*, so this is not reachable over SSH.
+
+set -euo pipefail
+
+SUDO="${LOAM_GATE_SUDO:-/usr/bin/sudo}"
+LOGGER="${LOAM_GATE_LOGGER:-/usr/bin/logger}"
+RUN=/usr/local/bin/loam-deploy-run
+MIRROR=/usr/local/bin/loam-mirror-sync
+PROD_USER="${LOAM_PROD_USER:-jjrpfister}"
+STAGING_USER=loam-staging
+
+reject() {
+  echo "rejected"
+  "$LOGGER" -t loam-deploy "rejected command" || true
+  exit 2
+}
+
+cmd="${SSH_ORIGINAL_COMMAND:-}"
+[[ "$cmd" != *$'\n'* && "$cmd" != *$'\r'* ]] || reject
+
+sha_re='[0-9a-f]{40}'
+meta_re='[A-Za-z0-9+/=]{1,4096}'
+pr_re='[1-9][0-9]{0,5}'
+
+if [[ "$cmd" =~ ^deploy\ ($sha_re)\ ($meta_re)$ ]]; then
+  sha="${BASH_REMATCH[1]}"; meta="${BASH_REMATCH[2]}"
+  "$LOGGER" -t loam-deploy "deploy $sha" || true
+  "$SUDO" -n -u "$PROD_USER" "$MIRROR" main
+  exec "$SUDO" -n -u "$PROD_USER" "$RUN" production "$sha" "$meta"
+
+elif [[ "$cmd" =~ ^stage\ ($pr_re)\ ($sha_re)\ ($meta_re)$ ]]; then
+  pr="${BASH_REMATCH[1]}"; sha="${BASH_REMATCH[2]}"; meta="${BASH_REMATCH[3]}"
+  "$LOGGER" -t loam-deploy "stage pr=$pr $sha" || true
+  "$SUDO" -n -u "$PROD_USER" "$MIRROR" pr
+  exec "$SUDO" -n -u "$STAGING_USER" "$RUN" staging "$sha" "$meta" "$pr"
+
+elif [[ "$cmd" =~ ^stage-main\ ($meta_re)$ ]]; then
+  meta="${BASH_REMATCH[1]}"
+  "$LOGGER" -t loam-deploy "stage-main" || true
+  "$SUDO" -n -u "$PROD_USER" "$MIRROR" main
+  exec "$SUDO" -n -u "$STAGING_USER" "$RUN" staging main "$meta"
+
+elif [[ "$cmd" == "status" ]]; then
+  "$LOGGER" -t loam-deploy "status" || true
+  echo "production: $("$SUDO" -n -u "$PROD_USER" "$RUN" status production)"
+  echo "staging: $("$SUDO" -n -u "$STAGING_USER" "$RUN" status staging)"
+
+else
+  reject
+fi

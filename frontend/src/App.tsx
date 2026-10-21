@@ -24,6 +24,7 @@ import { LegalLinks } from './components/LegalLinks';
 import { getAppConfig, loadAppConfig, MIDPOINTS_OFF_NOTICE, useAppConfig } from './services/config';
 import { rememberRoute } from './services/offlineRoutes';
 import { OfflineBanner } from './components/OfflineBanner';
+import { StagingBanner } from './components/StagingBanner';
 
 // A shared link carries the whole search in its query string; opening it re-runs the search.
 const initialShared = typeof window !== 'undefined' ? decodeSearch(window.location.search) : null;
@@ -289,9 +290,10 @@ export const App: React.FC = () => {
   }
 
   return (
-    <div style={{ display: 'flex', width: '100vw', height: '100vh', overflow: 'hidden', position: 'relative' }}>
+    <div style={{ display: 'flex', width: '100vw', height: 'calc(100vh - var(--staging-banner-h, 0px))', marginTop: 'var(--staging-banner-h, 0px)', overflow: 'hidden', position: 'relative' }}>
       <EmailLinkFinish />
       <OfflineBanner />
+      <StagingBanner />
       
       {/* =========================================================================
           DESKTOP SIDEBAR PANEL (400px fixed width on >= 800px)

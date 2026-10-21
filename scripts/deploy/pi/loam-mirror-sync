@@ -1,0 +1,22 @@
+#!/bin/bash
+#
+# Refresh the bare mirror that deploys read from. Runs as the production user (the mirror's owner); the repo
+# is public, so no credentials are involved. Installed root-owned at /usr/local/bin/loam-mirror-sync.
+#
+#   loam-mirror-sync <pr|main>
+#
+# Both fetch every branch and every PR head; the argument only labels the log line.
+
+set -euo pipefail
+
+case "${1:-}" in pr|main) ;; *) echo "usage: loam-mirror-sync <pr|main>" >&2; exit 2 ;; esac
+
+DEPLOY_DIR="${LOAM_DEPLOY_DIR:-/srv/loam-deploy}"
+MIRROR="$DEPLOY_DIR/loam.git"
+umask 002
+exec 9>>"$DEPLOY_DIR/deploy.lock"
+flock -w 900 9
+
+git --git-dir="$MIRROR" fetch --quiet --prune origin \
+  '+refs/heads/*:refs/heads/*' '+refs/pull/*/head:refs/pull/*/head'
+echo "mirror synced ($1)"

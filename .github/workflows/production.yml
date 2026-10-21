@@ -1,0 +1,158 @@
+# A merge to main deploys to production after the tests pass: the API on the Pi first (backup, migrations, health
+# check, automatic rollback by the Pi), then the web app on Firebase Hosting, then a smoke check of both. "Run
+# workflow" redeploys or rolls back to any commit on main. If the smoke check fails, both halves go back to what
+# they were before this run.
+name: Production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit on main to deploy (default: the tip of main)"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: loam-production
+  cancel-in-progress: false
+
+env:
+  APP_URL: https://loam.thepfisters.com
+  API_URL: https://core-node.tailcd5892.ts.net
+  FIREBASE_SITE: thepfisters
+
+jobs:
+  target:
+    runs-on: ubuntu-24.04
+    outputs:
+      sha: ${{ steps.resolve.outputs.sha }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          persist-credentials: false
+      - id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_SHA: ${{ inputs.sha }}
+          EVENT_SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          if [ "$EVENT_NAME" = workflow_dispatch ]; then
+            sha=${INPUT_SHA:-$(git rev-parse origin/main)}
+          else
+            sha=$EVENT_SHA
+          fi
+          sha=$(git rev-parse --verify "$sha^{commit}")
+          git merge-base --is-ancestor "$sha" origin/main || { echo "::error::$sha is not on main"; exit 1; }
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+  tests:
+    needs: target
+    permissions:
+      contents: read
+    uses: ./.github/workflows/tests.yml
+    with:
+      ref: ${{ needs.target.outputs.sha }}
+
+  deploy:
+    needs: [target, tests]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    environment:
+      name: production
+      url: https://loam.thepfisters.com
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.target.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the web app before anything is deployed
+        env:
+          HOSTING_TARGET: prod
+          BUILD_ONLY: "1"
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+          VITE_FIREBASE_APP_ID: ${{ vars.VITE_FIREBASE_APP_ID }}
+          VITE_FIREBASE_PROJECT_ID: thepfisters
+        run: scripts/deploy-web.sh
+      - name: Join the tailnet (tag:ci, ephemeral)
+        uses: tailscale/github-action@d1b6cd204f8dceda5b3eaad7f1f767be390056cd # v4.2.0
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+      - name: What production runs now (for a rollback)
+        id: before
+        env:
+          LOAM_DEPLOY_SSH_KEY: ${{ secrets.LOAM_DEPLOY_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          prev=$(scripts/deploy/ci/pi-gate.sh status | sed -n 's/^production: //p' | jq -r '.sha // empty')
+          echo "api_sha=$prev" >> "$GITHUB_OUTPUT"
+          echo "API was at: ${prev:-unknown (no earlier deploy through this pipeline)}"
+      - name: Authenticate to Google (keyless)
+        id: google
+        uses: google-github-actions/auth@7c6bc770dae815cd3e89ee6cdf493a5fab2cc093 # v3.0.0
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+          token_format: access_token
+      - name: What Hosting serves now (for a rollback)
+        id: hosting_before
+        env:
+          FIREBASE_ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+        run: |
+          set -euo pipefail
+          echo "version=$(scripts/deploy/ci/hosting-release.sh current "$FIREBASE_SITE")" >> "$GITHUB_OUTPUT"
+      - name: Deploy the API (backup, migrations, restart, health check; the Pi rolls itself back)
+        id: api
+        env:
+          LOAM_DEPLOY_SSH_KEY: ${{ secrets.LOAM_DEPLOY_SSH_KEY }}
+          SHA: ${{ needs.target.outputs.sha }}
+          ACTOR: ${{ github.actor }}
+          REF: main
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          echo "started=true" >> "$GITHUB_OUTPUT"
+          scripts/deploy/ci/pi-gate.sh deploy "$SHA" "$(scripts/deploy/ci/meta.sh)"
+      - name: Deploy the web app to Firebase Hosting (production site only)
+        id: web
+        env:
+          HOSTING_TARGET: prod
+          SKIP_BUILD: "1"
+          VITE_FIREBASE_API_KEY: ${{ vars.VITE_FIREBASE_API_KEY }}
+        run: |
+          echo "started=true" >> "$GITHUB_OUTPUT"
+          scripts/deploy-web.sh
+      - name: Smoke check
+        run: scripts/deploy/ci/smoke.sh
+      - name: Roll back the web app
+        if: failure() && steps.web.outputs.started == 'true' && steps.hosting_before.outputs.version != ''
+        env:
+          FIREBASE_ACCESS_TOKEN: ${{ steps.google.outputs.access_token }}
+          VERSION: ${{ steps.hosting_before.outputs.version }}
+        run: scripts/deploy/ci/hosting-release.sh rollback "$FIREBASE_SITE" "$VERSION"
+      - name: Roll back the API
+        if: failure() && steps.web.outputs.started == 'true' && steps.before.outputs.api_sha != ''
+        env:
+          LOAM_DEPLOY_SSH_KEY: ${{ secrets.LOAM_DEPLOY_SSH_KEY }}
+          PREV: ${{ steps.before.outputs.api_sha }}
+          ACTOR: ${{ github.actor }}
+          REF: main
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: scripts/deploy/ci/pi-gate.sh deploy "$PREV" "$(scripts/deploy/ci/meta.sh)"

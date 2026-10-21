@@ -1,0 +1,82 @@
+{
+  "source": "OpenStreetMap contributors (ODbL), extracted by scripts/build_trailheads.py",
+  "trailheads": [
+    {
+      "name": "Bear Brook State Park parking",
+      "area": "Bear Brook State Park",
+      "town": "Allenstown",
+      "lat": 43.134855,
+      "lon": -71.36592,
+      "parking_osm": "way/414782002",
+      "parking_name": "Hayes Field Horse Trailer Parking",
+      "area_osm": "relation/5538549",
+      "distance_to_area_m": 0
+    },
+    {
+      "name": "Bow Town Forest parking",
+      "area": "Bow Town Forest",
+      "town": "Bow",
+      "lat": 43.130061,
+      "lon": -71.482362,
+      "parking_osm": "way/1412556913",
+      "parking_name": null,
+      "area_osm": "way/47798210",
+      "distance_to_area_m": 508
+    },
+    {
+      "name": "Knox Town Forest parking",
+      "area": "Knox Town Forest",
+      "town": "Bow",
+      "lat": 43.155004,
+      "lon": -71.535776,
+      "parking_osm": "way/856160607",
+      "parking_name": null,
+      "area_osm": "way/47798223",
+      "distance_to_area_m": 460
+    },
+    {
+      "name": "Oak Hill City Forest parking",
+      "area": "Oak Hill City Forest",
+      "town": "Concord",
+      "lat": 43.274465,
+      "lon": -71.528525,
+      "parking_osm": "way/848156793",
+      "parking_name": "Tower Trailhead",
+      "area_osm": "way/1396716722",
+      "distance_to_area_m": 0
+    },
+    {
+      "name": "White Park parking",
+      "area": "White Park",
+      "town": "Concord",
+      "lat": 43.206039,
+      "lon": -71.540922,
+      "parking_osm": "way/856490731",
+      "parking_name": null,
+      "area_osm": "way/50799142",
+      "distance_to_area_m": 361
+    },
+    {
+      "name": "Franklin Falls Reservoir parking",
+      "area": "Franklin Falls Reservoir",
+      "town": "Franklin",
+      "lat": 43.568408,
+      "lon": -71.73098,
+      "parking_osm": "way/1126358623",
+      "parking_name": null,
+      "area_osm": "relation/19177117",
+      "distance_to_area_m": 0
+    },
+    {
+      "name": "Stratham Hill Park parking",
+      "area": "Stratham Hill Park",
+      "town": "Stratham",
+      "lat": 43.041621,
+      "lon": -70.893059,
+      "parking_osm": "way/320044045",
+      "parking_name": null,
+      "area_osm": "way/47798679",
+      "distance_to_area_m": 0
+    }
+  ]
+}
