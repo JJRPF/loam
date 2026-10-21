@@ -56,3 +56,5 @@ Production Hosting rollback uses the Hosting REST API (`releases.create` with th
 ## Phase 5: Verify end to end
 
 Done here: unit tests above; `pytest` full run, `npm run build`, `npm run lint`: see the end of this file. Waiting on the owner (DEPLOYMENT.md A–E): provisioning, the Pi dry run and rollback drill, then this PR's own staging deploy (banner after sign-in, API on 8443, nothing for signed-out users, noindex, production untouched), then the first production deploy after merge.
+
+Final local run: `pytest -q` 353 passed (full suite, under the shared lock); `npm run build` clean; `npm run lint` has only the warnings that were already there; actionlint and shellcheck clean.
