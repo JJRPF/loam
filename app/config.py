@@ -18,7 +18,7 @@ class Settings(BaseModel):
     app_name: str = "Loam Trail Route Builder"
     app_version: str = "0.1.0"
 
-    # production | development | test. APP_ENV and LOAM_ENV are the same setting; "production" in either wins.
+    # production | staging | development | test. APP_ENV and LOAM_ENV are the same setting; "production" in either wins.
     loam_env: str = resolve_env()
 
     # GraphHopper service URL
@@ -90,6 +90,16 @@ class Settings(BaseModel):
 settings = Settings()
 
 
+PRODUCTION_DB_NAME = "loam"
+PRODUCTION_ORIGINS = ("https://loam.thepfisters.com", "https://core-node.tailcd5892.ts.net")
+
+
+def _db_name(url: str) -> str:
+    from urllib.parse import urlparse
+
+    return urlparse(url).path.lstrip("/").split("?")[0]
+
+
 LOOPBACK_HOSTS = ("127.0.0.1", "localhost", "::1")
 
 
@@ -97,8 +107,8 @@ def check_auth_emulator_config(s: Settings = settings) -> None:
     """The Auth emulator issues unsigned tokens, so it may only be on for a local, non-production server."""
     if not s.auth_emulator_host:
         return
-    if s.loam_env == "production":
-        raise RuntimeError("FIREBASE_AUTH_EMULATOR_HOST is set with APP_ENV=production; refusing to start")
+    if s.loam_env in ("production", "staging"):
+        raise RuntimeError(f"FIREBASE_AUTH_EMULATOR_HOST is set with APP_ENV={s.loam_env}; refusing to start")
     if s.host not in LOOPBACK_HOSTS:
         raise RuntimeError(
             "FIREBASE_AUTH_EMULATOR_HOST needs the server bound to loopback (HOST=127.0.0.1); refusing to start"
@@ -108,9 +118,40 @@ def check_auth_emulator_config(s: Settings = settings) -> None:
 def check_production_config(s: Settings = settings) -> None:
     """Refuses to start a production server with development secrets."""
     check_auth_emulator_config(s)
+    check_staging_config(s)
     if s.loam_env != "production":
         return
     if s.connector_secret_key == DEFAULT_CONNECTOR_SECRET_KEY:
         raise RuntimeError(
             "CONNECTOR_SECRET_KEY is the in-code development default; set a real key in the production .env"
         )
+
+
+def staging_problems(s: Settings = settings) -> list:
+    """What makes a staging server unsafe to start (empty when it is fine). Staging runs a pull request's code
+    next to production's, so it must not reach production's database, file real GitHub issues or answer
+    production's browser origins."""
+    if s.loam_env != "staging":
+        return []
+    problems = []
+    if _db_name(s.database_url) == PRODUCTION_DB_NAME:
+        problems.append(f"DATABASE_URL points at the production database ({PRODUCTION_DB_NAME}); use loam_staging")
+    if s.github_feedback_token:
+        problems.append("GITHUB_FEEDBACK_TOKEN is set; staging must not file real GitHub issues")
+    if s.enable_strava_connector or s.enable_trailforks_connector:
+        problems.append("a connector with live credentials is enabled (Strava or Trailforks); staging has none")
+    if s.connector_secret_key == DEFAULT_CONNECTOR_SECRET_KEY:
+        problems.append("CONNECTOR_SECRET_KEY is the in-code development default")
+    prod = {o.rstrip("/").lower() for o in PRODUCTION_ORIGINS}
+    leaked = [o for o in s.cors_origins if o.rstrip("/").lower() in prod]
+    if leaked:
+        problems.append(f"CORS_ORIGINS includes a production origin ({', '.join(leaked)})")
+    if s.public_app_origin.lower() in prod:
+        problems.append("PUBLIC_APP_ORIGIN is a production origin")
+    return problems
+
+
+def check_staging_config(s: Settings = settings) -> None:
+    problems = staging_problems(s)
+    if problems:
+        raise RuntimeError("Refusing to start staging with an unsafe configuration: " + "; ".join(problems))

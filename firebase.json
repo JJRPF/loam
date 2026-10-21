@@ -1,27 +1,55 @@
 {
-  "hosting": {
-    "site": "thepfisters",
-    "public": "frontend/dist",
-    "cleanUrls": false,
-    "trailingSlash": true,
-    "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map"],
-    "rewrites": [{ "source": "**", "destination": "/index.html" }],
-    "headers": [
-      {
-        "source": "**",
-        "headers": [
-          { "key": "X-Content-Type-Options", "value": "nosniff" },
-          { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-          { "key": "Permissions-Policy", "value": "geolocation=(self), camera=(), microphone=()" },
-          { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.basemaps.cartocdn.com; connect-src 'self' https://core-node.tailcd5892.ts.net https://*.basemaps.cartocdn.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com https://thepfisters.firebaseapp.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'" }
-        ]
-      },
-      { "source": "/assets/**", "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }] },
-      { "source": "/index.html", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-      { "source": "/sw.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-      { "source": "/registerSW.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-      { "source": "/manifest.json", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] },
-      { "source": "/workbox-*.js", "headers": [{ "key": "Cache-Control", "value": "no-cache" }] }
-    ]
-  }
+  "hosting": [
+    {
+      "target": "prod",
+      "public": "frontend/dist",
+      "cleanUrls": false,
+      "trailingSlash": true,
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map"],
+      "rewrites": [{"source": "**", "destination": "/index.html"}],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {"key": "X-Content-Type-Options", "value": "nosniff"},
+            {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+            {"key": "Permissions-Policy", "value": "geolocation=(self), camera=(), microphone=()"},
+            {"key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.basemaps.cartocdn.com; connect-src 'self' https://core-node.tailcd5892.ts.net https://*.basemaps.cartocdn.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com https://thepfisters.firebaseapp.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"}
+          ]
+        },
+        {"source": "/assets/**", "headers": [{"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]},
+        {"source": "/index.html", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/sw.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/registerSW.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/manifest.json", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/workbox-*.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]}
+      ]
+    },
+    {
+      "target": "staging",
+      "public": "frontend/dist",
+      "cleanUrls": false,
+      "trailingSlash": true,
+      "ignore": ["firebase.json", "**/.*", "**/node_modules/**", "**/*.map"],
+      "rewrites": [{"source": "**", "destination": "/index.html"}],
+      "headers": [
+        {
+          "source": "**",
+          "headers": [
+            {"key": "X-Content-Type-Options", "value": "nosniff"},
+            {"key": "Referrer-Policy", "value": "strict-origin-when-cross-origin"},
+            {"key": "Permissions-Policy", "value": "geolocation=(self), camera=(), microphone=()"},
+            {"key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' https://apis.google.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.basemaps.cartocdn.com; connect-src 'self' https://core-node.tailcd5892.ts.net:8443 https://*.basemaps.cartocdn.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com; frame-src 'self' https://accounts.google.com https://thepfisters.firebaseapp.com; worker-src 'self' blob:; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"},
+            {"key": "X-Robots-Tag", "value": "noindex, nofollow"}
+          ]
+        },
+        {"source": "/assets/**", "headers": [{"key": "Cache-Control", "value": "public, max-age=31536000, immutable"}]},
+        {"source": "/index.html", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/sw.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/registerSW.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/manifest.json", "headers": [{"key": "Cache-Control", "value": "no-cache"}]},
+        {"source": "/workbox-*.js", "headers": [{"key": "Cache-Control", "value": "no-cache"}]}
+      ]
+    }
+  ]
 }

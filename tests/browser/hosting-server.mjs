@@ -9,7 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const dist = path.join(root, 'frontend', 'dist');
-const cfg = JSON.parse(fs.readFileSync(path.join(root, 'firebase.json'), 'utf8')).hosting;
+const hostingCfg = JSON.parse(fs.readFileSync(path.join(root, 'firebase.json'), 'utf8')).hosting;
+const cfg = Array.isArray(hostingCfg) ? hostingCfg.find((h) => h.target === 'prod') : hostingCfg;
 const port = Number(process.argv[2] || 5180);
 const extra = (process.env.CSP_CONNECT_EXTRA || '').trim();
 
