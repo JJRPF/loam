@@ -34,7 +34,7 @@ from app.models import (
     CubeTrekAuthRequest, CubeTrekImportRequest,
     ConnectorSyncRequest, ConnectorSyncResponse, DevConsoleStatusResponse
 )
-from app.routing import fetch_route, plan_route_options
+from app.routing import MidpointError, fetch_route, plan_route_options
 from app.db import (
     get_connection,
     check_db_health, get_edge_heat, record_edge_heat,
@@ -226,6 +226,8 @@ async def calculate_route_options(
         )
     except HTTPException:
         raise
+    except MidpointError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
