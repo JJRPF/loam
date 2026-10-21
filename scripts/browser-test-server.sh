@@ -10,6 +10,8 @@ set -a
 set +a
 # the dev database (docker compose service, published on localhost), never the Pi: .env may name the compose-internal host
 export DATABASE_URL="${LOAM_TEST_DATABASE_URL:-postgresql://loam:loam_dev_pw@localhost:5432/loam}"
+# GraphHopper likewise: .env names the compose-internal host; the routing tests need the published port
+export GRAPHHOPPER_URL="${LOAM_TEST_GRAPHHOPPER_URL:-http://localhost:8989}"
 export HOST=127.0.0.1 PORT="${PORT}" APP_ENV=development LOAM_ENV=development
 export FIREBASE_PROJECT_ID=demo-loam FIREBASE_AUTH_EMULATOR_HOST="${FIREBASE_AUTH_EMULATOR_HOST:-127.0.0.1:9099}"
 export ENABLE_MIDPOINTS=false GITHUB_FEEDBACK_TOKEN= ADMIN_EMAILS= PUBLIC_APP_ORIGIN=

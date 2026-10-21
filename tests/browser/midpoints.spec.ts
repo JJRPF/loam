@@ -73,6 +73,12 @@ async function midpointRows(page: Page) {
   });
 }
 
+/** A link opens on Results (its search runs on load); this returns to the Plan form. */
+async function backToPlan(page: Page) {
+  await page.getByRole('button', { name: /edit plan/i }).first().click();
+  await expect(page.getByRole('button', { name: /add midpoint/i })).toBeVisible();
+}
+
 const merc = (lat: number) => Math.log(Math.tan(Math.PI / 4 + rad(lat) / 2));
 
 /** Taps the map twice to learn how pixels map to coordinates, then taps the wanted point. */
@@ -102,16 +108,18 @@ test.describe('midpoints are on (ENABLE_MIDPOINTS=true)', () => {
   test('a midpoint added by tapping the map is on the route; removing it and rebuilding works', async ({ page }) => {
     test.skip(!sc, 'scenario missing');
     await useMidpointApi(page);
-    await openApp(page, link(sc, []));
     await page.setViewportSize({ width: 1280, height: 900 });
+    await openApp(page, link(sc, []));
+    await backToPlan(page);
     const [lat, lon] = sc.waypoints[0];
     await tapMapAt(page, lat, lon);
     const rows = await midpointRows(page);
     expect(rows).toHaveLength(1);
+    expect(rows[0], 'the tapped midpoint carries its coordinates').not.toBeNull();
     const stream = await build(page);
     expectPassesMidpoints(stream, [rows[0]!]);
 
-    await page.getByRole('button', { name: /plan/i }).first().click().catch(() => {});
+    await backToPlan(page);
     await page.getByRole('button', { name: 'Remove midpoint 1' }).click();
     expect(await midpointRows(page)).toHaveLength(0);
     const plain = await build(page);
@@ -119,22 +127,20 @@ test.describe('midpoints are on (ENABLE_MIDPOINTS=true)', () => {
   });
 
   test('reordering two midpoints rebuilds a route that passes them in the new order', async ({ page }) => {
-    const two = scenario('v2_bear_brook_10mi_b30');
+    const two = scenario('v2_oak_hill_10mi_b30');
     test.skip(!two, 'scenario missing');
     await useMidpointApi(page);
-    await openApp(page, link(two));
     await page.setViewportSize({ width: 1280, height: 900 });
-    await page.getByRole('button', { name: /plan/i }).first().click().catch(() => {});
+    await openApp(page, link(two));
+    await backToPlan(page);
     await expect(page.getByTestId('midpoint-row')).toHaveCount(2);
     await page.getByRole('button', { name: 'Move midpoint 2 up' }).click();
-    const rows = await midpointRows(page);
-    expect(rows).toHaveLength(2);
-    // the first row is now the scenario's second midpoint: its name carries its coordinates
     const [v1, v2] = two.waypoints;
-    expect(Math.abs(rows[0]!.lat - v2[0]) + Math.abs(rows[0]!.lon - v2[1])).toBeLessThan(2e-4);
-    expect(Math.abs(rows[1]!.lat - v1[0]) + Math.abs(rows[1]!.lon - v1[1])).toBeLessThan(2e-4);
     const stream = await build(page);
-    expect(stream.candidates.length).toBeGreaterThan(0);
+    // the search link records the midpoints in their new order: the scenario's second one first
+    const vias = new URL(page.url()).searchParams.getAll('via');
+    expect(vias).toEqual([`${v2[0].toFixed(5)},${v2[1].toFixed(5)}`, `${v1[0].toFixed(5)},${v1[1].toFixed(5)}`]);
+    expect(stream.candidates.length, `routes for the reordered midpoints (API notice: ${stream.notice})`).toBeGreaterThan(0);
     for (const c of stream.candidates) {
       const first = c.coordinates.findIndex((p: number[]) => haversineM(p, [v2[1], v2[0]]) <= VIA_TOLERANCE_M);
       const later = c.coordinates.findIndex((p: number[], i: number) => i > first && haversineM(p, [v1[1], v1[0]]) <= VIA_TOLERANCE_M);
