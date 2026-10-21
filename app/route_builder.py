@@ -191,7 +191,10 @@ def geometry_offset_m(coords: Sequence[Sequence[float]], way_ids: Sequence[int])
     return round(float(shapely.distance(pts, lines).max()), 1)
 
 
-REQUIRED_NEAR_M = 30.0  # a rider midpoint this close to a spur means the spur is wanted
+# A rider midpoint this close to a spur means the spur is wanted. It must equal routing.VIA_TOLERANCE_M:
+# a midpoint is accepted up to that far from the network, so a smaller radius here would cut the very
+# spur that reaches it (#41 x #44). routing imports this module, hence the copy; a test keeps them equal.
+REQUIRED_NEAR_M = 150.0
 
 
 def _spur_required(spur: Spur, coords: Sequence[Sequence[float]], required: Sequence[Sequence[float]]) -> bool:

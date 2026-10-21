@@ -166,3 +166,10 @@ def test_live_plain_loops_have_no_spur_over_50m(name, monkeypatch):
         assert max([s.length_m for s in find_spurs([c[:2] for c in o.coordinates])], default=0.0) <= 50.0, o.name
         assert "clean loop" not in o.verbal_summary or o.score_breakdown["spur_count"] == 0
         assert o.geometry_max_offset_m is not None and o.geometry_max_offset_m <= 15.0
+
+
+def test_spur_keep_radius_matches_the_midpoint_tolerance():
+    """A midpoint is accepted up to VIA_TOLERANCE_M from the network; the spur reaching it must not be cut."""
+    from app.route_builder import REQUIRED_NEAR_M
+    from app.routing import VIA_TOLERANCE_M
+    assert REQUIRED_NEAR_M == VIA_TOLERANCE_M
