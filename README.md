@@ -200,14 +200,12 @@ The browser suite (`tests/browser/`, Playwright with system Chromium) builds the
 
 ## Deploying
 
-The API runs on a Raspberry Pi; the web app on Firebase Hosting.
+The API runs on a Raspberry Pi; the web app on Firebase Hosting. Deploys are automatic:
 
-```bash
-./scripts/deploy-pi.sh     # builds the web app, syncs the code, restarts the API, checks /health
-./scripts/deploy-web.sh    # builds the web app and deploys Firebase Hosting (hosting only)
-```
+- a pull request from the owner is deployed to **staging** (https://loamstaging.thepfisters.com, with its own API and database, test data only) and the link is commented on the PR;
+- a merge to `main` deploys **production**: the API (database backup, migrations, health check, automatic rollback), then Hosting, then a smoke check. *Actions → Production → Run workflow* redeploys or rolls back to any commit on `main`.
 
-`deploy-pi.sh` uses key-based SSH only and one passwordless command. Set up once: `ssh-copy-id <user>@<pi>`, and on the Pi `echo '<user> ALL=(root) NOPASSWD: /usr/bin/systemctl restart loam-api' | sudo tee /etc/sudoers.d/loam-deploy`. `deploy-web.sh` runs `firebase deploy --only hosting` (the Firebase project is shared, so nothing else is ever deployed); log in once with `npx firebase-tools@15.33.0 login`. Back up the database (`scripts/backup_db.sh`) before any migration. The pre-launch list is in [docs/launch-checklist.md](docs/launch-checklist.md).
+How it works, what staging may and may not hold, the one-time owner steps (Pi, Tailscale, Firebase, GCP, GitHub) and the limits are in [DEPLOYMENT.md](DEPLOYMENT.md). `scripts/deploy-web.sh` (`HOSTING_TARGET=prod|staging`) remains for a manual Hosting deploy; it deploys hosting only (the Firebase project is shared, so nothing else is ever deployed). Back up the database (`scripts/backup_db.sh`) before any manual migration. The pre-launch list is in [docs/launch-checklist.md](docs/launch-checklist.md).
 
 ## Data and attribution
 

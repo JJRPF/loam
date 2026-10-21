@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Shared by deploy-pi.sh and deploy-web.sh: builds frontend/dist with the production settings, so the bundle
+# Shared by deploy-web.sh (and CI): builds frontend/dist with the production settings, so the bundle
 # served from Firebase Hosting and the one the Pi serves on the LAN are the same.
 #
 #   VITE_API_BASE            the API's public origin (the Pi behind Tailscale Funnel); '' in dev (Vite proxy)
