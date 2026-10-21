@@ -4,7 +4,7 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users (first: most other tables reference it, so a fresh database can be built in one pass)
+-- Users (first: later tables reference it)
 CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY, -- Firebase Auth UID
     email TEXT,

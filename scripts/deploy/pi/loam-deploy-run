@@ -178,6 +178,7 @@ fi
 
 # --- 8. prune ---------------------------------------------------------------------------------------------
 current=$(readlink -f "$ROOT/current")
+# shellcheck disable=SC2012  # release names are ours: digits, a dash and hex
 keep=$(ls -1dt "$ROOT"/releases/*/ | head -n "$KEEP_RELEASES" | sed 's:/$::')
 for d in "$ROOT"/releases/*/; do
   d=${d%/}

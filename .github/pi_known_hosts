@@ -1,0 +1,7 @@
+# The Pi's SSH host key, pinned so a deploy never trusts an unknown host. One line, the format ssh uses:
+#
+#   core-node.tailcd5892.ts.net ssh-ed25519 AAAA...
+#
+# The repo owner adds it (DEPLOYMENT.md, "Pin the Pi's host key"): on the Pi, `cat /etc/ssh/ssh_host_ed25519_key.pub`,
+# and put the hostname in front of the two fields. Public data, safe to commit. Until then the deploy workflows stop
+# with a message saying so.

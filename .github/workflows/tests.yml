@@ -1,0 +1,98 @@
+# Reusable: the frontend lint/build and the API tests. Called by ci.yml (every PR and main), staging.yml and
+# production.yml (the commit about to be deployed).
+name: Tests
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "Commit to test (default: the event's commit)"
+        type: string
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  frontend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+        env:
+          # The public demo values of the browser-test build (scripts/browser-test-build.sh), never the real config.
+          VITE_API_BASE: http://127.0.0.1:8089
+          VITE_PUBLIC_APP_ORIGIN: http://127.0.0.1:5180
+          VITE_FIREBASE_API_KEY: fake-api-key
+          VITE_FIREBASE_AUTH_DOMAIN: 127.0.0.1
+          VITE_FIREBASE_PROJECT_ID: demo-loam
+          VITE_FIREBASE_APP_ID: 1:000000000000:web:0000000000000000
+
+  api:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgis:
+        # PostgreSQL 18 with PostGIS 3.6, the versions the Pi runs (docs/spikes-report.md).
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_DB: loam
+          POSTGRES_USER: loam
+          POSTGRES_PASSWORD: loam_dev_pw
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U loam -d loam"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 12
+    env:
+      LOAM_ENV: test
+      DATABASE_URL: postgresql://loam:loam_dev_pw@localhost:5432/loam
+      PGPASSWORD: loam_dev_pw
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      # The Pi's container applies this on first start; the tests' migrations build on it.
+      - name: Create the base schema
+        run: psql -v ON_ERROR_STOP=1 -h localhost -U loam -d loam -f db/init_schema.sql
+      # tests/test_stage2_mvp.py serves the built PWA from frontend/dist.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: frontend/.nvmrc
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Build the frontend
+        working-directory: frontend
+        run: npm ci && npm run build
+        env:
+          VITE_API_BASE: http://127.0.0.1:8089
+          VITE_PUBLIC_APP_ORIGIN: http://127.0.0.1:5180
+          VITE_FIREBASE_API_KEY: fake-api-key
+          VITE_FIREBASE_AUTH_DOMAIN: 127.0.0.1
+          VITE_FIREBASE_PROJECT_ID: demo-loam
+          VITE_FIREBASE_APP_ID: 1:000000000000:web:0000000000000000
+      - run: python -m pytest -q -rs
+        env:
+          PYTHONPATH: .
