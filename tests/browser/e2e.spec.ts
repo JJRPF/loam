@@ -47,6 +47,34 @@ test.describe('route planning end to end at Bear Brook State Park (signed in)', 
     await expect(dialog).toHaveCount(0);
   });
 
+  test('a saved route can be reported without its search settings', async ({ page }) => {
+    const saved = { id: '11111111-2222-3333-4444-555555555555', name: 'Saved Test Loop', sport: 'mtb_hardtail',
+      distance_miles: 3.2, elevation_gain_ft: 210, elevation_loss_ft: 205, created_at: '2026-01-02T00:00:00',
+      surface_breakdown: { singletrack: 100 }, surface_strip: [], verbal_summary: null,
+      coordinates: [[-71.36, 43.13], [-71.35, 43.14], [-71.34, 43.13]] };
+    await page.route('**/api/saved-routes', (r) => r.fulfill({ json: { routes: [saved] } }));
+    let posted: Record<string, unknown> | null = null;
+    await page.route('**/api/reports/bad-route', async (r) => {
+      posted = r.request().postDataJSON();
+      await r.fulfill({ json: { id: 'x', status: 'pending', message: 'Saved. It will be filed shortly.' } });
+    });
+    await signIn(page);
+    await openTab(page, 'Saved');
+    await page.getByRole('button', { name: 'Report bad route' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Report bad route' });
+    await expect(dialog).toContainText('Sent without the search settings');
+    await expect(dialog).not.toContainText('Search again');
+    const submit = dialog.locator('button.btn-primary');
+    await expect(submit).toBeDisabled();
+    await dialog.getByRole('textbox').fill('The trail is closed at the gate here.');
+    await expect(submit).toBeEnabled();
+    await submit.click();
+    await expect(dialog).toContainText('Saved. It will be filed shortly.');
+    expect(posted).toMatchObject({ source: 'saved', saved_route_id: saved.id });
+    expect(posted).not.toHaveProperty('route');
+    expect(posted).not.toHaveProperty('request');
+  });
+
   test('signed-in You panel shows privacy controls and the account actions', async ({ page }) => {
     await signIn(page);
     await expect(page.getByText(/privacy zones?/i).first()).toBeVisible();

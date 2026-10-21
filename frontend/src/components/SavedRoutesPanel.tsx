@@ -6,6 +6,7 @@ import { formatGain } from '../format';
 import { recentRoutes } from '../services/offlineRoutes';
 import { ShareRouteModal } from './ShareRouteModal';
 import { SharedWithMe } from './SharedWithMe';
+import { ReportBadRouteModal } from './ReportBadRouteModal';
 
 interface SavedRoutesPanelProps {
   onLoadRoute: (route: RouteResponse) => void;
@@ -18,6 +19,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
   const [recent, setRecent] = useState<RouteResponse[]>([]);
   const [sharingId, setSharingId] = useState<string | null>(null);
   const sharing = routes.find(x => x.id === sharingId) ?? null;
+  const [reportTarget, setReportTarget] = useState<{ saved: SavedRoute; route: RouteResponse } | null>(null);
 
   useEffect(() => {
     recentRoutes().then(setRecent);
@@ -65,7 +67,7 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
     }
   };
 
-  const handleSelect = (r: SavedRoute) => {
+  const toResponse = (r: SavedRoute): RouteResponse => {
     const coords = r.coordinates || [];
     let bbox = [-71.5, 43.1, -71.2, 43.3];
     if (coords.length > 0) {
@@ -95,8 +97,10 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
       warnings: [],
       verbal_summary: r.verbal_summary
     };
-    onLoadRoute(resp);
+    return resp;
   };
+
+  const handleSelect = (r: SavedRoute) => onLoadRoute(toResponse(r));
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 12, padding: '4px 0 24px 0' }}>
@@ -220,6 +224,14 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
               </button>
               <button
                 type="button"
+                onClick={(e) => { e.stopPropagation(); setReportTarget({ saved: r, route: toResponse(r) }); }}
+                className="btn-outline"
+                style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, color: 'var(--color-text-primary, #1D3B34)' }}
+              >
+                Report bad route
+              </button>
+              <button
+                type="button"
                 onClick={(e) => handleDelete(r.id, e)}
                 style={{ fontSize: 12, padding: '2px 8px', minHeight: 28, backgroundColor: 'transparent', color: 'var(--color-blaze-text, #FF7A3D)', border: 'none' }}
               >
@@ -235,6 +247,17 @@ export const SavedRoutesPanel: React.FC<SavedRoutesPanelProps> = ({ onLoadRoute 
           route={sharing}
           onClose={() => setSharingId(null)}
           onChanged={(visibility) => setRoutes(prev => prev.map(x => x.id === sharing.id ? { ...x, visibility } : x))}
+        />
+      )}
+
+      {reportTarget && (
+        <ReportBadRouteModal
+          route={reportTarget.route}
+          options={[reportTarget.route]}
+          request={null}
+          source="saved"
+          savedRouteId={reportTarget.saved.id}
+          onClose={() => setReportTarget(null)}
         />
       )}
     </div>

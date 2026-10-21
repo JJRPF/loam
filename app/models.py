@@ -1,7 +1,7 @@
 import datetime
-from typing import List, Optional, Dict, Any, Union
+from typing import List, Optional, Dict, Any, Union, Literal
 from enum import Enum
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 class SportProfile(str, Enum):
     MTB = "mtb"
@@ -498,9 +498,19 @@ class CubeTrekImportRequest(BaseModel):
 
 class BadRouteReport(BaseModel):
     comment: str = Field(..., min_length=10, max_length=2000)
-    request: RouteRequest
-    route: RouteResponse
+    request: Optional[RouteRequest] = None  # None when the search that made the route is unknown
+    route: Optional[RouteResponse] = None  # ignored when saved_route_id is given: the server loads it
     options: List[Dict[str, Any]] = Field(default_factory=list, max_length=25)
+    source: Literal['search', 'saved', 'shared', 'other'] = 'search'
+    saved_route_id: Optional[str] = Field(default=None, max_length=64)
+
+    @model_validator(mode="after")
+    def _needs_a_route(self):
+        if self.route is None and not self.saved_route_id:
+            raise ValueError("route or saved_route_id is required")
+        if self.route is not None and self.request is None and not self.saved_route_id and self.source == 'search':
+            raise ValueError("request is required for a report from a search")
+        return self
 
 
 class BadRouteReportResponse(BaseModel):
