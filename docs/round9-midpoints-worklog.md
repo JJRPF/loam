@@ -100,16 +100,19 @@ tolerance the engine's own distance gate agrees"; C7 is reported by the benchmar
 `tests/test_round9_midpoints_api.py` (4): the notice on `/api/route`, 422 on `/api/route/options`, the error event.
 `tests/test_round9_midpoints_exports.py` (3): GPX and FIT of a via loop have the API route's point count and
 start/end within 1 m, and the GPX passes every midpoint in order (C2, C3 on the GPX track).
-Browser (`tests/browser/midpoints.spec.ts`, 5, with a third API on :8092 with `ENABLE_MIDPOINTS=true` and every
+Browser (`tests/browser/midpoints.spec.ts`, 5, with a third API on :8093 with `ENABLE_MIDPOINTS=true` and every
 `/api` request of the page redirected to it; the flag-off suite is unchanged): tap the map to add a midpoint and
 the route passes it; remove it and rebuild; reorder two midpoints and the route passes them in the new order (the
 share link carries the new `via=` order); a shared link with `via=` reproduces the same routes; the dead-end notice
 is shown; at 360 px the midpoint controls are 44 px and do not overlap. The Plan panel gained move up/down buttons
 and 44 px targets for add and remove.
-Two harness fixes found on the way: `scripts/browser-test-server.sh` now overrides `GRAPHHOPPER_URL` like it already
-did `DATABASE_URL` (`.env` names the compose-internal host; the flag-off suite never needed GraphHopper, midpoint
-routing does and its calls failed silently), and `scripts/run-browser-tests.sh` sets `NODE_PATH` so
-`tests/browser` finds `frontend/node_modules`.
+Two harness findings. `scripts/run-browser-tests.sh` now sets `NODE_PATH` so `tests/browser` finds
+`frontend/node_modules`. And the browser-test API servers have always run without GraphHopper (`.env` names the
+compose-internal host `graphhopper:8989`; the script overrides `DATABASE_URL` for the same reason but not
+GraphHopper): the flag-off suite's "1 candidate route" test passes only because of that (with GraphHopper reachable
+the same 1 mi request returns several). Midpoint routing needs GraphHopper, so only the new :8093 server gets
+`GRAPHHOPPER_URL=http://localhost:8989` in `playwright.config.ts`; the flag-off suite is untouched. Worth knowing
+if the suite is ever meant to exercise GraphHopper routing.
 
 ## Owner asks
 

@@ -1,5 +1,5 @@
 // GH-41: midpoints with ENABLE_MIDPOINTS=true. The bundle talks to the flag-off API on :8089; here every /api
-// request of the page is redirected to a second API on :8092 started with ENABLE_MIDPOINTS=true (see
+// request of the page is redirected to a second API on :8093 started with ENABLE_MIDPOINTS=true (see
 // playwright.config.ts), so the flag-off suite (features.spec.ts) is untouched. Public trailheads only: the
 // scenarios are benchmark/via_scenarios.json (trailheads from OSM, midpoints picked from OSM trail segments).
 import fs from 'node:fs';

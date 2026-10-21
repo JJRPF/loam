@@ -67,6 +67,7 @@ def render(sc, before, after, png: str) -> None:
            f'Square = trailhead, numbered circles = midpoints in order. Grey = OSM trails, light grey = roads.</text>'
            f'<g transform="translate(0,16)">{_panel("Before (main)", sc, before, net, proj, "#d1491f")}</g>'
            f'<g transform="translate({W + 12},16)">{_panel("After (this branch)", sc, after, net, proj, "#1565c0")}</g></svg>')
+    png = os.path.abspath(png)
     page = os.path.splitext(png)[0] + ".html"
     with open(page, "w", encoding="utf-8") as fh:
         fh.write(f'<!doctype html><meta charset="utf-8"><body style="margin:0">{svg}</body>')
