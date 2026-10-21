@@ -19,6 +19,8 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
 
+case "${HOSTING_TARGET}" in prod|staging) ;; *) die "HOSTING_TARGET must be prod or staging (is ${HOSTING_TARGET})";; esac
+
 # shellcheck source=scripts/web-build-env.sh
 . "${ROOT}/scripts/web-build-env.sh"
 
@@ -35,6 +37,7 @@ grep -q "${VITE_API_BASE#https://}" "${ROOT}/frontend/dist/assets/"*.js \
 
 echo "[3/3] Deploying to Firebase Hosting (hosting only)..."
 cd "${ROOT}"
+# shellcheck disable=SC2086  # HOSTING_TARGET is checked above
 npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --only hosting:${HOSTING_TARGET} --project thepfisters
 
 echo "Done: ${VITE_PUBLIC_APP_ORIGIN}"

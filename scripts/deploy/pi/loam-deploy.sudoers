@@ -1,0 +1,8 @@
+# /etc/sudoers.d/loam-deploy (0440, root:root). Installed by provision.sh after visudo -cf.
+# The deploy-only SSH account may run exactly these scripts as the two app users. Nothing else.
+# The two users may restart only their own API unit.
+Defaults:loam-deployer !requiretty
+loam-deployer ALL=(jjrpfister) NOPASSWD: /usr/local/bin/loam-deploy-run, /usr/local/bin/loam-mirror-sync
+loam-deployer ALL=(loam-staging) NOPASSWD: /usr/local/bin/loam-deploy-run
+loam-staging ALL=(root) NOPASSWD: /usr/bin/systemctl restart loam-api-staging
+jjrpfister ALL=(root) NOPASSWD: /usr/bin/systemctl restart loam-api

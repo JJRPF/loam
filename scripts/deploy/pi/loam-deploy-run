@@ -1,0 +1,193 @@
+#!/bin/bash
+#
+# Runs one deploy (or status) as the target user. Installed root-owned at /usr/local/bin/loam-deploy-run;
+# called through sudo by loam-deploy-gate.
+#
+#   loam-deploy-run production <sha> <meta-b64>
+#   loam-deploy-run staging <sha|main> <meta-b64> [<pr>]
+#   loam-deploy-run status <production|staging>
+#
+# One deploy, under the host-wide deploy lock (production and staging never overlap: pip and the migrations
+# are the memory spike next to GraphHopper and PostGIS):
+#   1. check the sha against the bare mirror (production: it is on main; staging: it is the PR's head or main's tip)
+#   2. unpack it into releases/<time>-<sha7> (git archive: no .git), with REVISION and deploy-info.json
+#   3. a venv keyed by the hash of requirements.txt (built once, shared by releases with the same requirements)
+#   4. production only: a database backup first
+#   5. migrations (scripts.migrate), using the environment's own .env
+#   6. switch the `current` symlink and restart the unit
+#   7. health check; on failure the symlink goes back, the unit restarts, and the exit code is 1
+#   8. keep the newest 3 releases and the venvs they use
+# Migrations are additive in this repo; a rollback restores the code, not the database (the backup is for that).
+#
+# Layout under each user's home (LOAM_RELEASE_ROOT overrides): loam-deploy/<env>/{releases,current,shared}
+# with shared/.env (the environment's settings), shared/data, shared/venvs/<hash>.
+
+set -euo pipefail
+
+DEPLOY_DIR="${LOAM_DEPLOY_DIR:-/srv/loam-deploy}"
+LOCK="$DEPLOY_DIR/deploy.lock"
+LOG="$DEPLOY_DIR/deploy.log"
+MIRROR="$DEPLOY_DIR/loam.git"
+LIB="${LOAM_LIB_DIR:-/usr/local/lib/loam-deploy}"
+KEEP_RELEASES=3
+HEALTH_WAIT_S="${LOAM_HEALTH_WAIT_S:-90}"
+
+sha_re='^[0-9a-f]{40}$'
+meta_re='^[A-Za-z0-9+/=]{1,4096}$'
+pr_re='^[1-9][0-9]{0,5}$'
+
+die() { echo "❌ $*" >&2; exit 1; }
+# run_hook <VAR> <default command...>: tests set LOAM_*_CMD to replace a step (sudo resets the environment, so a
+# deploy over SSH cannot).
+run_hook() { local v="$1"; shift; if [ -n "${!v:-}" ]; then bash -c "${!v}"; else "$@"; fi; }
+
+# sudo may or may not reset HOME.
+HOME=$(getent passwd "$(id -un)" | cut -d: -f6)
+export HOME
+export PATH="$HOME/.local/bin:/usr/local/bin:/usr/bin:/bin:$PATH"
+# The mirror is owned by another user in the same group; git would call it a dubious ownership.
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0="$MIRROR"
+
+mode="${1:-}"
+
+env_settings() {  # sets ENV_NAME ROOT UNIT PORT
+  case "$1" in
+    production) ENV_NAME=production; UNIT=loam-api;         PORT=8085 ;;
+    staging)    ENV_NAME=staging;    UNIT=loam-api-staging; PORT=8086 ;;
+    *) return 1 ;;
+  esac
+  ROOT="${LOAM_RELEASE_ROOT:-$HOME/loam-deploy/$ENV_NAME}"
+}
+
+if [ "$mode" = status ]; then
+  env_settings "${2:-}" || die "bad environment"
+  python3 "$LIB/write-deploy-info.py" status "$ROOT/current/deploy-info.json"
+  exit 0
+fi
+
+target="${2:-}"
+meta="${3:-}"
+pr="${4:-}"
+env_settings "$mode" || die "unknown mode"
+[[ "$meta" =~ $meta_re ]] || die "bad meta"
+case "$mode" in
+  production)
+    [[ "$target" =~ $sha_re ]] || die "bad sha"
+    [ -z "$pr" ] || die "unexpected pr"
+    ;;
+  staging)
+    [[ "$target" =~ $sha_re || "$target" = main ]] || die "bad target"
+    if [ "$target" = main ]; then [ -z "$pr" ] || die "unexpected pr"; else [[ "$pr" =~ $pr_re ]] || die "bad pr"; fi
+    ;;
+esac
+
+umask 002
+exec 9>>"$LOCK"
+echo "⏳ Waiting for the deploy lock..."
+flock -w 900 9 || die "Could not get the deploy lock within 15 minutes"
+
+[ -d "$MIRROR" ] || die "the mirror $MIRROR is missing; run provision.sh"
+[ -f "$ROOT/shared/.env" ] || die "$ROOT/shared/.env is missing; run provision.sh"
+git --git-dir="$MIRROR" rev-parse --verify --quiet refs/heads/main >/dev/null || die "the mirror has no main"
+
+# --- 1. which commit -----------------------------------------------------------------------------------------
+main_tip=$(git --git-dir="$MIRROR" rev-parse refs/heads/main)
+if [ "$target" = main ]; then
+  target=$main_tip
+elif [ "$mode" = production ]; then
+  git --git-dir="$MIRROR" cat-file -e "$target^{commit}" 2>/dev/null || die "Unknown commit $target"
+  git --git-dir="$MIRROR" merge-base --is-ancestor "$target" "$main_tip" || die "$target is not on main"
+else
+  head=$(git --git-dir="$MIRROR" rev-parse --verify --quiet "refs/pull/$pr/head") || die "PR #$pr is not in the mirror"
+  [ "$head" = "$target" ] || die "PR #$pr head is now ${head:0:7}, not ${target:0:7} (a newer push is on its way)"
+fi
+git --git-dir="$MIRROR" cat-file -e "$target^{commit}" 2>/dev/null || die "Unknown commit $target"
+
+# --- 2. unpack -----------------------------------------------------------------------------------------------
+mkdir -p "$ROOT/releases" "$ROOT/shared/venvs"
+release="$ROOT/releases/$(date -u +%Y%m%d%H%M%S)-${target:0:7}"
+n=1; while [ -e "$release" ]; do n=$((n + 1)); release="$ROOT/releases/$(date -u +%Y%m%d%H%M%S)-${target:0:7}-$n"; done
+previous=""
+[ -e "$ROOT/current" ] && previous=$(readlink -f "$ROOT/current")
+cleanup_failed() { if [ -n "${release:-}" ] && [ "${switched:-0}" = 0 ]; then rm -rf "$release"; fi; }
+trap cleanup_failed EXIT
+switched=0
+
+mkdir "$release"
+git --git-dir="$MIRROR" archive "$target" | tar -x -C "$release"
+printf '%s\n' "${target:0:12}" > "$release/REVISION"
+python3 "$LIB/write-deploy-info.py" write "$ENV_NAME" "$target" "$MIRROR" "$release/deploy-info.json" "$meta" "$pr"
+ln -s "$ROOT/shared/.env" "$release/.env"
+[ ! -e "$ROOT/shared/data" ] || ln -s "$ROOT/shared/data" "$release/data"
+
+# --- 3. venv, keyed by requirements.txt ---------------------------------------------------------------------
+[ -f "$release/requirements.txt" ] || die "$target has no requirements.txt"
+req_hash=$(sha256sum "$release/requirements.txt" | cut -c1-12)
+venv="$ROOT/shared/venvs/$req_hash"
+if [ ! -x "$venv/bin/python" ]; then
+  echo "• building the venv for requirements $req_hash"
+  rm -rf "$venv.tmp"
+  "${LOAM_PYTHON:-python3}" -m venv "$venv.tmp"
+  "$venv.tmp/bin/pip" install --quiet --disable-pip-version-check -r "$release/requirements.txt"
+  mv "$venv.tmp" "$venv"
+fi
+ln -s "$venv" "$release/.venv"
+
+# --- 4/5. backup (production) and migrations ---------------------------------------------------------------
+run_in_release() { (cd "$release" && "$LIB/loam-with-env" "$ROOT/shared/.env" "$@"); }
+if [ "$mode" = production ]; then
+  echo "• backing up the database"
+  BACKUP_DIR="$ROOT/backups" KEEP_DAYS=30 run_hook LOAM_BACKUP_CMD run_in_release "$release/scripts/backup_db.sh" \
+    || die "the pre-deploy backup failed; nothing was changed"
+  { ls -1t "$ROOT"/backups/loam-*.dump 2>/dev/null || true; } | tail -n +6 | xargs -r rm -f
+fi
+echo "• migrations"
+run_hook LOAM_MIGRATE_CMD run_in_release "$release/.venv/bin/python" -m scripts.migrate
+
+# --- 6. switch and restart ---------------------------------------------------------------------------------
+restart() { run_hook LOAM_RESTART_CMD sudo -n /usr/bin/systemctl restart "$UNIT"; }
+health() {
+  local url="${LOAM_HEALTH_URL:-http://127.0.0.1:$PORT/health}" deadline=$((SECONDS + HEALTH_WAIT_S))
+  while [ "$SECONDS" -lt "$deadline" ]; do
+    if curl -fsS --max-time 5 "$url" 2>/dev/null | grep -q '"status":"ok"'; then return 0; fi
+    sleep 2
+  done
+  return 1
+}
+switch_to() { ln -sfn "$1" "$ROOT/current.new" && mv -T "$ROOT/current.new" "$ROOT/current"; }
+
+switch_to "$release"
+switched=1
+restart
+if health; then
+  echo "• healthy"
+else
+  echo "❌ health check failed after the switch" >&2
+  if [ -n "$previous" ] && [ -d "$previous" ]; then
+    echo "↩ rolling back to ${previous##*/}" >&2
+    switch_to "$previous"
+    restart
+    if health; then echo "↩ rolled back; $ENV_NAME is on ${previous##*/} again" >&2
+    else echo "❌ the rollback is not healthy either; look at: journalctl -u $UNIT" >&2; fi
+  else
+    echo "❌ there is no earlier release to roll back to" >&2
+  fi
+  echo "$(date -u +%FT%TZ) $mode ${target:0:7} ${pr:+pr=$pr }FAILED" >> "$LOG" 2>/dev/null || true
+  exit 1
+fi
+
+# --- 8. prune ---------------------------------------------------------------------------------------------
+current=$(readlink -f "$ROOT/current")
+keep=$(ls -1dt "$ROOT"/releases/*/ | head -n "$KEEP_RELEASES" | sed 's:/$::')
+for d in "$ROOT"/releases/*/; do
+  d=${d%/}
+  [ "$d" = "$current" ] || [ "$d" = "$previous" ] || grep -qxF "$d" <<<"$keep" || rm -rf "$d"
+done
+for v in "$ROOT"/shared/venvs/*/; do
+  v=${v%/}
+  # a venv no remaining release links to
+  if ! find "$ROOT/releases" -maxdepth 2 -name .venv -lname "$v" 2>/dev/null | grep -q .; then rm -rf "$v"; fi
+done
+
+echo "$(date -u +%FT%TZ) $mode ${target:0:7} ${pr:+pr=$pr }ok" >> "$LOG" 2>/dev/null || true
+echo "✅ $mode is now at ${target:0:7}"
