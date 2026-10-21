@@ -750,6 +750,20 @@ def passes_vias(coords: List[List[float]], vias: List[Tuple[float, float]], tol_
     return True
 
 
+def passes_vias_in_order(coords: List[List[float]], vias: List[Tuple[float, float]], tol_m: Any = VIA_TOLERANCE_M) -> bool:
+    """True when the route reaches the midpoints in the rider's order: an ordered subsequence, each midpoint
+    within its tolerance after the previous one (a route may pass one early, on the way to another, and
+    again later)."""
+    tols = list(tol_m) if isinstance(tol_m, (list, tuple)) else [tol_m] * len(vias)
+    pos = -1
+    for (lat, lon), tol in zip(vias, tols):
+        nxt = next((j for j in range(pos + 1, len(coords)) if haversine_m(coords[j], [lon, lat]) <= tol), None)
+        if nxt is None:
+            return False
+        pos = nxt
+    return True
+
+
 async def _check_vias_on_network(vias: List[Tuple[float, float]]) -> None:
     """A midpoint with no rideable way near it is a clear error, never a fabricated line (C2, C4)."""
     async with httpx.AsyncClient(timeout=6.0) as client:
@@ -838,7 +852,7 @@ async def plan_route_options(
         (graph_cands, suggestion), _ = await asyncio.gather(graph_task, gh_round(specs))
         raw.extend((c, p, lbl, "graph_loop") for c, p, lbl in graph_cands)
         raw.extend(_seed_candidates(req, target_miles, user_id))
-        raw[:] = [r for r in raw if passes_vias(r[0], vias, via_tols)]
+        raw[:] = [r for r in raw if passes_vias_in_order(r[0], vias, via_tols)]
         raw[:], via_repeats = filter_via_repetition(raw)
     elif is_loop:
         seed = int(abs(start_lat * 1e5) + abs(start_lon * 1e5) + target_miles * 10) % (2 ** 31)

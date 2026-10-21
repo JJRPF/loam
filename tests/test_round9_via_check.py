@@ -83,6 +83,14 @@ def test_c3_wrong_order_fails():
     assert r["C2"]["ok"] and "C3" in r["failed"]
 
 
+def test_c3_a_pass_on_the_way_does_not_break_the_order():
+    # S -> B is on the way to A: the route passes B early, reaches A, comes back through B, closes at S
+    coords = _poly([_pt(0, 0), B, A, B, _pt(0, 0)])
+    r = check(coords=coords, vias=(VIA_A, VIA_B))
+    assert r["C3"]["ok"], r                       # A at the middle, B again after it
+    assert "C3" in check(coords=_poly([_pt(0, 0), B, A, _pt(0, 0)]), vias=(VIA_A, VIA_B))["failed"]  # B only before A
+
+
 def test_c4_straight_line_fabrication_fails():
     r = check(evaluate=fake_eval(offset=240.0))
     assert "C4" in r["failed"]

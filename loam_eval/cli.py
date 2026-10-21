@@ -243,6 +243,8 @@ def main(argv=None) -> int:
     vr.set_defaults(fn=lambda a: __import__("loam_eval.via_run", fromlist=["main"]).main(a.out, a.only, a.label, a.baseline))
     vd = sub.add_parser("via-diag"); vd.add_argument("id")
     vd.set_defaults(fn=lambda a: __import__("loam_eval.via_diag", fromlist=["main"]).main(a.id))
+    vm = sub.add_parser("via-maps"); vm.add_argument("--before", required=True); vm.add_argument("--out", default="docs/screenshots/round9-midpoints")
+    vm.set_defaults(fn=lambda a: __import__("loam_eval.via_maps", fromlist=["main"]).main(a.before, a.out))
     sc = sub.add_parser("scenarios"); sc.set_defaults(fn=cmd_scenarios)
     a = p.parse_args(argv)
     return a.fn(a)

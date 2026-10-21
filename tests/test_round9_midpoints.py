@@ -142,3 +142,13 @@ def test_passes_vias_takes_a_tolerance_per_midpoint():
     assert routing.passes_vias(route, [near], [60.0])
     assert not routing.passes_vias(route, [near], [30.0])        # snap + slack of a closer midpoint
     assert not routing.passes_vias(route, [near, near], [200.0, 30.0])
+
+
+def test_midpoints_must_be_reached_in_the_riders_order():
+    a, b = (43.13, -71.495), (43.14, -71.495)
+    south_then_north = _line([-71.495, 43.125], [-71.495, 43.145])
+    assert routing.passes_vias_in_order(south_then_north, [a, b])
+    assert not routing.passes_vias_in_order(south_then_north, [b, a])           # reversed list: wrong order
+    there_and_back = south_then_north + south_then_north[::-1][1:]
+    assert routing.passes_vias_in_order(there_and_back, [b, a])                 # b early, then a on the way back
+    assert not routing.passes_vias_in_order(south_then_north, [a, (43.2, -71.4)])

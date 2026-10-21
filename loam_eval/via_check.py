@@ -112,16 +112,27 @@ def check_via_route(
 
     # C2 / C3
     snaps = list(snap_m) if snap_m is not None else [0.0] * len(vias)
-    hits, approach, idxs = [], [], []
+    hits, approach, limits = [], [], []
     for i, (lat, lon) in enumerate(vias):
-        d, idx = _closest(coords, lat, lon)
+        d, _ = _closest(coords, lat, lon)
         limit = min(snaps[i] + VIA_SLACK_M, VIA_TOLERANCE_M)
         hits.append(d <= limit)
         approach.append(round(d, 1))
-        idxs.append(idx)
+        limits.append(limit)
     res["C2"] = _rule(all(hits), approach_m=approach, snap_m=[round(s, 1) for s in snaps],
                       missed=[i for i, h in enumerate(hits) if not h])
-    res["C3"] = _rule(all(a < b for a, b in zip(idxs, idxs[1:])), indices=idxs)
+    # C3: a route may pass a midpoint early (on the way to another) and again later, so the test is an ordered
+    # subsequence: each midpoint's earliest visit after the previous one's. Midpoints C2 misses fail C3 too.
+    idxs, pos, ordered = [], -1, True
+    for (lat, lon), limit in zip(vias, limits):
+        nxt = next((j for j in range(pos + 1, len(coords)) if _hav(coords[j], (lon, lat)) <= limit), None)
+        if nxt is None:
+            ordered = False
+            idxs.append(None)
+        else:
+            idxs.append(nxt)
+            pos = nxt
+    res["C3"] = _rule(ordered, indices=idxs)
 
     # C4
     off = ev.get("offset_m")

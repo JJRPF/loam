@@ -563,7 +563,7 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                 disabled={waypoints.length >= 5}
                 onClick={() => onPickOnMap('mid')}
                 style={{
-                  fontSize: 12, padding: '2px 8px', minHeight: 28,
+                  fontSize: 13, padding: '2px 12px', minHeight: 44,
                   backgroundColor: pickingTarget === 'mid' ? 'var(--color-blaze-dark, #C73E00)' : 'var(--color-slate-light, #E2ECF3)',
                   color: pickingTarget === 'mid' ? '#FFFFFF' : 'var(--color-text-primary, #1D3B34)'
                 }}
@@ -571,19 +571,23 @@ export const PlanPanel: React.FC<PlanPanelProps> = ({
                 {pickingTarget === 'mid' ? 'Tap Map...' : 'Add midpoint'}
               </button>
             </div>
-            {waypoints.map((w, i) => (
-              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: '4px 10px', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)', marginBottom: 4, fontSize: 12 }}>
-                <span>{i + 1}. {w.name || 'Midpoint'}</span>
-                <button
-                  type="button"
-                  aria-label={`Remove midpoint ${i + 1}`}
-                  onClick={() => onWaypointsChange?.(waypoints.filter((_, k) => k !== i))}
-                  style={{ minHeight: 28, minWidth: 28, padding: 0 }}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
+            {waypoints.map((w, i) => {
+              const move = (to: number) => {
+                const next = [...waypoints];
+                const [m] = next.splice(i, 1);
+                next.splice(to, 0, m);
+                onWaypointsChange?.(next);
+              };
+              const tap = { minHeight: 44, minWidth: 44, padding: 0, flex: '0 0 auto' } as const;
+              return (
+                <div key={i} data-testid="midpoint-row" style={{ display: 'flex', alignItems: 'center', gap: 4, backgroundColor: 'var(--color-bg-subtle, #F3F7F7)', padding: '2px 4px 2px 10px', borderRadius: 6, border: '1px solid var(--color-divider, #D1D8D8)', marginBottom: 4, fontSize: 12 }}>
+                  <span style={{ flex: '1 1 auto', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{i + 1}. {w.name || 'Midpoint'}</span>
+                  <button type="button" aria-label={`Move midpoint ${i + 1} up`} disabled={i === 0} onClick={() => move(i - 1)} style={tap}>↑</button>
+                  <button type="button" aria-label={`Move midpoint ${i + 1} down`} disabled={i === waypoints.length - 1} onClick={() => move(i + 1)} style={tap}>↓</button>
+                  <button type="button" aria-label={`Remove midpoint ${i + 1}`} onClick={() => onWaypointsChange?.(waypoints.filter((_, k) => k !== i))} style={tap}>×</button>
+                </div>
+              );
+            })}
           </div>
         )}
       </section>

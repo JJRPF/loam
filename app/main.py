@@ -34,7 +34,7 @@ from app.models import (
     CubeTrekAuthRequest, CubeTrekImportRequest,
     ConnectorSyncRequest, ConnectorSyncResponse, DevConsoleStatusResponse
 )
-from app.routing import MidpointError, fetch_route, plan_route_options
+from app.routing import DEAD_END_NOTICE, VIA_REPETITION_MAX, MidpointError, fetch_route, plan_route_options, repetition
 from app.db import (
     get_connection,
     check_db_health, get_edge_heat, record_edge_heat,
@@ -190,6 +190,9 @@ async def calculate_route(
         async with route_slot():
             route = await fetch_route(request, user_id=uid)
         elapsed_ms = (time.perf_counter() - t0) * 1000
+        if request.waypoints and (request.is_loop or request.route_mode in ("loop", "round_trip") or request.end is None) \
+                and repetition(route.coordinates) > VIA_REPETITION_MAX:
+            notice = " ".join(x for x in (notice, DEAD_END_NOTICE) if x)   # the one-route path does not search for a loop
         if notice:
             route = route.model_copy(update={"notice": notice})
         return route
