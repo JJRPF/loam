@@ -180,7 +180,7 @@ PYTHONPATH=. python -m scripts.upload_stripped --dir $DATA_DIR/garmin-stripped -
 | `PUBLIC_APP_ORIGIN`, `API_PUBLIC_HOST` | unset | When set, GET navigations on the API's public host redirect to the web app. |
 | `HEAT_MIN_UNIQUE_RIDERS` | `3` | Riders needed before a trail's heat is public. |
 | `SEED_HEAT_PUBLIC` | `true` | Whether the creator's seed heat is public, on trail-class ways only. |
-| `ENABLE_MIDPOINTS` | `false` | Midpoint (via point) routing, off while it is reworked. |
+| `ENABLE_MIDPOINTS` | `false` | Midpoint (via point) routing. Loops through midpoints (Round 9) avoid riding the way out again where the network allows it, keep the midpoints in order and say so when a spur repeats; off until the owner turns it on. |
 | `ENABLE_STRAVA_CONNECTOR`, `ENABLE_TRAILFORKS_CONNECTOR` | `false` | Connectors stay off until their terms are confirmed. Disabled connectors are not shown. |
 | `ENABLE_GARMIN_LOGIN_CONNECTOR`, `ENABLE_CUBETREK_CONNECTOR` | `true` | Ride import connectors. |
 | `CONNECTOR_SECRET_KEY` | in-code dev key | Encrypts connector credentials. Required in production. |
