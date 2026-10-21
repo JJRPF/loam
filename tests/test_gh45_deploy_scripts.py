@@ -93,8 +93,11 @@ def mirror(tmp_path_factory):
     """A bare mirror holding this checkout's HEAD as main, and the HEAD again as PR 7's head."""
     d = tmp_path_factory.mktemp("deploy") / "loam.git"
     git("init", "--bare", "--quiet", str(d))
+    # CI checks out with depth 1, and git refuses a push from a shallow clone unless the receiver allows it.
+    git("config", "receive.shallowUpdate", "true", cwd=d)
     head = git("rev-parse", "HEAD", cwd=ROOT)
-    git("push", "--quiet", str(d), f"{head}:refs/heads/main", f"{head}:refs/pull/7/head", cwd=ROOT)
+    git("push", "--quiet", str(d), f"{head}:refs/heads/main", cwd=ROOT)
+    git("update-ref", "refs/pull/7/head", head, cwd=d)  # one ref per shallow push; the second is local
     return d, head
 
 
