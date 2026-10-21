@@ -62,6 +62,9 @@ Loam builds up to 10 distinct candidates and ranks them. It shows fewer, with a 
 
 Download a GPX 1.1 track or a Garmin FIT course. Signed-in riders can save routes; the last 10 routes you looked at stay available offline (the app is an installable PWA; map tiles and new routes need a connection).
 
+### Share a route
+Each saved route can be shared by link (anyone with the link, no account needed) or with friends, or kept private, which is the default. A share is a snapshot of the planned route only, shown with a sharing name you choose; rides, uploads, privacy zones and your email are never shared. If a route starts or ends inside one of your privacy zones, the part inside is left out unless you ask for the full route. Friends join only through a one-time invite link, so nobody can look you up. Stopping a share deletes it and the link stops working at once. People who open a link can see the map, surface strip and stats, export GPX or FIT, copy the route to their own routes, or plan a new route from its start.
+
 ### Trail heat
 The heat layer shows trails that three or more people rode in the past year. To get the map started, it also includes the creator's own rides, on trails only (never roads); the app says so next to the layer.
 
@@ -81,6 +84,7 @@ Sign in with Google or an emailed link (no passwords). Upload GPX or FIT rides t
 - The creator's imported rides are public as "seed" heat on trail-class ways only (`SEED_HEAT_PUBLIC`).
 - Uploaded rides are trimmed 0.2 mi at both ends and cleared of your privacy zones before anything is matched or stored.
 - Bad-route reports become public GitHub issues. They hold your comment, your route settings and the route line minus 0.5 mi at each end, never your start or end point.
+- Only planned routes are ever shared, and only when you share them: by link or with friends, per route, with the parts inside your privacy zones left out by default. Rides are never shared. Links and invites are random 256-bit codes of which only a hash is stored.
 - You can export or delete everything we hold about you from the You panel.
 
 The details are in the [privacy policy](frontend/public/legal/privacy/index.html), the [terms](frontend/public/legal/terms/index.html) and [attributions](frontend/public/legal/attributions/index.html) (served at `/legal/` on the live site).

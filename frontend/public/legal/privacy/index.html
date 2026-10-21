@@ -23,8 +23,8 @@
 <main id="main">
 <h1>Privacy policy</h1>
 
-<p class="meta">Effective October 13, 2026</p>
-<p class="summary">In short: Loam keeps what you give it (your account, uploads you choose to make, saved routes, flags and zones), shows other people only trail-level heat that three or more riders share (plus the creator's own rides on trails), runs no ads or analytics, and lets you export or delete your data.</p>
+<p class="meta">Effective October 14, 2026</p>
+<p class="summary">In short: Loam keeps what you give it (your account, uploads you choose to make, saved routes, flags and zones), shows other people only trail-level heat that three or more riders share (plus the creator's own rides on trails), runs no ads or analytics, and lets you export or delete your data. You can share a planned route with a link or with friends; rides are never shared.</p>
 
 <h2>Who runs Loam</h2>
 <p>Loam is run by Justin Pfister in New Hampshire, USA. Contact: <span data-contact>jjrpfister at gmail dot com</span>. It runs on a home server; the web app itself is served by Google Firebase Hosting.</p>
@@ -34,10 +34,11 @@
   <li><strong>Your account.</strong> You sign in with Google or an email link, through Google Firebase Authentication. Loam stores your Firebase user ID, your email address and your display name. Your Google profile photo is shown in your browser and is not stored on Loam's server.</li>
   <li><strong>Activities you upload</strong> (GPX or FIT files). Loam reads the file in memory, cuts off the first and last 0.2 mile and anything inside your privacy zones, and matches what is left to trails. It stores the activity's date, sport, distance, duration, file type, and which trail segments it passed over and when. It does <em>not</em> store the original file or the GPS points. If you uncheck the contribution box when uploading, the activity is recorded in your account but does not add to heat.</li>
   <li><strong>Saved routes</strong> you choose to save, including the route line, so they include where the route starts.</li>
+  <li><strong>Sharing and friends.</strong> A copy of each planned route you share (its line, name, distance and surface mix, not your rides), the sharing name you choose, your friends list, the friend invites you make and the people you block. See <a href="#sharing">Sharing routes and friends</a>.</li>
   <li><strong>Trail flags and check-ins</strong> you submit, and <strong>trail submissions</strong> you propose. Other people can see the flag, check-in or submission, but Loam does not show who made it.</li>
   <li><strong>Privacy zones</strong> you create (a point and a radius, for example around your home), and your <strong>contribution consent</strong> setting.</li>
   <li><strong>Connected services.</strong> If you connect Garmin Connect, your Garmin password is sent to Garmin to log in and is not stored; the session token Loam keeps is encrypted. Other connected-service records (such as a CubeTrek link) are stored with your account.</li>
-  <li><strong>Server logs.</strong> The server's standard request log records the time, the web address requested (which can include a search text or the start point of a route request), the response code and the network address of the connection. It is kept in the server's system journal, which the operating system rotates automatically. Loam does not analyse it.</li>
+  <li><strong>Server logs.</strong> The server's standard request log records the time, the web address requested (which can include a search text or the start point of a route request), the response code and the network address of the connection. It is kept in the server's system journal, which the operating system rotates automatically. Loam does not analyse it. For shared routes and friend invites Loam hides the secret part of the address in its own log.</li>
 </ul>
 
 <h2 id="heat">How heat works, and what it shows about you</h2>
@@ -48,6 +49,19 @@
   <li><strong>Three-rider minimum:</strong> a trail's heat is shown to others, and used to shape their routes, only when at least 3 different people have ridden it. Below that, only you see your own contribution.</li>
   <li><strong>The creator's own rides are included.</strong> To get the map started, Loam also shows heat from the creator's own imported rides on trails (paths, tracks, bridleways and cycleways), never on roads or sidewalks, even though that is one rider. Everyone else's heat still needs 3 riders.</li>
   <li>Heat shows how much a trail is used, never who rode it. A route suggested from the creator's rides starts from your own start point, not the original one.</li>
+</ul>
+
+<h2 id="sharing">Sharing routes and friends</h2>
+<p>You can share a <strong>planned route</strong> that you saved. <strong>Your rides are never shared</strong>: not uploaded activities, trail visit records, heat you contributed to, your privacy zones, the share of the network you have ridden, check-ins or connected services.</p>
+<ul>
+  <li><strong>What a share shows.</strong> Anyone who can open it sees the route's name, sport, distance, climbing, surface mix and line on a map, the date it was shared, and your <strong>sharing name</strong>, which you choose in the You tab (it shows as "A Loam rider" until you set one). It never shows your email, your user ID, your photo or your other routes.</li>
+  <li><strong>Who can open it.</strong> You choose per route. <em>Anyone with the link</em>: whoever has the link can open it without an account, and so can anyone they pass it to; the link is a long random code, and search engines are asked not to index it. <em>My friends</em>: only people you have accepted as friends. <em>Private</em>: only you. Every route is private until you share it.</li>
+  <li><strong>A copy, not a window.</strong> Sharing stores a snapshot of the route as it was when you shared it. Changing or deleting the saved route later does not change what was shared, but deleting the saved route removes the share.</li>
+  <li><strong>Your start and end.</strong> If a route starts or ends inside one of your privacy zones, Loam tells you and, unless you choose "Share the full route", leaves out the parts of it inside the zone. A shared route can still start near where you live if you have no privacy zone there.</li>
+  <li><strong>Stopping.</strong> Choose Private on the route, or "Stop sharing" in the You tab. The link stops working at once, and Loam deletes the shared copy of the route and the code. Someone who already downloaded the route or copied it to their own routes keeps their copy.</li>
+  <li><strong>Friends.</strong> You cannot be found by name or email. A friendship starts only when someone opens an invite link you sent (it works once and expires after 7 days) and accepts it. A friend sees your sharing name and the routes you shared with friends, and you see theirs. Either of you can remove the other, and you can block someone, which ends the friendship and stops invites between you. Loam keeps the friendship, your open invites and your blocks until you delete them or delete your account.</li>
+  <li><strong>Counts.</strong> For a link share Loam counts how many times it was opened and when it was last opened, and shows you the count. It does not record who opened it.</li>
+  <li><strong>Where the link travels.</strong> The link is part of the web address, so it is visible to whoever you send it to, to the services they send it through, and to Google Firebase Hosting, which serves the page. Treat it like a key.</li>
 </ul>
 
 <h2 id="reports">Reporting a bad route</h2>
@@ -73,7 +87,7 @@
 <h2>Your choices</h2>
 <ul>
   <li><strong>Export:</strong> in the You tab, "Export my data" downloads everything Loam holds about you as a JSON file (<code>/api/privacy/export</code>).</li>
-  <li><strong>Delete:</strong> in the You tab, "Delete account" permanently deletes your activities, trail visit records, saved routes, flags, check-ins, privacy zones, consent, connected services and the private copies of your bad-route reports (<code>/api/privacy/account</code>). Heat is then recalculated without you, so your contribution disappears from the map. Trail submissions that were not verified are deleted; a verified one stays on the map without your name. Public GitHub issues you filed stay on GitHub. Deleting here does not delete your Google account, and the sign-in record at Firebase Authentication stays until you ask <span data-contact>jjrpfister at gmail dot com</span> to remove it.</li>
+  <li><strong>Delete:</strong> in the You tab, "Delete account" permanently deletes your activities, trail visit records, saved routes, the shared copies of your routes, your friendships, invites and blocks, flags, check-ins, privacy zones, consent, connected services and the private copies of your bad-route reports (<code>/api/privacy/account</code>). Friends then no longer see your shared routes. Heat is then recalculated without you, so your contribution disappears from the map. Trail submissions that were not verified are deleted; a verified one stays on the map without your name. Public GitHub issues you filed stay on GitHub. Deleting here does not delete your Google account, and the sign-in record at Firebase Authentication stays until you ask <span data-contact>jjrpfister at gmail dot com</span> to remove it.</li>
   <li><strong>Backups:</strong> a nightly database backup is kept on the server for 7 days, so deleted data can remain in those backups for up to 7 days. A one-off backup made before a risky change is deleted once the change is verified.</li>
 </ul>
 

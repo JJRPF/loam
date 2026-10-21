@@ -8,6 +8,7 @@ import {
 import { signOut, useAuth } from '../services/auth';
 import { SignInCard } from './SignInCard';
 import { PrivacyControls } from './PrivacyControls';
+import { FriendsSection } from './FriendsSection';
 import { LegalLinks } from './LegalLinks';
 import type { UserDNR, ConnectorStatus } from '../types';
 
@@ -151,6 +152,9 @@ export const YouPanel: React.FC<YouPanelProps> = ({ isDarkMode = true }) => {
 
       {/* Connected Services */}
       <ConnectedServicesSection isDarkMode={isDarkMode} />
+
+      {/* Friends and sharing (GH-42) */}
+      <FriendsSection />
 
       {/* Settings & Privacy */}
       <div style={{ backgroundColor: 'var(--color-card-bg, #FFFFFF)', borderRadius: 8, border: '1px solid var(--color-divider, #D1D8D8)', padding: 14, display: 'flex', flexDirection: 'column', gap: 12 }}>

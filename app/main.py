@@ -77,6 +77,11 @@ app = FastAPI(
 
 check_production_config()
 
+from app.sharing import router as sharing_router, install_log_redaction  # noqa: E402
+
+install_log_redaction()
+app.include_router(sharing_router)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins,
@@ -355,8 +360,8 @@ async def export_fit(req: ExportRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate FIT: {str(e)}")
 
 @app.get("/api/export/gpx/{route_id}")
-async def export_saved_route_gpx(route_id: str):
-    route = get_saved_route_by_id(route_id)
+async def export_saved_route_gpx(route_id: str, user: AuthUser = Depends(get_current_user)):
+    route = get_saved_route_by_id(route_id, user_id=user.uid)
     if not route:
         raise HTTPException(status_code=404, detail="Route not found")
     
@@ -378,8 +383,8 @@ async def export_saved_route_gpx(route_id: str):
     )
 
 @app.get("/api/export/fit/{route_id}")
-async def export_saved_route_fit(route_id: str):
-    route = get_saved_route_by_id(route_id)
+async def export_saved_route_fit(route_id: str, user: AuthUser = Depends(get_current_user)):
+    route = get_saved_route_by_id(route_id, user_id=user.uid)
     if not route:
         raise HTTPException(status_code=404, detail="Route not found")
 

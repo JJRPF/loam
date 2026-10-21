@@ -397,7 +397,7 @@ def get_saved_routes_from_db(user_id: str) -> List[Dict[str, Any]]:
                     """
                     SELECT id, user_id, name, sport, distance_miles,
                            elevation_gain_ft, elevation_loss_ft, created_at,
-                           surface_summary, waypoints, ST_AsGeoJSON(geom) as geojson
+                           surface_summary, waypoints, visibility, ST_AsGeoJSON(geom) as geojson
                     FROM saved_routes
                     WHERE user_id = %s
                     ORDER BY created_at DESC;
@@ -437,7 +437,7 @@ def get_saved_route_by_id(route_id: str, user_id: Optional[str] = None) -> Optio
                         """
                         SELECT id, user_id, name, sport, distance_miles,
                                elevation_gain_ft, elevation_loss_ft, created_at,
-                               surface_summary, waypoints, ST_AsGeoJSON(geom) as geojson
+                               surface_summary, waypoints, visibility, ST_AsGeoJSON(geom) as geojson
                         FROM saved_routes
                         WHERE id = %s AND user_id = %s;
                         """,
@@ -448,7 +448,7 @@ def get_saved_route_by_id(route_id: str, user_id: Optional[str] = None) -> Optio
                         """
                         SELECT id, user_id, name, sport, distance_miles,
                                elevation_gain_ft, elevation_loss_ft, created_at,
-                               surface_summary, waypoints, ST_AsGeoJSON(geom) as geojson
+                               surface_summary, waypoints, visibility, ST_AsGeoJSON(geom) as geojson
                         FROM saved_routes
                         WHERE id = %s;
                         """,
@@ -1851,6 +1851,24 @@ def export_user_data(user_id: str) -> Dict[str, Any]:
             for r in submissions:
                 r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else ""
 
+            # 10. Sharing: the user's own shares, friendships, invites and blocks (no other person's id)
+            cur.execute("SELECT share_display_name FROM users WHERE id = %s;", (user_id,))
+            share_name = (cur.fetchone() or {}).get("share_display_name")
+            cur.execute("SELECT route_id, mode, name, trimmed, created_at, last_viewed_at, view_count "
+                        "FROM route_shares WHERE user_id = %s ORDER BY created_at;", (user_id,))
+            shares = [dict(r) for r in cur.fetchall()]
+            for r in shares:
+                r["created_at"] = r["created_at"].isoformat() if r.get("created_at") else ""
+                r["last_viewed_at"] = r["last_viewed_at"].isoformat() if r.get("last_viewed_at") else None
+            cur.execute("SELECT created_at FROM friendships WHERE user_a = %s OR user_b = %s ORDER BY created_at;",
+                        (user_id, user_id))
+            friendships = [{"since": r["created_at"].isoformat()} for r in cur.fetchall()]
+            cur.execute("SELECT created_at, expires_at, used_at FROM friend_invites WHERE inviter_id = %s "
+                        "ORDER BY created_at;", (user_id,))
+            invites = [{k: (v.isoformat() if v else None) for k, v in dict(r).items()} for r in cur.fetchall()]
+            cur.execute("SELECT created_at FROM blocks WHERE blocker = %s ORDER BY created_at;", (user_id,))
+            blocks = [{"since": r["created_at"].isoformat()} for r in cur.fetchall()]
+
             return {
                 "user_id": user_id,
                 "email": profile.get("email"),
@@ -1862,6 +1880,8 @@ def export_user_data(user_id: str) -> Dict[str, Any]:
                 "flags": flags,
                 "activities": activities,
                 "saved_routes": saved,
+                "sharing": {"share_display_name": share_name, "shared_routes": shares,
+                            "friendships": friendships, "friend_invites": invites, "blocks": blocks},
                 "heat_trail_contributions": heat_contributions,
                 "route_reports": reports,
                 "trail_submissions": submissions,

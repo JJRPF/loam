@@ -377,6 +377,7 @@ class UserDataExportResponse(BaseModel):
     heat_trail_contributions: Optional[List[Dict[str, Any]]] = None
     route_reports: List[Dict[str, Any]] = Field(default_factory=list)
     trail_submissions: List[Dict[str, Any]] = Field(default_factory=list)
+    sharing: Dict[str, Any] = Field(default_factory=dict)
     exported_at: str
 
 # =========================================================================
