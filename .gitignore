@@ -35,6 +35,7 @@ htmlcov/
 
 # Data & Caches (Data lives once rule)
 data/
+!frontend/src/data/
 out/
 graph-cache/
 *.osm.pbf
@@ -66,3 +67,7 @@ benchmark/.judge_cache.json
 
 # Firebase CLI deploy cache
 .firebase/
+
+# Written by the deploy into a release directory (scripts/deploy/pi)
+/deploy-info.json
+/REVISION
