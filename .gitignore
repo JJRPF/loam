@@ -35,6 +35,8 @@ htmlcov/
 
 # Data & Caches (Data lives once rule)
 data/
+# public OSM parking only (scripts/build_trailheads.py); the build and tests need it on a clean checkout
+!frontend/src/data/
 out/
 graph-cache/
 *.osm.pbf

@@ -11,6 +11,7 @@ from app.db import (
     get_connection, ensure_user_exists, get_user_connected_service,
     create_privacy_zone
 )
+from tests.conftest import requires_graphhopper
 
 @pytest.fixture(autouse=True)
 def clean_gh19_test_data():
@@ -43,6 +44,7 @@ async def test_connectors_enabled_by_default_gh19():
         assert connectors["strava"]["enabled"] is False
 
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_garmin_connect_and_bulk_import_to_heat():
     """

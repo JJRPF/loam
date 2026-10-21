@@ -7,6 +7,7 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.gpx_export import build_gpx_track
 from app.fit_export import build_fit_course
+from tests.conftest import requires_graphhopper
 
 NH_SAMPLE_COORDINATES = [
     [-71.35384, 43.128757, 185.0],
@@ -106,6 +107,7 @@ async def test_garmin_fenix_fit_export():
     assert first_rec.get_value("position_long") is not None
     assert first_rec.get_value("altitude") is not None
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_route_loop_mode():
     """Tests loop routing calculation when target_distance_miles and loop mode are provided."""
@@ -126,6 +128,7 @@ async def test_route_loop_mode():
         assert "verbal_summary" in data
         assert len(data["surface_strip"]) > 0
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_sport_profiles():
     """Tests that various MTB subtypes and trail-run profiles route correctly."""

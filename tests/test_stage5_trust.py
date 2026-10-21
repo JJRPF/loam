@@ -11,6 +11,7 @@ from app.db import (
     delete_user_account
 )
 from app.models import SportProfile
+from tests.conftest import requires_graphhopper
 
 @pytest.fixture(autouse=True)
 def clean_test_data():
@@ -418,6 +419,7 @@ async def test_privacy_opt_out_export_and_account_deletion():
 # 8. Route Candidates Trust Layer Integration
 # =========================================================================
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_route_options_soft_dnr_and_override():
     """Validates that candidate route options incorporate soft DNR warnings and allow logged overrides."""

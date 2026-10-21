@@ -4,6 +4,14 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
+-- Users (first: later tables reference it)
+CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY, -- Firebase Auth UID
+    email TEXT,
+    display_name TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
 -- Core OSM Edges
 CREATE TABLE IF NOT EXISTS edges (
     osm_id BIGINT PRIMARY KEY,
@@ -195,14 +203,6 @@ CREATE TABLE IF NOT EXISTS restrictions (
 
 CREATE INDEX IF NOT EXISTS idx_restrictions_geom ON restrictions USING GIST (geom);
 CREATE INDEX IF NOT EXISTS idx_restrictions_edge ON restrictions (edge_osm_id);
-
--- Users
-CREATE TABLE IF NOT EXISTS users (
-    id TEXT PRIMARY KEY, -- Firebase Auth UID
-    email TEXT,
-    display_name TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
 
 -- Saved Routes
 CREATE TABLE IF NOT EXISTS saved_routes (

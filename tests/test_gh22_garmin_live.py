@@ -7,6 +7,7 @@ from app.db import (
     save_user_connected_service, delete_user_connected_service
 )
 from app.connectors.encryption import decrypt_token, encrypt_token
+from tests.conftest import requires_graphhopper
 
 @pytest.fixture(autouse=True)
 def clean_gh22_test_data():
@@ -135,6 +136,7 @@ async def test_garmin_mfa_error_handling():
         assert "expired or invalid" in bad_sess_resp.json()["detail"].lower()
 
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_garmin_activity_filtering_and_classification():
     """Verifies that non-trail activities (breathwork, gym, stationary, resort ski) are excluded."""
