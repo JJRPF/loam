@@ -32,6 +32,12 @@ def _request(sc: Dict[str, Any]):
     return RouteOptionsRequest(**kw)
 
 
+def _road_cap(sc) -> float:
+    from app.engine_config import get_config
+    from app.routing import effective_road_cap
+    return effective_road_cap(_request(sc), get_config())
+
+
 def run_scenario(sc: Dict[str, Any]) -> Dict[str, Any]:
     from app.routing import plan_route_options
     os.environ["ENABLE_MIDPOINTS"] = "true"
@@ -55,7 +61,7 @@ def run_scenario(sc: Dict[str, Any]) -> Dict[str, Any]:
                               target_miles=sc["miles"], snap_m=snaps, dead_end_vias=dead, notice=res.notice,
                               start_snap_m=sc.get("start_snap_m", 0.0), end_snap_m=sc.get("end_snap_m", 0.0),
                               reported_miles=o.distance_miles,
-                              road_cap_pct=15.0)
+                              road_cap_pct=_road_cap(sc))
         out["options"].append({"name": o.name, "miles": o.distance_miles, "ok": chk["ok"], "failed": chk["failed"],
                                "retrace": chk["C5"]["retrace"], "road_pct": chk["C7"]["road_pct"],
                                "offset_m": chk["C4"]["offset_m"], "dist_err": chk["C6"]["dist_err"],
@@ -79,7 +85,7 @@ def summarize(results: List[Dict[str, Any]]) -> Dict[str, Any]:
     return {"all": agg(results), "by_kind": {k: agg([r for r in results if r["kind"] == k]) for k in kinds}}
 
 
-def write_report(path_base: str, results: List[Dict[str, Any]], label: str) -> None:
+def write_report(path_base: str, results: List[Dict[str, Any]], label: str, baseline_json: Optional[str] = None) -> None:
     summ = summarize(results)
     with open(path_base + ".json", "w", encoding="utf-8") as fh:
         json.dump({"label": label, "summary": summ, "results": results}, fh, indent=1)
@@ -106,11 +112,24 @@ def write_report(path_base: str, results: List[Dict[str, Any]], label: str) -> N
         L.append(f"| {r['id']} | {len(opts)} | {sum(o['ok'] for o in opts)} | "
                  + (", ".join(f"{k}x{v}" for k, v in sorted(fails.items())) or "-")
                  + f" | {rt if rt is not None else '-'} | {miles} | {r['latency_s']} | {note} |")
+    if baseline_json:
+        base = json.load(open(baseline_json))["summary"]
+        L += ["", f"## Before / after (before = {os.path.basename(baseline_json)}, same scenarios)", "",
+              "Options passing each rule, as passed / returned. `ok` = every rule.", "",
+              "| kind | options before | options after | ok before | ok after | " + " | ".join(f"{r} b/a" for r in RULES) + " | p95 s b/a |",
+              "|---|---|---|---|---|" + "---|" * len(RULES) + "---|"]
+        for k in list(summ["by_kind"]) + ["all"]:
+            a = summ["all"] if k == "all" else summ["by_kind"][k]
+            b = base["all"] if k == "all" else base["by_kind"].get(k)
+            if not b:
+                continue
+            L.append(f"| {'**all**' if k == 'all' else k} | {b['options']} | {a['options']} | {b['options_ok']} | {a['options_ok']} | "
+                     + " | ".join(f"{b[r]}/{a[r]}" for r in RULES) + f" | {b['p95_s']}/{a['p95_s']} |")
     with open(path_base + ".md", "w", encoding="utf-8") as fh:
         fh.write("\n".join(L) + "\n")
 
 
-def main(out: str, only: Optional[str] = None, label: str = "") -> int:
+def main(out: str, only: Optional[str] = None, label: str = "", baseline: Optional[str] = None) -> int:
     scs = json.load(open(SCENARIOS))["scenarios"]
     if only:
         scs = [s for s in scs if only in s["id"]]
@@ -120,6 +139,6 @@ def main(out: str, only: Optional[str] = None, label: str = "") -> int:
         results.append(r)
         print(f"{sc['id']}: {len(r['options'])} opts, {sum(o['ok'] for o in r['options'])} ok, {r['latency_s']}s"
               + (f"  ERR {r['error'][:80]}" if r["error"] else ""), flush=True)
-    write_report(out, results, label or "midpoint benchmark")
+    write_report(out, results, label or "midpoint benchmark", baseline)
     print(f"wrote {out}.json/.md")
     return 0

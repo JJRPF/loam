@@ -75,24 +75,12 @@ def test_several_vias_bulge_away_from_the_centroid():
             assert math.hypot(xy(d)[0] - cx, xy(d)[1] - cy) > math.hypot(mid[0] - cx, mid[1] - cy)
 
 
-def test_detours_grow_when_the_target_needs_more_distance():
-    via = ll(0.0, 1000.0)
-    def h(target):
-        pts = via_loop_specs(START, [via], target)[1][0]
-        return abs(xy(pts[1])[0])
-    assert h(15 * 1609.344) > h(3 * 1609.344)
-
-
-def test_detours_follow_the_measured_plain_length():
+def test_detours_come_in_a_ladder_of_heights():
     via = ll(0.0, 2000.0)
-    target = 10 * 1609.344
-
-    def height(base):
-        pts = via_loop_specs(START, [via], target, base)[1][0]
-        return abs(xy(pts[1])[0])
-
-    assert height(4000.0) > height(target * 1.5)          # short plain loop: bigger detours
-    assert height(target * 1.5) <= 0.12 * 2000.0 + 1.0     # already long: only the minimum bend
+    specs = via_loop_specs(START, [via])
+    heights = sorted({round(abs(xy(p[1])[0]), -1) for p, l in specs[1:] if l.startswith("arc") and "mirrored" not in l})
+    assert len(heights) == len(routing.VIA_ARC_HEIGHTS)
+    assert heights[0] < heights[-1] and heights[-1] <= 0.4 * 2000.0 + 10
 
 
 def test_via_at_the_start_does_not_blow_up():
@@ -145,3 +133,12 @@ async def test_off_network_midpoint_is_a_clear_error(monkeypatch):
     monkeypatch.setattr(httpx.AsyncClient, "get", fake_get)
     with pytest.raises(MidpointError, match="Midpoint 2 is 652 m from the nearest way"):
         await routing._check_vias_on_network([START, (43.5, -71.7)])
+
+
+def test_passes_vias_takes_a_tolerance_per_midpoint():
+    route = _line([-71.50, 43.13], [-71.49, 43.13])
+    near = (43.13 + 0.0004, -71.495)   # ~44 m off the route
+    assert routing.passes_vias(route, [near])                    # default: the 150 m hard bound
+    assert routing.passes_vias(route, [near], [60.0])
+    assert not routing.passes_vias(route, [near], [30.0])        # snap + slack of a closer midpoint
+    assert not routing.passes_vias(route, [near, near], [200.0, 30.0])

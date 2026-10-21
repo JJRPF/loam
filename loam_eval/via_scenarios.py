@@ -125,25 +125,44 @@ def _meta(tp: Dict[str, Any]) -> Dict[str, Any]:
 SCALES = (1.0, 0.8, 0.65, 0.5, 0.4, 0.3)
 
 
-def plain_via_miles(sc: Dict[str, Any]) -> Optional[float]:
-    """Length of start -> midpoints -> start on the real network, routed with the engine's own GraphHopper
-    profile and custom model (what the engine's plain 'Via Loop' candidate is)."""
-    import httpx
-    from app.config import settings
-    from app.routing import _query_gh, build_custom_model, get_gh_profile
-    from loam_eval.via_run import _request
+def plain_route(sc: Dict[str, Any]):
+    """(miles, coordinates) of start -> midpoints -> end (the start again for a loop) routed with the
+    engine's own GraphHopper profile and custom model, or None. This is the engine's plain 'Via Loop'."""
     import asyncio
+    import httpx
+    from app.routing import _query_gh, build_custom_model, decode_points, get_gh_profile
+    from loam_eval.via_run import _request
     req = _request(sc)
-    pts = [tuple(sc["start"])] + [tuple(w) for w in sc["waypoints"]] + [tuple(sc["start"])]
+    end = tuple(sc["end"]) if sc.get("end") else tuple(sc["start"])
+    pts = [tuple(sc["start"])] + [tuple(w) for w in sc["waypoints"]] + [end]
 
     async def go():
         async with httpx.AsyncClient(timeout=20.0) as c:
             return await _query_gh(c, pts, get_gh_profile(req.profile), build_custom_model(req))
     r = asyncio.run(go())
     try:
-        return round(r.json()["paths"][0]["distance"] / 1609.344, 2) if r is not None and r.status_code == 200 else None
+        if r is None or r.status_code != 200:
+            return None
+        path = r.json()["paths"][0]
+        return round(path["distance"] / 1609.344, 2), decode_points(path.get("points", {}))
     except Exception:
         return None
+
+
+ROAD_CAP = 15.0   # the engine's road cap (percent), what C7 checks
+
+
+def _road_pct(coords, miles: float) -> float:
+    from loam_eval.real import evaluate_option
+    r = evaluate_option([list(c) for c in coords], miles).get("road_pct")
+    return 100.0 if r is None else r
+
+
+def profile_snaps(sc: Dict[str, Any], coords) -> List[float]:
+    """How close the plain route passes each midpoint: the snap distance on the network the profile can
+    actually ride (a trail the profile refuses is not reachable, whatever the OSM table says)."""
+    from app.route_builder import haversine_m
+    return [round(min(haversine_m(c, [lon, lat]) for c in coords), 1) for lat, lon in sc["waypoints"]]
 
 
 def build() -> Dict[str, Any]:
@@ -166,11 +185,15 @@ def build() -> Dict[str, Any]:
             sc["end"] = [e["lat"], e["lon"]]
             sc["end_osm"] = e["parking_osm"]
             sc["end_snap_m"] = endpoint_snap(e["lat"], e["lon"])
+        res = plain_route(sc) if vias else None
+        if res:  # snap on the network the profile can ride, not the OSM table's
+            for m, d in zip(sc["via_meta"], profile_snaps(sc, res[1])):
+                m["db_snap_m"], m["snap_m"] = m.get("snap_m"), d
         scs.append(sc)
 
     def feasible(th: str, miles: float, make) -> Optional[Tuple[List[Dict[str, Any]], float, float]]:
-        """Largest scale at which make(scale) midpoints give a plain loop of at most 1.1x the target and at
-        least 0.4x: a scenario the engine can satisfy by construction. (vias, scale, plain loop miles)."""
+        """Largest scale at which make(scale) midpoints give a plain loop of 0.6-1.1x the target, within the
+        road cap, passing every midpoint on the network the profile can ride: a scenario the engine can satisfy by construction. (vias, scale, plain loop miles)."""
         t = ths[key[th]]
         for sc_ in SCALES:
             vs = make(sc_)
@@ -178,8 +201,12 @@ def build() -> Dict[str, Any]:
                 continue
             probe = {"start": [t["lat"], t["lon"]], "name": t["name"], "profile": PROFILE, "mode": "loop", "miles": miles,
                      "waypoints": [v["point"] for v in vs]}
-            L = plain_via_miles(probe)
-            if L is not None and 0.4 * miles <= L <= 1.1 * miles:
+            res = plain_route(probe)
+            if res is None:
+                continue
+            L, coords = res
+            if 0.6 * miles <= L <= 1.1 * miles and max(profile_snaps(probe, coords)) <= 150.0 \
+                    and _road_pct(coords, miles) <= ROAD_CAP:
                 return vs, sc_, L
         return None
 
