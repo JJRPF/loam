@@ -24,6 +24,45 @@ from app.db import ensure_user_exists  # noqa: E402
 from app.main import app  # noqa: E402
 from app.migrations import apply_migrations  # noqa: E402
 
+def _graphhopper_up() -> bool:
+    import httpx
+
+    try:
+        return httpx.get(f"{settings.graphhopper_url}/health", timeout=2).status_code == 200
+    except Exception:
+        return False
+
+
+def _osm_graph_imported() -> bool:
+    try:
+        from app.db import get_connection
+
+        with get_connection() as conn, conn.cursor() as cur:
+            cur.execute("SELECT EXISTS (SELECT 1 FROM trail_segments)")
+            return bool(cur.fetchone()[0])
+    except Exception:
+        return False
+
+
+# CI has no OSM extract, so no GraphHopper graph and no imported trail network. The checks run at
+# test setup (after the migrations), not at import.
+requires_graphhopper = pytest.mark.requires_graphhopper
+requires_osm_graph = pytest.mark.requires_osm_graph
+
+
+def pytest_configure(config):
+    config.addinivalue_line("markers", "requires_graphhopper: skipped when GraphHopper is not running")
+    config.addinivalue_line("markers", "requires_osm_graph: skipped when the OSM trail network is not imported")
+
+
+@pytest.fixture(autouse=True)
+def _skip_without_live_stack(request, _migrated_db):
+    if request.node.get_closest_marker("requires_graphhopper") and not _graphhopper_up():
+        pytest.skip("GraphHopper is not running")
+    if request.node.get_closest_marker("requires_osm_graph") and not _osm_graph_imported():
+        pytest.skip("OSM trail network not imported (python -m scripts.import_osm_graph)")
+
+
 TEST_USER_HEADER = "X-Test-User"
 TEST_ADMIN_HEADER = "X-Test-Admin"
 

@@ -2,7 +2,9 @@ import pytest
 from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.routing import classify_surface
+from tests.conftest import requires_graphhopper
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_health_endpoint():
     transport = ASGITransport(app=app)
@@ -16,6 +18,7 @@ async def test_health_endpoint():
         assert data["graphhopper"] is True
         assert data["postgis"] is True
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_calculate_route_endpoint():
     transport = ASGITransport(app=app)

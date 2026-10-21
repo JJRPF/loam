@@ -16,6 +16,7 @@ from app.scoring import (
     get_sector_info
 )
 from app.routing import generate_route_options
+from tests.conftest import requires_graphhopper
 
 @pytest.mark.asyncio
 async def test_scoring_formula_weights():
@@ -154,6 +155,7 @@ def test_sector_info():
     assert code_270 == "W"
     assert "Q4" in q_270
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_route_options_endpoint_bear_brook():
     """
@@ -200,6 +202,7 @@ async def test_route_options_endpoint_bear_brook():
         # Multi-quadrant / sector diversity: at least 3 distinct compass directions
         assert len(sectors_seen) >= 3
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_route_options_streaming_endpoint():
     """Validates SSE streaming endpoint POST /api/route/options/stream."""
@@ -222,6 +225,7 @@ async def test_route_options_streaming_endpoint():
         candidate_count = body_text.count("event: candidate")
         assert 1 <= candidate_count <= 10
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_route_options_highland_mountain():
     """Options from a public OSM trailhead (Oak Hill City Forest parking, way/848156793).

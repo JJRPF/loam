@@ -14,6 +14,7 @@ from httpx import AsyncClient, ASGITransport
 from app.main import app
 from app.db import get_connection, record_edge_heat
 from app.gpx_export import build_gpx_track
+from tests.conftest import requires_graphhopper
 
 @pytest.fixture(autouse=True)
 def clean_e2e_test_data():
@@ -42,6 +43,7 @@ def clean_e2e_test_data():
         pass
 
 
+@requires_graphhopper
 @pytest.mark.asyncio
 async def test_full_e2e_acceptance_lifecycle():
     transport = ASGITransport(app=app)
