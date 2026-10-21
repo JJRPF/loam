@@ -80,7 +80,41 @@ def issue_title(route: Dict[str, Any], request: Dict[str, Any]) -> str:
     return f"In-app feedback: bad route — {_route_name(route)} ({dist} mi {shape}, {sport})"
 
 
+def no_search_request(route: Dict[str, Any], source: str, waypoints: Optional[list] = None) -> Dict[str, Any]:
+    """Stand-in for the search settings when they are unknown (a saved or shared route)."""
+    return {"search_unavailable": True, "report_source": source, "profile": route.get("sport"),
+            "waypoints": waypoints or []}
+
+
+def saved_route_snapshot(saved_id: str, user_id: str):
+    """(route, request) built from the rider's own saved_routes row; (None, None) if it is missing or
+    someone else's. The client's geometry is never used here."""
+    from app.db import get_saved_route_by_id
+    row = get_saved_route_by_id(saved_id, user_id=user_id)
+    if not row:
+        return None, None
+    summary = row.get("surface_summary") or {}
+    route = {"id": str(row["id"]), "name": row.get("name"), "sport": row.get("sport"),
+             "distance_miles": row.get("distance_miles"), "elevation_gain_ft": row.get("elevation_gain_ft"),
+             "elevation_loss_ft": row.get("elevation_loss_ft"), "surface_breakdown": row.get("surface_breakdown") or {},
+             "surface_strip": row.get("surface_strip") or [], "coordinates": row.get("coordinates") or [],
+             "verbal_summary": row.get("verbal_summary"), "source": "saved"}
+    wps = row.get("waypoints") or []
+    return route, no_search_request(route, "saved", wps if isinstance(wps, list) else [])
+
+
+SOURCE_LINES = {"saved": "saved route", "shared": "shared link", "other": "route opened outside a search"}
+
+
 def _inputs(request: Dict[str, Any]) -> List[str]:
+    if request.get("search_unavailable"):
+        mids = request.get("waypoints") or []
+        return [
+            f"- Reported from: {SOURCE_LINES.get(request.get('report_source'), 'saved route')} (search settings unavailable)",
+            f"- sport: {request.get('profile')}",
+            f"- midpoints: {len(mids)}",
+            "- start, end and midpoint coordinates are withheld",
+        ]
     mids = request.get("waypoints") or []
     terrain = request.get("terrain_preference")
     return [

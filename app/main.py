@@ -681,8 +681,16 @@ async def report_bad_route(
     if await asyncio.to_thread(reports.count_recent_global) >= settings.report_daily_limit_global:
         raise HTTPException(status_code=429, detail="Loam has reached its daily limit for reports. Please try again tomorrow.",
                             headers={"Retry-After": "3600"})
-    request = body.request.model_dump(mode="json")
-    route = body.route.model_dump(mode="json")
+    if body.saved_route_id:
+        route, request = await asyncio.to_thread(reports.saved_route_snapshot, body.saved_route_id, user.uid)
+        if route is None:
+            raise HTTPException(status_code=404, detail="Saved route not found.")
+        source = "saved"
+    else:
+        route = body.route.model_dump(mode="json")
+        request = body.request.model_dump(mode="json") if body.request else reports.no_search_request(route, body.source)
+        source = body.source
+    request["report_source"] = source
     rid = await asyncio.to_thread(reports.store_report, user.uid, body.comment.strip(), request, route, body.options)
     stored = await asyncio.to_thread(reports.get_report, rid)
     filed = await asyncio.to_thread(reports.file_issue, stored)

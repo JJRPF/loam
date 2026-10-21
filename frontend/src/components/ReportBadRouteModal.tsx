@@ -9,10 +9,12 @@ interface Props {
   route: RouteResponse;
   options: RouteResponse[];
   request: Record<string, unknown> | null;
+  source?: 'search' | 'saved' | 'shared' | 'other';
+  savedRouteId?: string;
   onClose: () => void;
 }
 
-export const ReportBadRouteModal: React.FC<Props> = ({ route, options, request, onClose }) => {
+export const ReportBadRouteModal: React.FC<Props> = ({ route, options, request, source, savedRouteId, onClose }) => {
   const [comment, setComment] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -20,11 +22,14 @@ export const ReportBadRouteModal: React.FC<Props> = ({ route, options, request, 
   const valid = comment.trim().length >= 10 && comment.trim().length <= 2000;
 
   const submit = async () => {
-    if (!valid || !request) return;
+    if (!valid) return;
     setBusy(true);
     setError(null);
     try {
-      setResult(await submitBadRouteReport(comment.trim(), request, route, options));
+      setResult(await submitBadRouteReport(comment.trim(), request, route, options, {
+        source: savedRouteId ? 'saved' : request ? 'search' : (source ?? 'other'),
+        savedRouteId
+      }));
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not send the report.');
     } finally {
@@ -72,12 +77,14 @@ export const ReportBadRouteModal: React.FC<Props> = ({ route, options, request, 
               <a href="/legal/privacy/#reports" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</a>
             </div>
             {!request && (
-              <div style={{ fontSize: 12, color: '#B3261E' }}>Search again to report this route.</div>
+              <div style={{ fontSize: 12, color: 'var(--color-text-secondary, #42675E)' }}>
+                Sent without the search settings, since this route was saved earlier.
+              </div>
             )}
             {error && <div role="alert" style={{ fontSize: 12, color: '#B3261E' }}>{error}</div>}
             <div style={{ display: 'flex', gap: 8 }}>
               <button type="button" className="btn-secondary" onClick={onClose} style={{ flex: 1, minHeight: 36 }}>Cancel</button>
-              <button type="button" className="btn-primary" onClick={submit} disabled={!valid || busy || !request} style={{ flex: 1, minHeight: 36 }}>
+              <button type="button" className="btn-primary" onClick={submit} disabled={!valid || busy} style={{ flex: 1, minHeight: 36 }}>
                 {busy ? 'Sending...' : 'Submit report'}
               </button>
             </div>

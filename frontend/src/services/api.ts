@@ -568,17 +568,21 @@ export interface BadRouteReportResult {
 /** Files a "bad route" report. The server trims the route line before it goes into the GitHub issue. */
 export async function submitBadRouteReport(
   comment: string,
-  request: Record<string, unknown>,
+  request: Record<string, unknown> | null,
   route: RouteResponse,
-  options: RouteResponse[]
+  options: RouteResponse[],
+  origin: { source?: 'search' | 'saved' | 'shared' | 'other'; savedRouteId?: string } = {}
 ): Promise<BadRouteReportResult> {
   const res = await authedFetch(`${API_BASE}/api/reports/bad-route`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       comment,
-      request,
-      route,
+      request: request ?? undefined,
+      // A saved route is loaded by the server from the rider's own copy, so no geometry is sent.
+      route: origin.savedRouteId ? undefined : route,
+      source: origin.source ?? 'search',
+      saved_route_id: origin.savedRouteId,
       options: options.slice(0, 25).map((o) => ({
         id: o.id, name: o.name, distance_miles: o.distance_miles, route_type: o.route_type, match_score: o.match_score
       }))
@@ -586,6 +590,7 @@ export async function submitBadRouteReport(
   });
   if (res.status === 429) throw await rateLimitError(res);
   if (res.status === 401) throw new Error('Sign in to report a route.');
+  if (res.status === 404) throw new Error('That saved route no longer exists.');
   if (!res.ok) throw new Error(`Could not send the report (${res.status}).`);
   return await res.json();
 }
