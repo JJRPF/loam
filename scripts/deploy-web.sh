@@ -7,12 +7,14 @@
 #
 # The Firebase project `thepfisters` is shared with other apps: this script never deploys Firestore rules or
 # indexes, Functions or Storage (firebase.json has only a "hosting" block, and the command says --only hosting).
+# HOSTING_TARGET (default prod; staging is the loamstaging site) picks the .firebaserc target; CI sets it too.
 # First time: log in once with   npx --yes firebase-tools@15.33.0 login
 # ==============================================================================
 
 set -euo pipefail
 
 FIREBASE_TOOLS_VERSION="15.33.0"
+HOSTING_TARGET="${HOSTING_TARGET:-prod}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 die() { echo "ERROR: $*" >&2; exit 1; }
@@ -33,6 +35,6 @@ grep -q "${VITE_API_BASE#https://}" "${ROOT}/frontend/dist/assets/"*.js \
 
 echo "[3/3] Deploying to Firebase Hosting (hosting only)..."
 cd "${ROOT}"
-npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --only hosting --project thepfisters
+npx --yes "firebase-tools@${FIREBASE_TOOLS_VERSION}" deploy --only hosting:${HOSTING_TARGET} --project thepfisters
 
 echo "Done: ${VITE_PUBLIC_APP_ORIGIN}"

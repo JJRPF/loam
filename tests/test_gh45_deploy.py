@@ -146,3 +146,46 @@ async def test_staging_sends_noindex_and_robots(monkeypatch):
         assert r.headers["x-robots-tag"] == "noindex, nofollow"
         robots = await c.get("/robots.txt")
     assert robots.status_code == 200 and "Disallow: /" in robots.text
+
+
+# --- Firebase Hosting: prod and staging sites ----------------------------------------------------------------
+from pathlib import Path  # noqa: E402
+
+ROOT = Path(__file__).resolve().parent.parent
+
+
+def _hosting():
+    cfg = json.loads((ROOT / "firebase.json").read_text())["hosting"]
+    return {h["target"]: h for h in cfg}
+
+
+def _header(h, key):
+    return next(x["value"] for b in h["headers"] for x in b["headers"] if x["key"] == key)
+
+
+def test_hosting_has_a_prod_and_a_staging_target():
+    hosting = _hosting()
+    assert set(hosting) == {"prod", "staging"}
+    targets = json.loads((ROOT / ".firebaserc").read_text())["targets"]["thepfisters"]["hosting"]
+    assert targets == {"prod": ["thepfisters"], "staging": ["loamstaging"]}
+
+
+def test_staging_csp_allows_only_the_staging_api():
+    prod, staging = _hosting()["prod"], _hosting()["staging"]
+    assert "https://core-node.tailcd5892.ts.net:8443" not in _header(prod, "Content-Security-Policy")
+    s_csp = _header(staging, "Content-Security-Policy")
+    assert "connect-src 'self' https://core-node.tailcd5892.ts.net:8443 " in s_csp
+    assert "https://core-node.tailcd5892.ts.net " not in s_csp
+    # the rest of the policy is the same
+    assert s_csp.replace(":8443", "") == _header(prod, "Content-Security-Policy")
+
+
+def test_only_staging_sends_noindex():
+    assert _header(_hosting()["staging"], "X-Robots-Tag") == "noindex, nofollow"
+    with pytest.raises(StopIteration):
+        _header(_hosting()["prod"], "X-Robots-Tag")
+
+
+def test_deploy_web_is_hosting_only_and_never_both_sites():
+    s = (ROOT / "scripts" / "deploy-web.sh").read_text()
+    assert "--only hosting:${HOSTING_TARGET}" in s and "--only hosting " not in s
