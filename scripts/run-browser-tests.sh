@@ -8,4 +8,6 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 "${ROOT}/scripts/browser-test-build.sh"
 cd "${ROOT}/frontend"
+# tests/browser sits beside frontend/, so its imports (@playwright/test) resolve from frontend/node_modules
+export NODE_PATH="${ROOT}/frontend/node_modules${NODE_PATH:+:${NODE_PATH}}"
 exec node_modules/.bin/playwright test -c ../tests/browser/playwright.config.ts "$@"

@@ -1,0 +1,4449 @@
+{
+ "label": "baseline: main's routing code (57957fe), before any routing change",
+ "summary": {
+  "all": {
+   "scenarios": 37,
+   "options": 158,
+   "no_options": 6,
+   "errors": 0,
+   "options_ok": 65,
+   "C1": 158,
+   "C2": 154,
+   "C3": 153,
+   "C4": 158,
+   "C5": 112,
+   "C6": 108,
+   "C7": 122,
+   "C8": 151,
+   "p50_s": 2.9,
+   "p95_s": 10.0
+  },
+  "by_kind": {
+   "adversarial": {
+    "scenarios": 6,
+    "options": 14,
+    "no_options": 4,
+    "errors": 0,
+    "options_ok": 4,
+    "C1": 14,
+    "C2": 14,
+    "C3": 14,
+    "C4": 14,
+    "C5": 14,
+    "C6": 8,
+    "C7": 8,
+    "C8": 7,
+    "p50_s": 2.4,
+    "p95_s": 3.8
+   },
+   "one_via": {
+    "scenarios": 11,
+    "options": 63,
+    "no_options": 1,
+    "errors": 0,
+    "options_ok": 18,
+    "C1": 63,
+    "C2": 61,
+    "C3": 61,
+    "C4": 63,
+    "C5": 29,
+    "C6": 35,
+    "C7": 52,
+    "C8": 63,
+    "p50_s": 3.1,
+    "p95_s": 5.9
+   },
+   "p2p_one_via": {
+    "scenarios": 2,
+    "options": 10,
+    "no_options": 0,
+    "errors": 0,
+    "options_ok": 1,
+    "C1": 10,
+    "C2": 10,
+    "C3": 10,
+    "C4": 10,
+    "C5": 10,
+    "C6": 8,
+    "C7": 1,
+    "C8": 10,
+    "p50_s": 1.4,
+    "p95_s": 1.9
+   },
+   "p2p_two_vias": {
+    "scenarios": 2,
+    "options": 2,
+    "no_options": 1,
+    "errors": 0,
+    "options_ok": 0,
+    "C1": 2,
+    "C2": 2,
+    "C3": 2,
+    "C4": 2,
+    "C5": 2,
+    "C6": 1,
+    "C7": 0,
+    "C8": 2,
+    "p50_s": 1.0,
+    "p95_s": 1.5
+   },
+   "plain_loop": {
+    "scenarios": 7,
+    "options": 49,
+    "no_options": 0,
+    "errors": 0,
+    "options_ok": 39,
+    "C1": 49,
+    "C2": 49,
+    "C3": 49,
+    "C4": 49,
+    "C5": 49,
+    "C6": 45,
+    "C7": 41,
+    "C8": 49,
+    "p50_s": 8.1,
+    "p95_s": 12.9
+   },
+   "three_vias": {
+    "scenarios": 1,
+    "options": 1,
+    "no_options": 0,
+    "errors": 0,
+    "options_ok": 0,
+    "C1": 1,
+    "C2": 1,
+    "C3": 1,
+    "C4": 1,
+    "C5": 0,
+    "C6": 1,
+    "C7": 1,
+    "C8": 1,
+    "p50_s": 2.9,
+    "p95_s": 2.9
+   },
+   "two_vias": {
+    "scenarios": 4,
+    "options": 9,
+    "no_options": 0,
+    "errors": 0,
+    "options_ok": 1,
+    "C1": 9,
+    "C2": 8,
+    "C3": 7,
+    "C4": 9,
+    "C5": 4,
+    "C6": 5,
+    "C7": 9,
+    "C8": 9,
+    "p50_s": 2.9,
+    "p95_s": 3.8
+   },
+   "two_vias_reversed": {
+    "scenarios": 4,
+    "options": 10,
+    "no_options": 0,
+    "errors": 0,
+    "options_ok": 2,
+    "C1": 10,
+    "C2": 9,
+    "C3": 9,
+    "C4": 10,
+    "C5": 4,
+    "C6": 5,
+    "C7": 10,
+    "C8": 10,
+    "p50_s": 2.5,
+    "p95_s": 2.7
+   }
+  }
+ },
+ "results": [
+  {
+   "id": "v1_bear_brook_5mi_b135",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 1.0,
+    "plain_via_miles": 3.35
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Loop",
+     "miles": 4.7,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.044,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.06,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Broken Boulder Trail Loop",
+     "miles": 4.74,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 13.1,
+     "offset_m": 0.0,
+     "dist_err": 0.052,
+     "approach_m": [
+      4.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Loop",
+     "miles": 5.36,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.086,
+     "road_pct": 0.7,
+     "offset_m": 0.0,
+     "dist_err": 0.072,
+     "approach_m": [
+      4.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Loop",
+     "miles": 4.66,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.044,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.068,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Lollipop Loop",
+     "miles": 5.6,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.115,
+     "road_pct": 1.1,
+     "offset_m": 0.0,
+     "dist_err": 0.12,
+     "approach_m": [
+      4.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Lollipop Loop",
+     "miles": 6.97,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.194,
+     "road_pct": 28.1,
+     "offset_m": 0.4,
+     "dist_err": 0.394,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 1.83
+  },
+  {
+   "id": "v1_bear_brook_5mi_b315",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 1.0,
+    "plain_via_miles": 3.69
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Loop",
+     "miles": 5.47,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 0.9,
+     "offset_m": 0.0,
+     "dist_err": 0.094,
+     "approach_m": [
+      14.9
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Lane Trail Loop",
+     "miles": 5.23,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.05,
+     "road_pct": 1.8,
+     "offset_m": 0.0,
+     "dist_err": 0.046,
+     "approach_m": [
+      14.9
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Lane Trail Lollipop Loop",
+     "miles": 5.0,
+     "ok": false,
+     "failed": [
+      "C2",
+      "C3"
+     ],
+     "retrace": 0.148,
+     "road_pct": 1.6,
+     "offset_m": 0.0,
+     "dist_err": 0.0,
+     "approach_m": [
+      119.8
+     ],
+     "checks": {
+      "C1": true,
+      "C2": false,
+      "C3": false,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Lane Trail Lollipop Loop",
+     "miles": 4.56,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.162,
+     "road_pct": 1.9,
+     "offset_m": 0.0,
+     "dist_err": 0.088,
+     "approach_m": [
+      14.9
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Lane Trail Out-and-Back",
+     "miles": 4.65,
+     "ok": false,
+     "failed": [
+      "C2",
+      "C3"
+     ],
+     "retrace": 0.224,
+     "road_pct": 1.9,
+     "offset_m": 0.0,
+     "dist_err": 0.07,
+     "approach_m": [
+      119.8
+     ],
+     "checks": {
+      "C1": true,
+      "C2": false,
+      "C3": false,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Out-and-Back",
+     "miles": 5.49,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.209,
+     "road_pct": 9.6,
+     "offset_m": 0.0,
+     "dist_err": 0.098,
+     "approach_m": [
+      14.9
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 3.69,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.3,
+     "offset_m": 0.5,
+     "dist_err": 0.262,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 6.18,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 11.2,
+     "offset_m": 0.5,
+     "dist_err": 0.236,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 3.69,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.3,
+     "offset_m": 0.5,
+     "dist_err": 0.262,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 6.46,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 14.9,
+     "offset_m": 0.5,
+     "dist_err": 0.292,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 1.47
+  },
+  {
+   "id": "v1_bear_brook_10mi_b135",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 1.0,
+    "plain_via_miles": 8.81
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 10.02,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.071,
+     "road_pct": 1.2,
+     "offset_m": 0.0,
+     "dist_err": 0.002,
+     "approach_m": [
+      7.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Loop",
+     "miles": 9.68,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.039,
+     "road_pct": 4.4,
+     "offset_m": 0.0,
+     "dist_err": 0.032,
+     "approach_m": [
+      7.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 10.2,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.064,
+     "road_pct": 7.0,
+     "offset_m": 0.0,
+     "dist_err": 0.02,
+     "approach_m": [
+      7.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Loop",
+     "miles": 10.21,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.088,
+     "road_pct": 9.8,
+     "offset_m": 0.0,
+     "dist_err": 0.021,
+     "approach_m": [
+      7.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Loop",
+     "miles": 9.98,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 1.4,
+     "offset_m": 0.4,
+     "dist_err": 0.002,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 11.17,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.031,
+     "road_pct": 2.1,
+     "offset_m": 0.0,
+     "dist_err": 0.117,
+     "approach_m": [
+      7.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Out-and-Back",
+     "miles": 8.81,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.2,
+     "offset_m": 0.4,
+     "dist_err": 0.119,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Out-and-Back",
+     "miles": 8.9,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.2,
+     "offset_m": 0.4,
+     "dist_err": 0.11,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Out-and-Back",
+     "miles": 11.61,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.425,
+     "road_pct": 14.3,
+     "offset_m": 0.4,
+     "dist_err": 0.161,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 4.35
+  },
+  {
+   "id": "v1_bear_brook_10mi_b225",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.65,
+    "plain_via_miles": 9.64
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 9.64,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.1,
+     "offset_m": 0.5,
+     "dist_err": 0.036,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 10.05,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.1,
+     "offset_m": 0.5,
+     "dist_err": 0.005,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Out-and-Back",
+     "miles": 10.75,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.3,
+     "road_pct": 0.1,
+     "offset_m": 0.5,
+     "dist_err": 0.075,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 11.22,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.4,
+     "offset_m": 0.5,
+     "dist_err": 0.122,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 4 routes match; try a different start or distance. Start 0.3 mi away at Podunk Road for a true loop.",
+   "latency_s": 1.73
+  },
+  {
+   "id": "v1_bear_brook_10mi_b315",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 1.0,
+    "plain_via_miles": 7.32
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Lollipop Loop",
+     "miles": 8.43,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.129,
+     "road_pct": 29.9,
+     "offset_m": 0.5,
+     "dist_err": 0.157,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 7.32,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.1,
+     "offset_m": 0.5,
+     "dist_err": 0.268,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 9.55,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C7"
+     ],
+     "retrace": 0.5,
+     "road_pct": 17.9,
+     "offset_m": 0.5,
+     "dist_err": 0.045,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 10.99,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C7"
+     ],
+     "retrace": 0.303,
+     "road_pct": 25.8,
+     "offset_m": 0.5,
+     "dist_err": 0.099,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Out-and-Back",
+     "miles": 12.78,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.5,
+     "road_pct": 37.1,
+     "offset_m": 0.7,
+     "dist_err": 0.278,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 2.25
+  },
+  {
+   "id": "v1_bear_brook_15mi_b135",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.8,
+    "plain_via_miles": 10.0
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 13.14,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.025,
+     "road_pct": 17.4,
+     "offset_m": 0.0,
+     "dist_err": 0.124,
+     "approach_m": [
+      11.9
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Loop",
+     "miles": 12.43,
+     "ok": false,
+     "failed": [
+      "C6"
+     ],
+     "retrace": 0.091,
+     "road_pct": 1.0,
+     "offset_m": 0.4,
+     "dist_err": 0.171,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Out-and-Back",
+     "miles": 12.52,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.431,
+     "road_pct": 12.2,
+     "offset_m": 0.4,
+     "dist_err": 0.165,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Out-and-Back",
+     "miles": 10.0,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 2.4,
+     "offset_m": 0.4,
+     "dist_err": 0.333,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 4 routes match; try a different start or distance.",
+   "latency_s": 3.62
+  },
+  {
+   "id": "v1_bear_brook_15mi_b225",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 1.0,
+    "plain_via_miles": 15.27
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Chester Turnpike Loop",
+     "miles": 21.4,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.0,
+     "road_pct": 16.6,
+     "offset_m": 0.5,
+     "dist_err": 0.427,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 15.23,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.33,
+     "road_pct": 0.1,
+     "offset_m": 0.5,
+     "dist_err": 0.015,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Out-and-Back",
+     "miles": 15.27,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.018,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Out-and-Back",
+     "miles": 15.41,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.027,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Out-and-Back",
+     "miles": 20.48,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 5.5,
+     "offset_m": 0.6,
+     "dist_err": 0.365,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Out-and-Back",
+     "miles": 19.35,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 2.4,
+     "offset_m": 0.5,
+     "dist_err": 0.29,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Out-and-Back",
+     "miles": 20.75,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 3.9,
+     "offset_m": 0.5,
+     "dist_err": 0.383,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Lost Trail Out-and-Back",
+     "miles": 20.5,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.395,
+     "road_pct": 2.3,
+     "offset_m": 0.5,
+     "dist_err": 0.367,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Out-and-Back",
+     "miles": 22.25,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 14.1,
+     "offset_m": 0.6,
+     "dist_err": 0.483,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 3.06
+  },
+  {
+   "id": "v1_bear_brook_15mi_b315",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 1.0,
+    "plain_via_miles": 12.29
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Chester Turnpike Loop",
+     "miles": 21.27,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.0,
+     "road_pct": 17.0,
+     "offset_m": 0.5,
+     "dist_err": 0.418,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Seventh Range Road Lollipop Loop",
+     "miles": 17.81,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.141,
+     "road_pct": 20.7,
+     "offset_m": 0.9,
+     "dist_err": 0.187,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 2 routes match; try a different start or distance.",
+   "latency_s": 2.87
+  },
+  {
+   "id": "v1_bow_10mi_b135",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.65,
+    "plain_via_miles": 8.29
+   },
+   "options": [],
+   "error": null,
+   "notice": "Only 0 routes match; try a different start or distance. Start 1.8 mi away at Single Circuit for a true loop.",
+   "latency_s": 4.62
+  },
+  {
+   "id": "v1_bow_10mi_b225",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.5,
+    "plain_via_miles": 10.92
+   },
+   "options": [
+    {
+     "name": "Bow Town Forest parking \u2014 Powerlines Trail Loop",
+     "miles": 11.11,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.02,
+     "road_pct": 1.1,
+     "offset_m": 0.7,
+     "dist_err": 0.111,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Single Circuit Out-and-Back",
+     "miles": 11.69,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.449,
+     "road_pct": 1.7,
+     "offset_m": 0.5,
+     "dist_err": 0.169,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Single Circuit Out-and-Back",
+     "miles": 13.99,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.498,
+     "road_pct": 2.6,
+     "offset_m": 0.5,
+     "dist_err": 0.399,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Single Circuit Out-and-Back",
+     "miles": 11.75,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.474,
+     "road_pct": 13.1,
+     "offset_m": 0.5,
+     "dist_err": 0.175,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 4 routes match; try a different start or distance.",
+   "latency_s": 3.6
+  },
+  {
+   "id": "v1_knox_10mi_b135",
+   "kind": "one_via",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 1.0,
+    "plain_via_miles": 7.21
+   },
+   "options": [
+    {
+     "name": "Knox Town Forest parking \u2014 Mossy Loop",
+     "miles": 10.21,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.007,
+     "road_pct": 13.1,
+     "offset_m": 0.0,
+     "dist_err": 0.021,
+     "approach_m": [
+      19.5
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Boulder Loop",
+     "miles": 9.39,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.007,
+     "road_pct": 14.0,
+     "offset_m": 0.0,
+     "dist_err": 0.061,
+     "approach_m": [
+      19.5
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Robertson Loop",
+     "miles": 10.58,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.076,
+     "road_pct": 25.7,
+     "offset_m": 0.0,
+     "dist_err": 0.058,
+     "approach_m": [
+      19.5
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 School Forest Loop",
+     "miles": 11.25,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.054,
+     "road_pct": 21.4,
+     "offset_m": 0.0,
+     "dist_err": 0.125,
+     "approach_m": [
+      19.5
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Snowmobile trail Out-and-Back",
+     "miles": 9.5,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.5,
+     "road_pct": 4.1,
+     "offset_m": 0.5,
+     "dist_err": 0.05,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Branch Londonderry Turnpike Out-and-Back",
+     "miles": 11.52,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 2.9,
+     "offset_m": 0.5,
+     "dist_err": 0.152,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Branch Londonderry Turnpike Out-and-Back",
+     "miles": 12.07,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 7.1,
+     "offset_m": 0.5,
+     "dist_err": 0.207,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Robertson Out-and-Back",
+     "miles": 7.21,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 2.0,
+     "offset_m": 0.5,
+     "dist_err": 0.279,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 G track Connector Out-and-Back",
+     "miles": 13.08,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 4.4,
+     "offset_m": 0.5,
+     "dist_err": 0.308,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 G track Connector Out-and-Back",
+     "miles": 13.04,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 1.3,
+     "offset_m": 0.5,
+     "dist_err": 0.304,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 5.93
+  },
+  {
+   "id": "v2_bear_brook_10mi_b30",
+   "kind": "two_vias",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.5,
+    "plain_via_miles": 6.32
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Hemlock Trail Loop",
+     "miles": 10.62,
+     "ok": false,
+     "failed": [
+      "C2",
+      "C3"
+     ],
+     "retrace": 0.044,
+     "road_pct": 4.6,
+     "offset_m": 0.0,
+     "dist_err": 0.062,
+     "approach_m": [
+      121.4,
+      16.3
+     ],
+     "checks": {
+      "C1": true,
+      "C2": false,
+      "C3": false,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Carr Ridge Trail Loop",
+     "miles": 11.34,
+     "ok": false,
+     "failed": [
+      "C3"
+     ],
+     "retrace": 0.073,
+     "road_pct": 8.9,
+     "offset_m": 0.0,
+     "dist_err": 0.134,
+     "approach_m": [
+      0.3,
+      16.3
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": false,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Little Bear Trail Lollipop Loop",
+     "miles": 8.48,
+     "ok": false,
+     "failed": [
+      "C6"
+     ],
+     "retrace": 0.19,
+     "road_pct": 0.1,
+     "offset_m": 0.5,
+     "dist_err": 0.152,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 12.35,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.44,
+     "road_pct": 0.2,
+     "offset_m": 0.4,
+     "dist_err": 0.235,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 4 routes match; try a different start or distance.",
+   "latency_s": 2.81
+  },
+  {
+   "id": "v2r_bear_brook_10mi_b30",
+   "kind": "two_vias_reversed",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.5,
+    "plain_via_miles": 6.32
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Hemlock Trail Loop",
+     "miles": 10.62,
+     "ok": false,
+     "failed": [
+      "C2",
+      "C3"
+     ],
+     "retrace": 0.044,
+     "road_pct": 4.6,
+     "offset_m": 0.0,
+     "dist_err": 0.062,
+     "approach_m": [
+      16.3,
+      121.4
+     ],
+     "checks": {
+      "C1": true,
+      "C2": false,
+      "C3": false,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Carr Ridge Trail Loop",
+     "miles": 11.34,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.073,
+     "road_pct": 8.9,
+     "offset_m": 0.0,
+     "dist_err": 0.134,
+     "approach_m": [
+      16.3,
+      0.3
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Little Bear Trail Lollipop Loop",
+     "miles": 8.48,
+     "ok": false,
+     "failed": [
+      "C6"
+     ],
+     "retrace": 0.19,
+     "road_pct": 0.1,
+     "offset_m": 0.5,
+     "dist_err": 0.152,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 12.35,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.44,
+     "road_pct": 0.2,
+     "offset_m": 0.4,
+     "dist_err": 0.235,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 4 routes match; try a different start or distance.",
+   "latency_s": 2.42
+  },
+  {
+   "id": "v2_bear_brook_10mi_b150",
+   "kind": "two_vias",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.3,
+    "plain_via_miles": 8.32
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Lowland Trail Out-and-Back",
+     "miles": 10.29,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.237,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.029,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 8.31,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.396,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.169,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 2 routes match; try a different start or distance. Start 0.3 mi away at Podunk Road for a true loop.",
+   "latency_s": 1.83
+  },
+  {
+   "id": "v2r_bear_brook_10mi_b150",
+   "kind": "two_vias_reversed",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.3,
+    "plain_via_miles": 8.32
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Lowland Trail Out-and-Back",
+     "miles": 10.29,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.237,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.029,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Out-and-Back",
+     "miles": 8.31,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.396,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.169,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 2 routes match; try a different start or distance. Start 0.3 mi away at Podunk Road for a true loop.",
+   "latency_s": 1.69
+  },
+  {
+   "id": "v2_knox_10mi_b30",
+   "kind": "two_vias",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.5,
+    "plain_via_miles": 7.09
+   },
+   "options": [
+    {
+     "name": "Knox Town Forest parking \u2014 Robertson Out-and-Back",
+     "miles": 10.22,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.425,
+     "road_pct": 2.2,
+     "offset_m": 0.5,
+     "dist_err": 0.022,
+     "approach_m": [
+      30.8,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Single Circuit Out-and-Back",
+     "miles": 9.05,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.491,
+     "road_pct": 2.1,
+     "offset_m": 0.4,
+     "dist_err": 0.095,
+     "approach_m": [
+      30.8,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 2 routes match; try a different start or distance. Start 0.5 mi away at Pond Trail for a true loop.",
+   "latency_s": 2.94
+  },
+  {
+   "id": "v2r_knox_10mi_b30",
+   "kind": "two_vias_reversed",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.5,
+    "plain_via_miles": 7.09
+   },
+   "options": [
+    {
+     "name": "Knox Town Forest parking \u2014 Robertson Out-and-Back",
+     "miles": 10.26,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.429,
+     "road_pct": 2.2,
+     "offset_m": 0.5,
+     "dist_err": 0.026,
+     "approach_m": [
+      0.0,
+      30.8
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Single Circuit Out-and-Back",
+     "miles": 9.09,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.497,
+     "road_pct": 2.1,
+     "offset_m": 0.4,
+     "dist_err": 0.091,
+     "approach_m": [
+      0.0,
+      30.8
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Robertson Out-and-Back",
+     "miles": 7.13,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 2.7,
+     "offset_m": 0.4,
+     "dist_err": 0.287,
+     "approach_m": [
+      0.0,
+      30.8
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 3 routes match; try a different start or distance. Start 0.5 mi away at Pond Trail for a true loop.",
+   "latency_s": 2.61
+  },
+  {
+   "id": "v2_oak_hill_10mi_b30",
+   "kind": "two_vias",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.4,
+    "plain_via_miles": 7.87
+   },
+   "options": [
+    {
+     "name": "Oak Hill City Forest parking \u2014 Knowlton Trail Out-and-Back",
+     "miles": 7.87,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.35,
+     "road_pct": 12.5,
+     "offset_m": 0.5,
+     "dist_err": 0.213,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 1 route match; try a different start or distance.",
+   "latency_s": 3.76
+  },
+  {
+   "id": "v2r_oak_hill_10mi_b30",
+   "kind": "two_vias_reversed",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.4,
+    "plain_via_miles": 7.87
+   },
+   "options": [
+    {
+     "name": "Oak Hill City Forest parking \u2014 Knowlton Trail Out-and-Back",
+     "miles": 7.87,
+     "ok": false,
+     "failed": [
+      "C5",
+      "C6"
+     ],
+     "retrace": 0.35,
+     "road_pct": 12.5,
+     "offset_m": 0.5,
+     "dist_err": 0.213,
+     "approach_m": [
+      0.0,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 1 route match; try a different start or distance.",
+   "latency_s": 2.74
+  },
+  {
+   "id": "v3_knox_10mi",
+   "kind": "three_vias",
+   "expect": {
+    "outcome": "ok",
+    "via_scale": 0.5,
+    "plain_via_miles": 6.9
+   },
+   "options": [
+    {
+     "name": "Knox Town Forest parking \u2014 Pond Trail Out-and-Back",
+     "miles": 9.91,
+     "ok": false,
+     "failed": [
+      "C5"
+     ],
+     "retrace": 0.643,
+     "road_pct": 5.9,
+     "offset_m": 0.4,
+     "dist_err": 0.009,
+     "approach_m": [
+      30.8,
+      0.0,
+      0.1
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": false,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 1 route match; try a different start or distance. Start 0.5 mi away at Pond Trail for a true loop.",
+   "latency_s": 2.92
+  },
+  {
+   "id": "adv_dead_end_bear_brook",
+   "kind": "adversarial",
+   "expect": {
+    "outcome": "notice",
+    "dead_end_vias": [
+     0
+    ],
+    "note": "only way to the midpoint is a spur; the route may ride it twice but the notice must say so"
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Loop",
+     "miles": 11.67,
+     "ok": false,
+     "failed": [
+      "C6"
+     ],
+     "retrace": 0.044,
+     "road_pct": 1.0,
+     "offset_m": 0.4,
+     "dist_err": 0.167,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Out-and-Back",
+     "miles": 8.17,
+     "ok": false,
+     "failed": [
+      "C6"
+     ],
+     "retrace": 0.24,
+     "road_pct": 0.1,
+     "offset_m": 0.4,
+     "dist_err": 0.183,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Out-and-Back",
+     "miles": 9.23,
+     "ok": false,
+     "failed": [
+      "C8"
+     ],
+     "retrace": 0.406,
+     "road_pct": 8.4,
+     "offset_m": 0.4,
+     "dist_err": 0.077,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": false
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Pitch Pine Trail Out-and-Back",
+     "miles": 6.34,
+     "ok": false,
+     "failed": [
+      "C8",
+      "C6"
+     ],
+     "retrace": 0.5,
+     "road_pct": 0.2,
+     "offset_m": 0.4,
+     "dist_err": 0.366,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": false
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Pitch Pine Trail Out-and-Back",
+     "miles": 9.54,
+     "ok": false,
+     "failed": [
+      "C8",
+      "C7"
+     ],
+     "retrace": 0.485,
+     "road_pct": 26.6,
+     "offset_m": 0.5,
+     "dist_err": 0.046,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": false
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Pitch Pine Trail Out-and-Back",
+     "miles": 9.4,
+     "ok": false,
+     "failed": [
+      "C8",
+      "C7"
+     ],
+     "retrace": 0.5,
+     "road_pct": 25.7,
+     "offset_m": 0.5,
+     "dist_err": 0.06,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": false
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Dowst Road Out-and-Back",
+     "miles": 12.21,
+     "ok": false,
+     "failed": [
+      "C8",
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.5,
+     "road_pct": 20.2,
+     "offset_m": 0.5,
+     "dist_err": 0.221,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": false
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Dowst Road Out-and-Back",
+     "miles": 11.98,
+     "ok": false,
+     "failed": [
+      "C8",
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.5,
+     "road_pct": 24.7,
+     "offset_m": 0.5,
+     "dist_err": 0.198,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": false
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Pitch Pine Trail Out-and-Back",
+     "miles": 12.78,
+     "ok": false,
+     "failed": [
+      "C8",
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.498,
+     "road_pct": 27.9,
+     "offset_m": 0.5,
+     "dist_err": 0.278,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": false
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 2.62
+  },
+  {
+   "id": "adv_paved_via_bear_brook",
+   "kind": "adversarial",
+   "expect": {
+    "outcome": "ok_or_notice",
+    "note": "a midpoint on a road: route passes it, within the road cap, or says why not"
+   },
+   "options": [],
+   "error": null,
+   "notice": "Only 0 routes match; try a different start or distance. Start 0.3 mi away at Podunk Road for a true loop.",
+   "latency_s": 2.21
+  },
+  {
+   "id": "adv_far_via_bear_brook",
+   "kind": "adversarial",
+   "expect": {
+    "outcome": "notice_or_error",
+    "note": "midpoint ~4 mi straight-line from the start with a 5 mi target: a round trip cannot fit. Decision: return the route with a notice that the distance is longer than the target, or a clear error; never a route that skips the midpoint"
+   },
+   "options": [],
+   "error": null,
+   "notice": "Only 0 routes match; try a different start or distance. Start 0.3 mi away at Podunk Road for a true loop.",
+   "latency_s": 0.45
+  },
+  {
+   "id": "adv_off_network_franklin",
+   "kind": "adversarial",
+   "expect": {
+    "outcome": "error",
+    "note": "no routable way within 500 m: a clear error, no fabricated line"
+   },
+   "options": [],
+   "error": null,
+   "notice": "Only 0 routes match; try a different start or distance.",
+   "latency_s": 2.13
+  },
+  {
+   "id": "adv_two_vias_50m_bow",
+   "kind": "adversarial",
+   "expect": {
+    "outcome": "ok",
+    "note": "two midpoints ~50 m apart: both visited in order"
+   },
+   "options": [],
+   "error": null,
+   "notice": "Only 0 routes match; try a different start or distance. Start 1.8 mi away at Single Circuit for a true loop.",
+   "latency_s": 3.84
+  },
+  {
+   "id": "adv_via_at_start_bow",
+   "kind": "adversarial",
+   "expect": {
+    "outcome": "ok_or_error",
+    "note": "a midpoint at the start itself: a normal loop, or a clear message"
+   },
+   "options": [
+    {
+     "name": "Bow Town Forest parking \u2014 Boulder Lollipop Loop",
+     "miles": 9.73,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.182,
+     "road_pct": 12.8,
+     "offset_m": 0.0,
+     "dist_err": 0.027,
+     "approach_m": [
+      79.1
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Single Circuit Lollipop Loop",
+     "miles": 10.61,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.167,
+     "road_pct": 12.1,
+     "offset_m": 0.0,
+     "dist_err": 0.061,
+     "approach_m": [
+      79.1
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Single Circuit Lollipop Loop",
+     "miles": 9.86,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.18,
+     "road_pct": 14.7,
+     "offset_m": 0.0,
+     "dist_err": 0.014,
+     "approach_m": [
+      79.1
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Mossy Lollipop Loop",
+     "miles": 10.95,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.162,
+     "road_pct": 16.2,
+     "offset_m": 0.0,
+     "dist_err": 0.095,
+     "approach_m": [
+      79.1
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Mossy Lollipop Loop",
+     "miles": 9.16,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.194,
+     "road_pct": 12.9,
+     "offset_m": 0.0,
+     "dist_err": 0.084,
+     "approach_m": [
+      79.1
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 3.39
+  },
+  {
+   "id": "p2p1_bow_knox",
+   "kind": "p2p_one_via",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Bow Town Forest parking \u2014 Robertson Route",
+     "miles": 4.9,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.021,
+     "road_pct": 0.0,
+     "offset_m": 0.4,
+     "dist_err": 0.089,
+     "approach_m": [
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 1 route match; try a different start or distance.",
+   "latency_s": 0.87
+  },
+  {
+   "id": "p2p2_bow_knox",
+   "kind": "p2p_two_vias",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [],
+   "error": null,
+   "notice": "Only 0 routes match; try a different start or distance.",
+   "latency_s": 0.43
+  },
+  {
+   "id": "p2p1_knox_white_park",
+   "kind": "p2p_one_via",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Knox Town Forest parking \u2014 West Overlook Corridor",
+     "miles": 5.16,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.021,
+     "road_pct": 58.7,
+     "offset_m": 0.8,
+     "dist_err": 0.032,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 West Overlook Corridor",
+     "miles": 4.87,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.009,
+     "road_pct": 33.0,
+     "offset_m": 0.7,
+     "dist_err": 0.026,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 East Valley Corridor",
+     "miles": 5.25,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.053,
+     "road_pct": 33.0,
+     "offset_m": 0.5,
+     "dist_err": 0.05,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 West Overlook Corridor",
+     "miles": 5.99,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.0,
+     "road_pct": 61.9,
+     "offset_m": 0.7,
+     "dist_err": 0.198,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 West Overlook Corridor",
+     "miles": 5.8,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.056,
+     "road_pct": 33.0,
+     "offset_m": 0.8,
+     "dist_err": 0.16,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 West Overlook Corridor",
+     "miles": 4.84,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.017,
+     "road_pct": 33.0,
+     "offset_m": 0.8,
+     "dist_err": 0.032,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 East Valley Corridor",
+     "miles": 4.49,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.004,
+     "road_pct": 33.0,
+     "offset_m": 0.7,
+     "dist_err": 0.102,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 East Valley Corridor",
+     "miles": 4.57,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.0,
+     "road_pct": 33.0,
+     "offset_m": 0.7,
+     "dist_err": 0.086,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 East Valley Corridor",
+     "miles": 5.71,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.048,
+     "road_pct": 33.0,
+     "offset_m": 0.7,
+     "dist_err": 0.142,
+     "approach_m": [
+      0.2
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 1.91
+  },
+  {
+   "id": "p2p2_knox_white_park",
+   "kind": "p2p_two_vias",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Knox Town Forest parking \u2014 West Overlook Corridor",
+     "miles": 5.69,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.125,
+     "road_pct": 34.0,
+     "offset_m": 0.7,
+     "dist_err": 0.138,
+     "approach_m": [
+      0.1,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "Knox Town Forest parking \u2014 Pond Trail Route",
+     "miles": 6.03,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.008,
+     "road_pct": 76.1,
+     "offset_m": 0.7,
+     "dist_err": 0.206,
+     "approach_m": [
+      0.1,
+      0.0
+     ],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 2 routes match; try a different start or distance.",
+   "latency_s": 1.51
+  },
+  {
+   "id": "plain_bear_brook_10mi",
+   "kind": "plain_loop",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 10.02,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.071,
+     "road_pct": 1.2,
+     "offset_m": 0.0,
+     "dist_err": 0.002,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Loop",
+     "miles": 10.49,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.036,
+     "road_pct": 0.9,
+     "offset_m": 0.0,
+     "dist_err": 0.049,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Loop",
+     "miles": 9.68,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.039,
+     "road_pct": 4.4,
+     "offset_m": 0.0,
+     "dist_err": 0.032,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Ferret Trail Loop",
+     "miles": 10.55,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 0.1,
+     "offset_m": 0.0,
+     "dist_err": 0.055,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 10.2,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.064,
+     "road_pct": 7.0,
+     "offset_m": 0.0,
+     "dist_err": 0.02,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 9.91,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.066,
+     "road_pct": 6.1,
+     "offset_m": 0.0,
+     "dist_err": 0.009,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Loop",
+     "miles": 9.36,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.07,
+     "road_pct": 2.7,
+     "offset_m": 0.0,
+     "dist_err": 0.064,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Carr Ridge Trail Loop",
+     "miles": 10.64,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.072,
+     "road_pct": 0.8,
+     "offset_m": 0.0,
+     "dist_err": 0.064,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Loop",
+     "miles": 10.21,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.088,
+     "road_pct": 9.8,
+     "offset_m": 0.0,
+     "dist_err": 0.021,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Bobcat Trail Loop",
+     "miles": 9.85,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 4.2,
+     "offset_m": 0.0,
+     "dist_err": 0.015,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 6.38
+  },
+  {
+   "id": "plain_bow_10mi",
+   "kind": "plain_loop",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Bow Town Forest parking \u2014 Powerlines Trail Loop",
+     "miles": 10.74,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.003,
+     "road_pct": 1.2,
+     "offset_m": 0.7,
+     "dist_err": 0.074,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Mossy Lollipop Loop",
+     "miles": 9.66,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.184,
+     "road_pct": 8.3,
+     "offset_m": 0.0,
+     "dist_err": 0.034,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Single Circuit Lollipop Loop",
+     "miles": 9.66,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.184,
+     "road_pct": 8.8,
+     "offset_m": 0.0,
+     "dist_err": 0.034,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Mossy Lollipop Loop",
+     "miles": 10.04,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.177,
+     "road_pct": 13.7,
+     "offset_m": 0.0,
+     "dist_err": 0.004,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Boulder Lollipop Loop",
+     "miles": 9.73,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.182,
+     "road_pct": 12.8,
+     "offset_m": 0.0,
+     "dist_err": 0.027,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Single Circuit Lollipop Loop",
+     "miles": 9.89,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.179,
+     "road_pct": 12.8,
+     "offset_m": 0.0,
+     "dist_err": 0.011,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bow Town Forest parking \u2014 Mossy Lollipop Loop",
+     "miles": 9.16,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.194,
+     "road_pct": 12.9,
+     "offset_m": 0.0,
+     "dist_err": 0.084,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 6.32
+  },
+  {
+   "id": "plain_knox_10mi",
+   "kind": "plain_loop",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Knox Town Forest parking \u2014 Boulder Loop",
+     "miles": 7.6,
+     "ok": false,
+     "failed": [
+      "C6"
+     ],
+     "retrace": 0.087,
+     "road_pct": 10.1,
+     "offset_m": 0.0,
+     "dist_err": 0.24,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 1 route match; try a different start or distance.",
+   "latency_s": 9.99
+  },
+  {
+   "id": "plain_oak_hill_10mi",
+   "kind": "plain_loop",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Oak Hill City Forest parking \u2014 Tower Trail Lollipop Loop",
+     "miles": 8.91,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.138,
+     "road_pct": 13.2,
+     "offset_m": 0.0,
+     "dist_err": 0.109,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": "Only 1 route match; try a different start or distance. Start 1.0 mi away at Tower Trail for a true loop.",
+   "latency_s": 8.07
+  },
+  {
+   "id": "plain_white_park_10mi",
+   "kind": "plain_loop",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "White Park parking \u2014 Swope Winant Connector Trail Loop",
+     "miles": 9.9,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.001,
+     "road_pct": 12.8,
+     "offset_m": 0.7,
+     "dist_err": 0.01,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 Swope Winant Connector Trail Loop",
+     "miles": 8.96,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.001,
+     "road_pct": 32.8,
+     "offset_m": 0.7,
+     "dist_err": 0.104,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 Howard C. Nowell Trail Loop",
+     "miles": 10.55,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.042,
+     "road_pct": 32.3,
+     "offset_m": 0.8,
+     "dist_err": 0.055,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 Concord-Lake Sunapee Trail Loop",
+     "miles": 14.16,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.014,
+     "road_pct": 22.3,
+     "offset_m": 0.7,
+     "dist_err": 0.416,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 Pond Loop",
+     "miles": 9.84,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.007,
+     "road_pct": 37.9,
+     "offset_m": 0.8,
+     "dist_err": 0.016,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 Swope Winant Connector Trail Loop",
+     "miles": 11.81,
+     "ok": false,
+     "failed": [
+      "C6"
+     ],
+     "retrace": 0.001,
+     "road_pct": 2.1,
+     "offset_m": 0.6,
+     "dist_err": 0.181,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 South-Southeast Loop",
+     "miles": 9.47,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.001,
+     "road_pct": 74.4,
+     "offset_m": 0.7,
+     "dist_err": 0.053,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 Sand Road Loop",
+     "miles": 9.6,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.0,
+     "road_pct": 83.5,
+     "offset_m": 0.6,
+     "dist_err": 0.04,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 Beacon Hill Road Loop",
+     "miles": 10.96,
+     "ok": false,
+     "failed": [
+      "C7"
+     ],
+     "retrace": 0.015,
+     "road_pct": 88.9,
+     "offset_m": 0.6,
+     "dist_err": 0.096,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": false,
+      "C8": true
+     }
+    },
+    {
+     "name": "White Park parking \u2014 East-Southeast Loop",
+     "miles": 5.32,
+     "ok": false,
+     "failed": [
+      "C6",
+      "C7"
+     ],
+     "retrace": 0.022,
+     "road_pct": 100.0,
+     "offset_m": 0.6,
+     "dist_err": 0.468,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": false,
+      "C7": false,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 8.67
+  },
+  {
+   "id": "plain_bear_brook_5mi",
+   "kind": "plain_loop",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Loop",
+     "miles": 5.22,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 0.2,
+     "offset_m": 0.0,
+     "dist_err": 0.044,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Squirrel Trail Loop",
+     "miles": 4.39,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.075,
+     "road_pct": 0.8,
+     "offset_m": 0.0,
+     "dist_err": 0.122,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 4.86,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 4.2,
+     "offset_m": 0.0,
+     "dist_err": 0.028,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Squirrel Trail Loop",
+     "miles": 4.71,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.07,
+     "road_pct": 1.7,
+     "offset_m": 0.0,
+     "dist_err": 0.058,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Carr Ridge Trail Loop",
+     "miles": 4.53,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.073,
+     "road_pct": 0.0,
+     "offset_m": 0.0,
+     "dist_err": 0.094,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 5.2,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.072,
+     "road_pct": 0.7,
+     "offset_m": 0.0,
+     "dist_err": 0.04,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Loop",
+     "miles": 5.47,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.0,
+     "road_pct": 0.9,
+     "offset_m": 0.0,
+     "dist_err": 0.094,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Lane Trail Loop",
+     "miles": 5.23,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.05,
+     "road_pct": 1.8,
+     "offset_m": 0.0,
+     "dist_err": 0.046,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 5.28,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.062,
+     "road_pct": 1.6,
+     "offset_m": 0.0,
+     "dist_err": 0.056,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Sentinel Pine Trail Loop",
+     "miles": 4.86,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.012,
+     "road_pct": 0.6,
+     "offset_m": 0.5,
+     "dist_err": 0.028,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 4.64
+  },
+  {
+   "id": "plain_bear_brook_15mi",
+   "kind": "plain_loop",
+   "expect": {
+    "outcome": "ok"
+   },
+   "options": [
+    {
+     "name": "Bear Brook State Park parking \u2014 Spruce Pond Road Loop",
+     "miles": 15.63,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.042,
+     "road_pct": 5.0,
+     "offset_m": 0.0,
+     "dist_err": 0.042,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 15.5,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.057,
+     "road_pct": 1.6,
+     "offset_m": 0.0,
+     "dist_err": 0.033,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Camp Trail Loop",
+     "miles": 15.34,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.048,
+     "road_pct": 3.4,
+     "offset_m": 0.0,
+     "dist_err": 0.023,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 13.7,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.056,
+     "road_pct": 5.2,
+     "offset_m": 0.0,
+     "dist_err": 0.087,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 14.02,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.047,
+     "road_pct": 5.1,
+     "offset_m": 0.0,
+     "dist_err": 0.065,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 13.31,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.049,
+     "road_pct": 0.1,
+     "offset_m": 0.0,
+     "dist_err": 0.113,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Chipmunk Trail Loop",
+     "miles": 14.3,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.046,
+     "road_pct": 8.8,
+     "offset_m": 0.0,
+     "dist_err": 0.047,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 16.09,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.083,
+     "road_pct": 4.2,
+     "offset_m": 0.0,
+     "dist_err": 0.073,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 16.54,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.087,
+     "road_pct": 4.1,
+     "offset_m": 0.0,
+     "dist_err": 0.103,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    },
+    {
+     "name": "Bear Brook State Park parking \u2014 Podunk Road Loop",
+     "miles": 16.01,
+     "ok": true,
+     "failed": [],
+     "retrace": 0.077,
+     "road_pct": 7.9,
+     "offset_m": 0.0,
+     "dist_err": 0.067,
+     "approach_m": [],
+     "checks": {
+      "C1": true,
+      "C2": true,
+      "C3": true,
+      "C4": true,
+      "C5": true,
+      "C6": true,
+      "C7": true,
+      "C8": true
+     }
+    }
+   ],
+   "error": null,
+   "notice": null,
+   "latency_s": 12.91
+  }
+ ]
+}

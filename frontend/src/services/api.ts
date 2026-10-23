@@ -12,7 +12,8 @@ import type {
   TrailSubmission,
   UnriddenTrailItem,
   ConnectorStatus,
-  GeocodeResult
+  GeocodeResult,
+  SurfaceSegment
 } from '../types';
 
 
@@ -568,17 +569,21 @@ export interface BadRouteReportResult {
 /** Files a "bad route" report. The server trims the route line before it goes into the GitHub issue. */
 export async function submitBadRouteReport(
   comment: string,
-  request: Record<string, unknown>,
+  request: Record<string, unknown> | null,
   route: RouteResponse,
-  options: RouteResponse[]
+  options: RouteResponse[],
+  origin: { source?: 'search' | 'saved' | 'shared' | 'other'; savedRouteId?: string } = {}
 ): Promise<BadRouteReportResult> {
   const res = await authedFetch(`${API_BASE}/api/reports/bad-route`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       comment,
-      request,
-      route,
+      request: request ?? undefined,
+      // A saved route is loaded by the server from the rider's own copy, so no geometry is sent.
+      route: origin.savedRouteId ? undefined : route,
+      source: origin.source ?? 'search',
+      saved_route_id: origin.savedRouteId,
       options: options.slice(0, 25).map((o) => ({
         id: o.id, name: o.name, distance_miles: o.distance_miles, route_type: o.route_type, match_score: o.match_score
       }))
@@ -586,6 +591,7 @@ export async function submitBadRouteReport(
   });
   if (res.status === 429) throw await rateLimitError(res);
   if (res.status === 401) throw new Error('Sign in to report a route.');
+  if (res.status === 404) throw new Error('That saved route no longer exists.');
   if (!res.ok) throw new Error(`Could not send the report (${res.status}).`);
   return await res.json();
 }
@@ -1148,4 +1154,205 @@ export async function fetchMyNetwork(lat: number, lon: number): Promise<NetworkS
   } catch {
     return null;
   }
+}
+
+// --- Shared routes and friends (GH-42) ---------------------------------------------------------------
+// Only planned routes are shared, never rides. Owner endpoints need sign-in; /api/shared/<token> does not.
+
+export interface SharedRoute {
+  id?: number;               // friends' routes only
+  name: string;
+  sport: string;
+  distance_miles: number | null;
+  elevation_gain_ft: number | null;
+  elevation_loss_ft: number | null;
+  coordinates: number[][];
+  surface_breakdown: Record<string, number>;
+  surface_strip: SurfaceSegment[];
+  trimmed: boolean;
+  shared_by: string;
+  shared_at: string;
+}
+
+export interface FriendRouteSummary {
+  id: number;
+  name: string;
+  sport: string;
+  distance_miles: number | null;
+  elevation_gain_ft: number | null;
+  elevation_loss_ft: number | null;
+  trimmed: boolean;
+  shared_by: string;
+  shared_at: string;
+}
+
+export interface FriendEntry { id: number; name: string; since: string }
+export interface InviteEntry { id: number; created_at: string; expires_at: string }
+export interface ShareInfo { route_id: string; mode: 'link' | 'friends'; name: string; trimmed: boolean; shared_at: string; view_count: number; last_viewed_at: string | null }
+
+/** The server's message for a failed sharing call (its `detail` is friendly), or a 429 as RateLimitError. */
+async function sharingError(res: Response, fallback: string): Promise<Error> {
+  if (res.status === 429) return rateLimitError(res);
+  try {
+    const body = await res.json();
+    if (typeof body?.detail === 'string') return new Error(body.detail);
+  } catch {
+    // not JSON
+  }
+  return new Error(`${fallback} (${res.status})`);
+}
+
+export class LinkGoneError extends Error {
+  constructor() {
+    super('This link no longer works.');
+    this.name = 'LinkGoneError';
+  }
+}
+
+export async function previewShare(routeId: string): Promise<{ zone_overlap: boolean }> {
+  const res = await authedFetch(`${API_BASE}/api/saved-routes/${routeId}/share/preview`);
+  if (!res.ok) throw await sharingError(res, 'Could not check this route');
+  return res.json();
+}
+
+export async function shareSavedRoute(routeId: string, mode: 'link' | 'friends', trim: boolean): Promise<{ mode: string; trimmed: boolean; url?: string; path?: string }> {
+  const res = await authedFetch(`${API_BASE}/api/saved-routes/${routeId}/share`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, trim })
+  });
+  if (!res.ok) throw await sharingError(res, 'Sharing failed');
+  const out = await res.json();
+  // the server may know a public origin the browser does not (a dev server); the browser's own origin wins
+  if (out.path) out.url = `${window.location.origin}${out.path}`;
+  return out;
+}
+
+export async function revokeSavedRouteShare(routeId: string): Promise<void> {
+  const res = await authedFetch(`${API_BASE}/api/saved-routes/${routeId}/share`, { method: 'DELETE' });
+  if (!res.ok) throw await sharingError(res, 'Could not stop sharing');
+}
+
+export async function listMyShares(): Promise<ShareInfo[]> {
+  const res = await authedFetch(`${API_BASE}/api/me/shares`);
+  if (!res.ok) throw await sharingError(res, 'Could not load your shares');
+  return (await res.json()).shares;
+}
+
+export async function getShareProfile(): Promise<{ share_display_name: string | null; default_share_display_name: string }> {
+  const res = await authedFetch(`${API_BASE}/api/me/profile`);
+  if (!res.ok) throw await sharingError(res, 'Could not load your sharing name');
+  return res.json();
+}
+
+export async function saveShareDisplayName(name: string): Promise<string | null> {
+  const res = await authedFetch(`${API_BASE}/api/me/profile`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ share_display_name: name })
+  });
+  if (!res.ok) throw await sharingError(res, 'Could not save your sharing name');
+  return (await res.json()).share_display_name;
+}
+
+/** Signed out is fine. Anything that is not a live link (unknown, revoked, deleted) is a LinkGoneError. */
+export async function fetchSharedRoute(token: string): Promise<SharedRoute> {
+  const res = await fetch(`${API_BASE}/api/shared/${encodeURIComponent(token)}`);
+  if (res.status === 404) throw new LinkGoneError();
+  if (!res.ok) throw await sharingError(res, 'Could not open this route');
+  return res.json();
+}
+
+async function downloadFrom(url: string, authed: boolean, filename: string): Promise<void> {
+  const res = authed ? await authedFetch(url) : await fetch(url);
+  if (res.status === 404) throw new LinkGoneError();
+  if (!res.ok) throw await sharingError(res, 'Download failed');
+  triggerDownload(await res.blob(), filename);
+}
+
+const slug = (name: string) => (name || 'loam_route').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'loam_route';
+
+export function downloadSharedRoute(token: string, fmt: 'gpx' | 'fit', name: string): Promise<void> {
+  return downloadFrom(`${API_BASE}/api/shared/${encodeURIComponent(token)}/export/${fmt}`, false, `${slug(name)}.${fmt}`);
+}
+
+export function downloadFriendRoute(id: number, fmt: 'gpx' | 'fit', name: string): Promise<void> {
+  return downloadFrom(`${API_BASE}/api/friends/routes/${id}/export/${fmt}`, true, `${slug(name)}.${fmt}`);
+}
+
+export async function copySharedRoute(token: string): Promise<string> {
+  const res = await authedFetch(`${API_BASE}/api/shared/${encodeURIComponent(token)}/copy`, { method: 'POST' });
+  if (res.status === 404) throw new LinkGoneError();
+  if (!res.ok) throw await sharingError(res, 'Could not copy this route');
+  return (await res.json()).id;
+}
+
+export async function copyFriendRoute(id: number): Promise<string> {
+  const res = await authedFetch(`${API_BASE}/api/friends/routes/${id}/copy`, { method: 'POST' });
+  if (!res.ok) throw await sharingError(res, 'Could not copy this route');
+  return (await res.json()).id;
+}
+
+export async function listFriends(): Promise<{ friends: FriendEntry[]; blocked: FriendEntry[] }> {
+  const res = await authedFetch(`${API_BASE}/api/friends`);
+  if (!res.ok) throw await sharingError(res, 'Could not load your friends');
+  return res.json();
+}
+
+export async function listFriendRoutes(): Promise<FriendRouteSummary[]> {
+  const res = await authedFetch(`${API_BASE}/api/friends/routes`);
+  if (res.status === 401) return [];
+  if (!res.ok) throw await sharingError(res, 'Could not load routes shared with you');
+  return (await res.json()).routes;
+}
+
+export async function fetchFriendRoute(id: number): Promise<SharedRoute> {
+  const res = await authedFetch(`${API_BASE}/api/friends/routes/${id}`);
+  if (!res.ok) throw await sharingError(res, 'Could not open this route');
+  return res.json();
+}
+
+export async function createFriendInvite(): Promise<{ id: number; url: string; expires_at: string }> {
+  const res = await authedFetch(`${API_BASE}/api/friends/invites`, { method: 'POST' });
+  if (!res.ok) throw await sharingError(res, 'Could not make an invite');
+  const out = await res.json();
+  return { id: out.id, url: `${window.location.origin}${out.path}`, expires_at: out.expires_at };
+}
+
+export async function listFriendInvites(): Promise<InviteEntry[]> {
+  const res = await authedFetch(`${API_BASE}/api/friends/invites`);
+  if (!res.ok) throw await sharingError(res, 'Could not load your invites');
+  return (await res.json()).invites;
+}
+
+export async function cancelFriendInvite(id: number): Promise<void> {
+  const res = await authedFetch(`${API_BASE}/api/friends/invites/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw await sharingError(res, 'Could not cancel the invite');
+}
+
+export async function lookAtInvite(token: string): Promise<{ inviter_name: string }> {
+  const res = await authedFetch(`${API_BASE}/api/friends/invites/${encodeURIComponent(token)}`);
+  if (!res.ok) throw await sharingError(res, 'This invite doesn\'t work');
+  return res.json();
+}
+
+export async function acceptInvite(token: string): Promise<{ friend_name: string }> {
+  const res = await authedFetch(`${API_BASE}/api/friends/invites/${encodeURIComponent(token)}/accept`, { method: 'POST' });
+  if (!res.ok) throw await sharingError(res, 'Could not accept the invite');
+  return res.json();
+}
+
+export async function removeFriend(id: number): Promise<void> {
+  const res = await authedFetch(`${API_BASE}/api/friends/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw await sharingError(res, 'Could not remove this friend');
+}
+
+export async function blockFriend(id: number): Promise<void> {
+  const res = await authedFetch(`${API_BASE}/api/friends/${id}/block`, { method: 'POST' });
+  if (!res.ok) throw await sharingError(res, 'Could not block this person');
+}
+
+export async function unblockFriend(id: number): Promise<void> {
+  const res = await authedFetch(`${API_BASE}/api/friends/blocks/${id}`, { method: 'DELETE' });
+  if (!res.ok) throw await sharingError(res, 'Could not unblock this person');
 }

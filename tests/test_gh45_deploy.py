@@ -181,9 +181,14 @@ def test_staging_csp_allows_only_the_staging_api():
 
 
 def test_only_staging_sends_noindex():
+    # Site-wide noindex is staging-only. Production may still mark single private paths
+    # (the shared-route and friend-invite pages from #42), never the whole site.
     assert _header(_hosting()["staging"], "X-Robots-Tag") == "noindex, nofollow"
-    with pytest.raises(StopIteration):
-        _header(_hosting()["prod"], "X-Robots-Tag")
+    site_wide = next(b for b in _hosting()["prod"]["headers"] if b["source"] == "**")
+    assert all(x["key"] != "X-Robots-Tag" for x in site_wide["headers"])
+    private = {b["source"] for b in _hosting()["prod"]["headers"]
+               if any(x["key"] == "X-Robots-Tag" for x in b["headers"])}
+    assert private <= {"/r/**", "/friends/invite/**"}
 
 
 def test_deploy_web_is_hosting_only_and_never_both_sites():

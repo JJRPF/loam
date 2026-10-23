@@ -9,6 +9,7 @@ const chromium = ['/usr/local/bin/chromium', '/usr/bin/chromium', '/usr/bin/chro
 export const WEB = 'http://127.0.0.1:5180';
 export const API = 'http://127.0.0.1:8089';
 export const LIMITED_API = 'http://127.0.0.1:8091';
+export const MIDPOINT_API = 'http://127.0.0.1:8093';
 export const EMULATOR = 'http://127.0.0.1:9099';
 
 export default defineConfig({
@@ -36,6 +37,10 @@ export default defineConfig({
     { command: '../../scripts/browser-test-server.sh 8089', url: `${API}/health`, reuseExistingServer: true, timeout: 120_000 },
     // a second API with a tiny geocode budget, to see a real 429 (the main one allows 1000 a minute)
     { command: '../../scripts/browser-test-server.sh 8091 RATE_LIMIT_GEOCODE=3/60', url: `${LIMITED_API}/health`, reuseExistingServer: true, timeout: 120_000 },
+    // a third API with midpoints on, for midpoints.spec.ts (the bundle's API is :8089, flag off; that spec redirects to this one).
+    // Only this one gets GraphHopper: .env names the compose-internal host, and the flag-off suite has always run without it
+    // (its 'N candidate routes' counts depend on that); midpoint routing cannot work without it.
+    { command: '../../scripts/browser-test-server.sh 8093 ENABLE_MIDPOINTS=true GRAPHHOPPER_URL=http://localhost:8989', url: `${MIDPOINT_API}/health`, reuseExistingServer: true, timeout: 120_000 },
     {
       command: 'node hosting-server.mjs 5180',
       url: `${WEB}/`,

@@ -505,14 +505,276 @@ def _graph_loop_candidates(req: RouteRequest, target_m: float, seed: int, exclud
 
 
 VIA_TOLERANCE_M = 150.0
+VIA_REPETITION_MAX = 0.28   # the plain-loop out-and-back rule (plan 6.4), applied to loops through midpoints
 
 
-def passes_vias(coords: List[List[float]], vias: List[Tuple[float, float]], tol_m: float = VIA_TOLERANCE_M) -> bool:
-    """True when the route passes within tol_m of every midpoint (lat, lon)."""
-    for lat, lon in vias:
-        if not any(haversine_m(c, [lon, lat]) <= tol_m for c in coords):
+class MidpointError(ValueError):
+    """A midpoint the engine cannot honour; the message is shown to the rider (HTTP 422)."""
+
+
+VIA_ARC_HEIGHTS = (0.08, 0.14, 0.2, 0.3, 0.4)   # detour height as a fraction of the leg's chord
+
+
+def via_loop_specs(start: Tuple[float, float], vias: List[Tuple[float, float]], target_m: Optional[float] = None,
+                   base_m: Optional[float] = None) -> List[Tuple[List[Tuple[float, float]], str]]:
+    """Point lists for GraphHopper: start -> midpoints in the rider's order -> start, where every leg
+    carries a detour bulging to its own side, so the way back cannot retrace the way out.
+
+    One midpoint: the outbound leg bulges left of the start->midpoint bearing and the return leg right
+    (and the mirror). Several: every leg bulges outward from the centroid of start and midpoints, the
+    shape of a round loop. A detour waypoint snaps to whatever way is nearest, so the length it adds
+    cannot be computed from the geometry (a formula gave 15-24 mi for a 10 mi target); instead a ladder
+    of heights (VIA_ARC_HEIGHTS, fractions of each chord) is offered and the distance gate keeps the ones
+    that land near the target. The plain start->midpoints->start route is kept as one candidate (the
+    repetition filter drops it when a real loop exists). The order of the midpoints is never changed.
+    """
+    lat0 = start[0]
+    kx, ky = 111132.0 * math.cos(math.radians(lat0)), 111132.0
+
+    def to_xy(p):
+        return ((p[1] - start[1]) * kx, (p[0] - start[0]) * ky)
+
+    def to_ll(xy):
+        return (start[0] + xy[1] / ky, start[1] + xy[0] / kx)
+
+    stops = [start] + list(vias) + [start]
+    xy = [to_xy(p) for p in stops]
+    legs = [(xy[i], xy[i + 1]) for i in range(len(xy) - 1)]
+    chords = [math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in legs]
+    specs: List[Tuple[List[Tuple[float, float]], str]] = [(list(stops), "Via Loop")]
+    if sum(chords) < 1.0:
+        return specs
+
+    pts = xy[:-1]
+    cx, cy = sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts)
+
+    def side_signs(mirror: bool) -> List[float]:
+        if len(vias) == 1:  # out left, back right (or the mirror): both normals face away from the chord
+            return [1.0, 1.0] if not mirror else [-1.0, -1.0]
+        out = []
+        for (a, b) in legs:
+            mx, my = (a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0
+            nx, ny = -(b[1] - a[1]), (b[0] - a[0])  # left normal
+            out.append(1.0 if (mx - cx) * nx + (my - cy) * ny >= 0 else -1.0)
+        return [-x for x in out] if mirror else out
+
+    for mirror in (False, True) if len(vias) == 1 else (False,):
+        signs = side_signs(mirror)
+        for hf in VIA_ARC_HEIGHTS:
+            for shape, fracs in (("arc", (0.5,)), ("wide", (0.3, 0.7))):
+                pts_out: List[Tuple[float, float]] = [start]
+                for i, (a, b) in enumerate(legs):
+                    c = chords[i]
+                    if c >= 1.0:
+                        nx, ny = -(b[1] - a[1]) / c, (b[0] - a[0]) / c
+                        for f in fracs:
+                            pts_out.append(to_ll((a[0] + (b[0] - a[0]) * f + signs[i] * nx * hf * c,
+                                                  a[1] + (b[1] - a[1]) * f + signs[i] * ny * hf * c)))
+                    if i < len(vias):
+                        pts_out.append(vias[i])
+                pts_out.append(start)
+                specs.append((pts_out, f"{shape} via loop {hf:g}" + (" (mirrored)" if mirror else "")))
+    return specs
+
+
+def repetition(coords: List[List[float]]) -> float:
+    """Out-and-back share of a route: the larger of the geometric ratio (scoring) and the share of steps
+    ridden twice, the two measures the loop checker applies (loam_eval/via_check.py, C5)."""
+    from app.route_builder import _step_key
+    seen, again, total = set(), 0.0, 0.0
+    for i in range(len(coords) - 1):
+        d = haversine_m(coords[i], coords[i + 1])
+        total += d
+        k = _step_key(coords[i], coords[i + 1])
+        if k in seen:
+            again += d
+        seen.add(k)
+    return max(calculate_repetition_ratio(coords), again / total if total else 0.0)
+
+
+def filter_via_repetition(raw: List[Any]) -> Tuple[List[Any], bool]:
+    """Loops through midpoints must not be out-and-backs (C5). Keeps the candidates at or under the
+    plain-loop limit when any exist. Otherwise keeps the least repetitive ones and reports True, so the
+    caller tells the rider (a dead-end midpoint is the usual reason). Candidates are (coords, ...)."""
+    reps = [repetition(r[0]) for r in raw]
+    good = [r for r, x in zip(raw, reps) if x <= VIA_REPETITION_MAX]
+    if good or not raw:
+        return good, False
+    best = min(reps)
+    return [r for r, x in zip(raw, reps) if x <= best + 0.05], True
+
+
+# Variants of the "return avoids the way out" probe: (priority factor on the used corridor, corridor width m)
+VIA_AVOID_VARIANTS = ((0.05, 35.0), (0.25, 35.0), (0.05, 90.0))
+VIA_ANCHOR_SPACING_M = 500.0
+VIA_SNAP_SLACK_M = 25.0     # a route may pass a midpoint this much farther than the plain route does
+VIA_KEEP_RADIUS_M = 120.0   # no penalty around a leg's own start and end, so the rider can leave a midpoint
+
+
+def corridor_areas(coords: List[List[float]], keep: List[Tuple[float, float]], width_m: float,
+                   max_parts: int = 6) -> List[Dict[str, Any]]:
+    """GeoJSON polygons (lon/lat) covering the corridor of a ridden path, minus a disc around each
+    `keep` point (lat, lon). Used as GraphHopper custom-model areas to make later legs avoid earlier ones."""
+    from shapely.geometry import LineString, Point, mapping
+    from shapely.ops import unary_union
+    if len(coords) < 2:
+        return []
+    lon0, lat0 = coords[0][0], coords[0][1]
+    kx, ky = 111132.0 * math.cos(math.radians(lat0)), 111132.0
+
+    def fwd(c):
+        return ((c[0] - lon0) * kx, (c[1] - lat0) * ky)
+
+    area = LineString([fwd(c) for c in coords]).buffer(width_m)
+    for lat, lon in keep:
+        area = area.difference(Point(fwd((lon, lat))).buffer(VIA_KEEP_RADIUS_M))
+    area = area.simplify(4.0)
+    parts = list(area.geoms) if hasattr(area, "geoms") else [area]
+    parts = sorted((g for g in parts if g.geom_type == "Polygon" and not g.is_empty), key=lambda g: -g.area)[:max_parts]
+    out = []
+    for g in parts:
+        geo = mapping(g)
+        out.append({"type": "Polygon",
+                    "coordinates": [[[round(x / kx + lon0, 6), round(y / ky + lat0, 6)] for x, y in ring]
+                                    for ring in geo["coordinates"]]})
+    return out
+
+
+def with_corridor_penalty(base: Optional[Dict[str, Any]], geoms: List[Dict[str, Any]], factor: float) -> Dict[str, Any]:
+    """The request's custom model plus a priority penalty inside each area."""
+    import copy
+    cm = copy.deepcopy(base) if base else {}
+    prio = cm.setdefault("priority", [])
+    feats = []
+    for i, g in enumerate(geoms):
+        feats.append({"type": "Feature", "id": f"used{i}", "properties": {}, "geometry": g})
+        prio.append({"if": f"in_used{i}", "multiply_by": f"{factor:.2f}"})
+    cm["areas"] = {"type": "FeatureCollection", "features": feats}
+    return cm
+
+
+def sample_anchors(coords: List[List[float]], spacing_m: float = VIA_ANCHOR_SPACING_M) -> List[Tuple[float, float]]:
+    """(lat, lon) points on a path every ~spacing_m, excluding its two ends."""
+    out, acc = [], 0.0
+    for i in range(1, len(coords) - 1):
+        acc += haversine_m(coords[i - 1], coords[i])
+        if acc >= spacing_m:
+            out.append((coords[i][1], coords[i][0]))
+            acc = 0.0
+    return out
+
+
+async def _avoiding_anchors(client, start, vias, gh_profile, base_cm, factor: float, width_m: float
+                            ) -> Optional[Tuple[List[Tuple[float, float]], float]]:
+    """Route start -> midpoints -> start leg by leg, each leg after the first penalising the corridors of
+    the legs before it. Returns (waypoints along that route for one final request, its length m)."""
+    stops = [start] + list(vias) + [start]
+    used: List[List[float]] = []
+    anchors: List[Tuple[float, float]] = [start]
+    total = 0.0
+    for i in range(len(stops) - 1):
+        a, b = stops[i], stops[i + 1]
+        cm = base_cm
+        if used:
+            geoms = corridor_areas(used, [a, b], width_m)
+            if geoms:
+                cm = with_corridor_penalty(base_cm, geoms, factor)
+        leg = await _leg_chain(client, [a, b], gh_profile, cm)
+        if leg is None:
+            return None
+        coords, dist = leg
+        total += dist
+        if i > 0:
+            anchors.extend(sample_anchors(coords))
+        if i < len(stops) - 2:
+            anchors.append(b)
+        used.extend(coords)
+    anchors.append(start)
+    return anchors, total
+
+
+async def via_candidate_specs(vias: List[Tuple[float, float]], start: Tuple[float, float], target_m: float,
+                              gh_profile: str, custom_model: Optional[Dict[str, Any]]
+                              ) -> Tuple[List[Tuple[str, List[Tuple[float, float]], str]], List[float]]:
+    """(specs, per-midpoint tolerances in m). Specs are ("route", points, label) for a loop through the rider's midpoints, in the rider's order:
+    the plain route, routes whose way back avoids the way out (several corridor strengths), and, when those
+    come out short of the target, opposite-side detour loops at a ladder of heights.
+    Raises MidpointError for a midpoint the profile cannot reach."""
+    async with httpx.AsyncClient(timeout=20.0) as client:
+        plain = await _leg_chain(client, [start] + list(vias) + [start], gh_profile, custom_model)
+        tols = [VIA_TOLERANCE_M] * len(vias)
+        if plain is not None:
+            coords, base_m = plain
+            for i, (lat, lon) in enumerate(vias, start=1):
+                near = min(haversine_m(c, [lon, lat]) for c in coords)
+                if near > VIA_TOLERANCE_M:
+                    raise MidpointError(f"Midpoint {i} is not on a way this profile can ride (the route passes "
+                                        f"{near:.0f} m away). Move it onto a trail or road.")
+                tols[i - 1] = min(near + VIA_SNAP_SLACK_M, VIA_TOLERANCE_M)
+        else:
+            base_m = None
+        chains = await asyncio.gather(*[_avoiding_anchors(client, start, vias, gh_profile, custom_model, f, w)
+                                        for f, w in VIA_AVOID_VARIANTS])
+    specs: List[Tuple[str, List[Tuple[float, float]], str]] = [("route", [start] + list(vias) + [start], "Via Loop")]
+    longest = base_m or 0.0
+    for (f, w), res in zip(VIA_AVOID_VARIANTS, chains):
+        if res is not None:
+            specs.append(("route", res[0], f"loop avoiding the way out ({f:g}, {w:.0f} m)"))
+            longest = max(longest, res[1])
+    if longest < 0.9 * target_m:
+        specs.extend(("route", pts, label) for pts, label in via_loop_specs(start, vias)[1:])
+    return specs, tols
+
+
+async def _leg_chain(client, points, gh_profile, cm) -> Optional[Tuple[List[List[float]], float]]:
+    resp = await _query_gh(client, points, gh_profile, cm)
+    try:
+        if resp is None or resp.status_code != 200:
+            return None
+        path = resp.json()["paths"][0]
+        return decode_points(path.get("points", {})), float(path["distance"])
+    except Exception:
+        return None
+
+
+DEAD_END_NOTICE = ("A midpoint can only be reached by a spur that you ride out and back, so part of this route "
+                   "repeats the same trail. Move the midpoint to a through trail for a true loop.")
+
+
+def passes_vias(coords: List[List[float]], vias: List[Tuple[float, float]], tol_m: Any = VIA_TOLERANCE_M) -> bool:
+    """True when the route passes within tol_m of every midpoint (lat, lon); tol_m is one distance or one per midpoint."""
+    tols = list(tol_m) if isinstance(tol_m, (list, tuple)) else [tol_m] * len(vias)
+    for (lat, lon), tol in zip(vias, tols):
+        if not any(haversine_m(c, [lon, lat]) <= tol for c in coords):
             return False
     return True
+
+
+def passes_vias_in_order(coords: List[List[float]], vias: List[Tuple[float, float]], tol_m: Any = VIA_TOLERANCE_M) -> bool:
+    """True when the route reaches the midpoints in the rider's order: an ordered subsequence, each midpoint
+    within its tolerance after the previous one (a route may pass one early, on the way to another, and
+    again later)."""
+    tols = list(tol_m) if isinstance(tol_m, (list, tuple)) else [tol_m] * len(vias)
+    pos = -1
+    for (lat, lon), tol in zip(vias, tols):
+        nxt = next((j for j in range(pos + 1, len(coords)) if haversine_m(coords[j], [lon, lat]) <= tol), None)
+        if nxt is None:
+            return False
+        pos = nxt
+    return True
+
+
+async def _check_vias_on_network(vias: List[Tuple[float, float]]) -> None:
+    """A midpoint with no rideable way near it is a clear error, never a fabricated line (C2, C4)."""
+    async with httpx.AsyncClient(timeout=6.0) as client:
+        for i, (lat, lon) in enumerate(vias, start=1):
+            try:
+                r = await client.get(f"{settings.graphhopper_url}/nearest", params={"point": f"{lat},{lon}"})
+                dist = float(r.json()["distance"]) if r.status_code == 200 else None
+            except Exception:
+                dist = None  # GraphHopper unreachable: the routing calls will say so
+            if dist is not None and dist > VIA_TOLERANCE_M:
+                raise MidpointError(f"Midpoint {i} is {dist:.0f} m from the nearest way. Move it onto a trail or road.")
 
 
 async def plan_route_options(
@@ -537,6 +799,7 @@ async def plan_route_options(
 
     raw: List[Tuple[List[List[float]], List[Piece], str, str]] = []  # coords, pieces, label, source
     suggestion: Optional[str] = None
+    via_repeats = False
 
     async def gh_round(specs: List[Tuple[str, Any, str]]):
         async with httpx.AsyncClient(timeout=12.0) as client:
@@ -582,26 +845,15 @@ async def plan_route_options(
         # on the longest leg so the length can reach the target. Graph and seed loops are kept only
         # if they happen to pass every midpoint (checked below with the other candidates).
         widen = None
-        stops = [(start_lat, start_lon)] + vias + [(start_lat, start_lon)]
-        legs = [haversine_m([stops[i][1], stops[i][0]], [stops[i + 1][1], stops[i + 1][0]]) for i in range(len(stops) - 1)]
-        li = max(range(len(legs)), key=lambda i: legs[i])
-        a, b = stops[li], stops[li + 1]
-        heading = math.degrees(math.atan2((b[1] - a[1]) * math.cos(math.radians(a[0])), b[0] - a[0])) if a != b else 0.0
-        extra = max(500.0, target_m - sum(legs)) / 2.0 if req.target_distance_miles else 500.0
-        specs = [("route", list(stops), "Via Loop")]
-        for frac in (0.3, 0.5, 0.7):
-            mid = (a[0] + (b[0] - a[0]) * frac, a[1] + (b[1] - a[1]) * frac)
-            for off in (-1.2, -0.8, -0.4, 0.4, 0.8, 1.2):
-                side = heading + (90.0 if off > 0 else -90.0)
-                det = _ring(mid[0], mid[1], abs(off) * extra, side)
-                name, _, _ = get_sector_info(side)
-                specs.append(("route", stops[:li + 1] + [det] + stops[li + 1:], f"{name} Via Loop"))
+        await _check_vias_on_network(vias)
+        specs, via_tols = await via_candidate_specs(vias, (start_lat, start_lon), target_m, gh_profile, custom_model)
         seed = int(abs(start_lat * 1e5) + abs(start_lon * 1e5) + target_miles * 10) % (2 ** 31)
         graph_task = asyncio.to_thread(_graph_loop_candidates, req, target_m, seed, excluded_ways, road_budget_m)
         (graph_cands, suggestion), _ = await asyncio.gather(graph_task, gh_round(specs))
         raw.extend((c, p, lbl, "graph_loop") for c, p, lbl in graph_cands)
         raw.extend(_seed_candidates(req, target_miles, user_id))
-        raw[:] = [r for r in raw if passes_vias(r[0], vias)]
+        raw[:] = [r for r in raw if passes_vias_in_order(r[0], vias, via_tols)]
+        raw[:], via_repeats = filter_via_repetition(raw)
     elif is_loop:
         seed = int(abs(start_lat * 1e5) + abs(start_lon * 1e5) + target_miles * 10) % (2 ** 31)
         graph_task = asyncio.to_thread(_graph_loop_candidates, req, target_m, seed, excluded_ways, road_budget_m)
@@ -683,10 +935,10 @@ async def plan_route_options(
         suggestion = None
     for o in options:
         o.nearby_start_suggestion = suggestion
-    notice = None
+    notice = DEAD_END_NOTICE if via_repeats and options else None
     if len(options) < 5:
-        notice = (f"Only {len(options)} route{'s' if len(options) != 1 else ''} match; "
-                  "try a different start or distance.")
+        notice = " ".join(x for x in (notice, f"Only {len(options)} route{'s' if len(options) != 1 else ''} match; "
+                                       "try a different start or distance.") if x)
         if suggestion:
             notice += f" {suggestion}."
     return OptionsResult(options, notice, suggestion, len(scored), sources)

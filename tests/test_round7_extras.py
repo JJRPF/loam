@@ -8,6 +8,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app import weather
 from app.main import app
+from tests.conftest import requires_osm_graph
 
 
 def _nws_transport(fail_points=False):
@@ -56,6 +57,7 @@ def test_backup_script_is_valid_bash_and_keeps_a_week():
     assert "pg_dump" in text and "-Fc" in text and "KEEP_DAYS:-7" in text and "pg_restore -l" in text
 
 
+@requires_osm_graph
 @pytest.mark.asyncio
 async def test_network_percent_counts_only_the_riders_own_visits():
     import uuid

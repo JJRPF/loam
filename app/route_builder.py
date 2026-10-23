@@ -13,7 +13,7 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from app.elevation import gain_loss, route_elevation
 from app.engine_config import get_config
 from app.models import Cue, RouteRequest, RouteResponse, SportProfile, SurfaceSegment
-from app.scoring import calculate_composite_score, generate_minimap
+from app.scoring import SPUR_LABEL_M, Spur, calculate_composite_score, find_spurs, generate_minimap
 from app.surface import surface_category
 
 METERS_TO_MILES = 0.000621371192
@@ -191,6 +191,53 @@ def geometry_offset_m(coords: Sequence[Sequence[float]], way_ids: Sequence[int])
     return round(float(shapely.distance(pts, lines).max()), 1)
 
 
+# A rider midpoint this close to a spur means the spur is wanted. It must equal routing.VIA_TOLERANCE_M:
+# a midpoint is accepted up to that far from the network, so a smaller radius here would cut the very
+# spur that reaches it (#41 x #44). routing imports this module, hence the copy; a test keeps them equal.
+REQUIRED_NEAR_M = 150.0
+
+
+def _spur_required(spur: Spur, coords: Sequence[Sequence[float]], required: Sequence[Sequence[float]]) -> bool:
+    return any(haversine_m(coords[i], r) <= REQUIRED_NEAR_M
+               for r in required for i in range(spur.start_idx + 1, spur.end_idx))
+
+
+def trim_spurs(coords: Sequence[Sequence[float]], pieces: List[Piece],
+               required_points: Sequence[Sequence[float]] = ()) -> Tuple[List[Sequence[float]], List[Piece], List[Spur]]:
+    """Cut every spur that is not wanted: not through a required point ([lon, lat]) and not the whole
+    route (a pure out-and-back is the route, not a spur of it). The route is at the same node before and after a spur, so dropping
+    the out-and-back keeps the line continuous. Returns (coords, pieces, spurs cut)."""
+    coords = list(coords)
+    cut: List[Spur] = []
+    while True:
+        n = len(coords)
+        spurs = find_spurs([list(c) for c in coords])
+        victim = next((s for s in spurs
+                       if not (s.start_idx == 0 and s.end_idx == n - 1) and not _spur_required(s, coords, required_points)), None)
+        if victim is None:
+            return coords, pieces, cut
+        # Steps start_idx..end_idx-1 go; the piece owning each remaining step is kept.
+        owner = [None] * (n - 1)
+        for pi, pc in enumerate(pieces):
+            for i in range(max(pc.start, 0), min(pc.end, n - 1)):
+                owner[i] = pi
+        keep_steps = [i for i in range(n - 1) if not victim.start_idx <= i < victim.end_idx]
+        coords = coords[:victim.start_idx + 1] + coords[victim.end_idx + 1:]
+        new_pieces: List[Piece] = []
+        src: List[int] = []
+        for new_i, old_i in enumerate(keep_steps):
+            pi = owner[old_i]
+            if pi is None:
+                continue
+            if new_pieces and src[-1] == pi and new_pieces[-1].end == new_i:
+                new_pieces[-1].end = new_i + 1
+            else:
+                new_pieces.append(Piece(new_i, new_i + 1, pieces[pi].way_id, pieces[pi].tags))
+                src.append(pi)
+        pieces = new_pieces
+        cut.append(victim)
+
+
 def build_route_response(
     coords: Sequence[Sequence[float]],
     pieces: List[Piece],
@@ -206,11 +253,22 @@ def build_route_response(
     trust_result: Optional[Dict[str, Any]] = None,
     extra_warnings: Optional[List[str]] = None,
     check_geometry: bool = True,
+    required_points: Optional[Sequence[Sequence[float]]] = None,
 ) -> BuiltRoute:
     from app.db import check_route_trust_layer, get_edges_heat, is_region_covered
 
+    # Spurs: out-and-back stubs the rider did not ask for are cut before anything is measured.
+    # required_points are [lon, lat]; default is the request's midpoints (empty for a plain loop).
+    if required_points is None:
+        required_points = [[w.lon, w.lat] for w in (req.waypoints or [])]
+    coords, pieces, _cut_spurs = trim_spurs(coords, pieces, required_points)
     pts = [[float(c[0]), float(c[1])] for c in coords]
     n = len(pts)
+    kept_spurs = find_spurs(pts)
+    # Wanted spurs (through a midpoint) and a whole-route out-and-back are not penalised as spurs.
+    unwanted = [sp for sp in kept_spurs if not _spur_required(sp, pts, required_points)
+                and not (sp.start_idx == 0 and sp.end_idx == n - 1)]
+    spur_max_m = max((sp.length_m for sp in unwanted), default=0.0)
     step_len = [haversine_m(pts[i], pts[i + 1]) for i in range(n - 1)]
     total_m = sum(step_len)
 
@@ -329,6 +387,7 @@ def build_route_response(
         find_new_trails_mode=req.find_new_trails_mode, unridden_percent=unridden_pct,
         target_new_percent=req.min_new_trail_percent, unridden_miles=unridden_mi,
         target_new_miles=req.min_new_trail_miles, is_lollipop=(shape == "lollipop"), route_type=shape,
+        spur_count=len(unwanted), spur_max_m=spur_max_m,
     )
 
     # Name: the longest named trail (not road) + the honest shape label.

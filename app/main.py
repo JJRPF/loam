@@ -35,7 +35,7 @@ from app.models import (
     CubeTrekAuthRequest, CubeTrekImportRequest,
     ConnectorSyncRequest, ConnectorSyncResponse, DevConsoleStatusResponse
 )
-from app.routing import fetch_route, plan_route_options
+from app.routing import DEAD_END_NOTICE, VIA_REPETITION_MAX, MidpointError, fetch_route, plan_route_options, repetition
 from app.db import (
     get_connection,
     check_db_health, get_edge_heat, record_edge_heat,
@@ -76,6 +76,11 @@ app = FastAPI(
 )
 
 check_production_config()
+
+from app.sharing import router as sharing_router, install_log_redaction  # noqa: E402
+
+install_log_redaction()
+app.include_router(sharing_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -214,6 +219,9 @@ async def calculate_route(
         async with route_slot():
             route = await fetch_route(request, user_id=uid)
         elapsed_ms = (time.perf_counter() - t0) * 1000
+        if request.waypoints and (request.is_loop or request.route_mode in ("loop", "round_trip") or request.end is None) \
+                and repetition(route.coordinates) > VIA_REPETITION_MAX:
+            notice = " ".join(x for x in (notice, DEAD_END_NOTICE) if x)   # the one-route path does not search for a loop
         if notice:
             route = route.model_copy(update={"notice": notice})
         return route
@@ -250,6 +258,8 @@ async def calculate_route_options(
         )
     except HTTPException:
         raise
+    except MidpointError as e:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(e))
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -355,8 +365,8 @@ async def export_fit(req: ExportRequest):
         raise HTTPException(status_code=500, detail=f"Failed to generate FIT: {str(e)}")
 
 @app.get("/api/export/gpx/{route_id}")
-async def export_saved_route_gpx(route_id: str):
-    route = get_saved_route_by_id(route_id)
+async def export_saved_route_gpx(route_id: str, user: AuthUser = Depends(get_current_user)):
+    route = get_saved_route_by_id(route_id, user_id=user.uid)
     if not route:
         raise HTTPException(status_code=404, detail="Route not found")
     
@@ -378,8 +388,8 @@ async def export_saved_route_gpx(route_id: str):
     )
 
 @app.get("/api/export/fit/{route_id}")
-async def export_saved_route_fit(route_id: str):
-    route = get_saved_route_by_id(route_id)
+async def export_saved_route_fit(route_id: str, user: AuthUser = Depends(get_current_user)):
+    route = get_saved_route_by_id(route_id, user_id=user.uid)
     if not route:
         raise HTTPException(status_code=404, detail="Route not found")
 
@@ -705,8 +715,16 @@ async def report_bad_route(
     if await asyncio.to_thread(reports.count_recent_global) >= settings.report_daily_limit_global:
         raise HTTPException(status_code=429, detail="Loam has reached its daily limit for reports. Please try again tomorrow.",
                             headers={"Retry-After": "3600"})
-    request = body.request.model_dump(mode="json")
-    route = body.route.model_dump(mode="json")
+    if body.saved_route_id:
+        route, request = await asyncio.to_thread(reports.saved_route_snapshot, body.saved_route_id, user.uid)
+        if route is None:
+            raise HTTPException(status_code=404, detail="Saved route not found.")
+        source = "saved"
+    else:
+        route = body.route.model_dump(mode="json")
+        request = body.request.model_dump(mode="json") if body.request else reports.no_search_request(route, body.source)
+        source = body.source
+    request["report_source"] = source
     rid = await asyncio.to_thread(reports.store_report, user.uid, body.comment.strip(), request, route, body.options)
     stored = await asyncio.to_thread(reports.get_report, rid)
     filed = await asyncio.to_thread(reports.file_issue, stored)

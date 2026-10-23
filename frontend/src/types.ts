@@ -205,6 +205,7 @@ export interface SavedRoute {
   coordinates?: number[][];
   waypoints?: any[];
   verbal_summary?: string;
+  visibility?: 'private' | 'link' | 'friends';
 }
 
 /** A public trail-area parking lot, extracted from OSM by scripts/build_trailheads.py. */

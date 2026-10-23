@@ -147,3 +147,79 @@ async def test_five_a_day_and_admin_reads_the_snapshot(captured):
         full = await client.get(f"/api/admin/reports/{ids[0]}", headers=as_user("r7rep_admin", admin=True))
         assert full.status_code == 200 and full.json()["request_json"]["start"]["lat"] == START[1]
         assert (await client.get("/api/admin/reports/not-a-uuid", headers=as_user("r7rep_admin", admin=True))).status_code == 404
+
+
+def _save(uid, name="Saved Loop"):
+    from app.db import save_route_to_db
+    coords = _line()
+    return save_route_to_db(uid, {"name": name, "sport": "mtb_hardtail", "distance_miles": 2.0,
+                                  "elevation_gain_ft": 120, "elevation_loss_ft": 118, "coordinates": coords,
+                                  "surface_breakdown": {"singletrack": 100.0}, "surface_strip": [],
+                                  "waypoints": [{"lat": 43.11, "lon": -71.52}]})
+
+
+@pytest.fixture
+def saved_cleanup():
+    yield
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("DELETE FROM saved_routes WHERE user_id LIKE 'r7rep_%'")
+        conn.commit()
+
+
+@pytest.mark.asyncio
+async def test_saved_route_report_needs_no_search_and_ignores_client_geometry(captured, saved_cleanup):
+    uid = _uid()
+    sid = _save(uid)
+    assert sid
+    body = {"comment": "This saved route crosses a closed gate, please check", "source": "saved",
+            "saved_route_id": sid,
+            "route": {**_body()["route"], "name": "Client Fake", "coordinates": [[0.0, 0.0], [0.1, 0.1]]}}
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.post("/api/reports/bad-route", json=body, headers=as_user(uid))
+    assert res.status_code == 200, res.text
+    assert res.json()["status"] == "filed"
+    issue = captured[0]
+    assert "Saved Loop" in issue["title"] and "Client Fake" not in issue["title"]
+    text = issue["body"]
+    assert "Reported from: saved route (search settings unavailable)" in text
+    inputs = text.split("## Inputs")[1].split("## Route")[0]
+    for needle in ("43.11", "-71.52", str(START[1])):
+        assert needle not in inputs
+    coords = _line()
+    for p in coords[:90] + coords[-90:]:
+        assert f"[{round(p[0], 5)},{round(p[1], 5)}]" not in text
+    assert f"[{round(coords[200][0], 5)},{START[1]}]" in text
+    assert "[0.1,0.1]" not in text
+    with get_connection() as conn, conn.cursor() as cur:
+        cur.execute("SELECT route_json->>'name', request_json->>'search_unavailable' FROM route_reports WHERE id=%s",
+                    (res.json()["id"],))
+        assert cur.fetchone() == ("Saved Loop", "true")
+
+
+@pytest.mark.asyncio
+async def test_saved_route_report_404_for_other_users_and_missing_ids(captured, saved_cleanup):
+    owner, other = _uid(), _uid()
+    sid = _save(owner)
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        for rid in (sid, str(uuid.uuid4()), "not-a-uuid"):
+            res = await client.post("/api/reports/bad-route", headers=as_user(other), json={
+                "comment": "This saved route is wrong somehow", "source": "saved", "saved_route_id": rid})
+            assert res.status_code == 404, (rid, res.text)
+        res = await client.post("/api/reports/bad-route", headers=as_user(other), json={
+            "comment": "This saved route is wrong somehow", "source": "saved"})
+        assert res.status_code == 422
+    assert captured == []
+
+
+@pytest.mark.asyncio
+async def test_shared_route_report_without_request_is_filed(captured):
+    body = _body()
+    del body["request"]
+    body["source"] = "shared"
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        res = await client.post("/api/reports/bad-route", json=body, headers=as_user(_uid()))
+    assert res.status_code == 200, res.text
+    assert "Reported from: shared link (search settings unavailable)" in captured[0]["body"]

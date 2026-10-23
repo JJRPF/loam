@@ -1,4 +1,5 @@
 import math
+from dataclasses import dataclass
 from typing import Dict, Any, List, Tuple, Optional
 from app.models import TerrainPreference, SurfaceSegment, SportProfile
 from app.engine_config import get_config
@@ -41,6 +42,49 @@ def haversine_m(coord1: List[float], coord2: List[float]) -> float:
          math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) *
          math.sin(dlon / 2.0) ** 2)
     return 2.0 * r * math.atan2(math.sqrt(a), math.sqrt(max(0.0, 1.0 - a)))
+
+SPUR_MIN_M = 10.0      # shorter doublings are vertex noise, not spurs
+SPUR_LABEL_M = 50.0    # a loop with a spur longer than this is never called clean
+
+
+@dataclass(frozen=True)
+class Spur:
+    """A stretch coords[start_idx..end_idx] that goes out to coords[turn_idx] and returns the same way."""
+    start_idx: int
+    turn_idx: int
+    end_idx: int
+    length_m: float  # one way, so the spur adds twice this to the route
+
+
+def _vkey(c: List[float]) -> Tuple[float, float]:
+    return (round(c[0], 6), round(c[1], 6))
+
+
+def find_spurs(coordinates: List[List[float]], way_details: Optional[List[List[Any]]] = None,
+               min_length_m: float = SPUR_MIN_M) -> List[Spur]:
+    """Dead-end stretches ridden out and back: the route reaches a vertex, then retraces the same
+    vertices in reverse until it is back at the node it left. Found as maximal palindromes of the
+    vertex sequence (GraphHopper and the trail graph repeat OSM node coordinates exactly), so the
+    way ids are not needed; `way_details` is accepted for symmetry with calculate_repetition_ratio.
+    A whole-route out-and-back is one spur from the first to the last vertex."""
+    n = len(coordinates)
+    if n < 3:
+        return []
+    keys = [_vkey(c) for c in coordinates]
+    spurs: List[Spur] = []
+    t = 1
+    while t < n - 1:
+        k = 0
+        while t - k - 1 >= 0 and t + k + 1 < n and keys[t - k - 1] == keys[t + k + 1]:
+            k += 1
+        if k > 0 and keys[t - 1] != keys[t]:
+            length = sum(haversine_m(coordinates[i], coordinates[i + 1]) for i in range(t - k, t))
+            if length >= min_length_m:
+                spurs.append(Spur(t - k, t, t + k, length))
+                t += k  # the far side of this palindrome is its mirror, not a new spur
+        t += 1
+    return spurs
+
 
 def calculate_repetition_ratio(
     coordinates: List[List[float]],
@@ -417,7 +461,8 @@ def score_quality(
 def score_penalties(
     repetition_ratio: float,
     warnings: List[str],
-    is_lollipop: bool = False
+    is_lollipop: bool = False,
+    spur_max_m: float = 0.0
 ) -> float:
     """
     Computes Penalties score (0 - 100).
@@ -447,7 +492,9 @@ def score_penalties(
 
     # Warnings penalty
     warn_deduction = len(warnings) * 15.0
-    total = max(0.0, rep_score - warn_deduction)
+    # A spur costs by its own length, however small a share of the whole route it is.
+    spur_deduction = min(50.0, spur_max_m / 10.0) if spur_max_m > SPUR_MIN_M else 0.0
+    total = max(0.0, rep_score - warn_deduction - spur_deduction)
     return round(min(100.0, total), 1)
 
 def calculate_composite_score(
@@ -469,7 +516,9 @@ def calculate_composite_score(
     unridden_miles: float = 0.0,
     target_new_miles: Optional[float] = None,
     is_lollipop: bool = False,
-    route_type: Optional[str] = None
+    route_type: Optional[str] = None,
+    spur_count: int = 0,
+    spur_max_m: float = 0.0
 ) -> Tuple[int, Dict[str, float], str]:
     """
     Calculates the 5-component composite score:
@@ -492,7 +541,7 @@ def calculate_composite_score(
         target_new_miles=target_new_miles
     )
     s_qual = score_quality(surface_strip, distance_miles)
-    s_pen = score_penalties(repetition_ratio, warnings, is_lollipop=is_lollipop)
+    s_pen = score_penalties(repetition_ratio, warnings, is_lollipop=is_lollipop, spur_max_m=spur_max_m)
 
     cfg = get_config()
     shape = route_type or ("lollipop" if is_lollipop else ("loop" if repetition_ratio <= cfg.loop_max_retrace else "out_and_back"))
@@ -531,6 +580,8 @@ def calculate_composite_score(
         "penalties": s_pen,
         "repetition_ratio": round(repetition_ratio, 3),
         "is_lollipop": is_lollipop,
+        "spur_count": spur_count,
+        "spur_max_m": round(spur_max_m, 1),
         "unridden_miles": round(unridden_miles, 2),
         "unridden_percent": round(unridden_percent, 1),
     }
@@ -556,6 +607,8 @@ def calculate_composite_score(
         parts.append(f"{rep_pct}% stem retracing (lollipop loop)")
     elif shape == "out_and_back":
         parts.append(f"{rep_pct}% retraced (out-and-back, not a loop)")
+    elif spur_max_m > SPUR_LABEL_M:
+        parts.append(f"Loop with a {spur_max_m / 1609.344:.1f} mi spur ({rep_pct}% repetition)")
     else:
         parts.append(f"{rep_pct}% repetition (clean loop)")
 
